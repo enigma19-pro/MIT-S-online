@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIT'S — Tactical Dice Combat Engine</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#0a0d14',
+                            card: '#121824',
+                            border: '#1e293b',
+                            accent: '#06b6d4',
+                            accentGlow: '#0891b2',
+                            red: '#f43f5e',
+                            green: '#10b981',
+                            amber: '#f59e0b',
+                            purple: '#a855f7'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Courier New', 'monospace'],
+                        sans: ['Inter', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+    <!-- Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js";
+        import { getDatabase, ref, set, update, get, onValue, off, runTransaction, onDisconnect } from "https://www.gstatic.com/firebasejs/13.2.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBit2P35BaCdMoROkAmQ-r0rc1XHVH3B6c",
+            authDomain: "mit-s-online.firebaseapp.com",
+            databaseURL: "https://mit-s-online-default-rtdb.firebaseio.com/",
+            projectId: "mit-s-online",
+            storageBucket: "mit-s-online.firebasestorage.app",
+            messagingSenderId: "262815603260",
+            appId: "1:262815603260:web:e8e80961ee8a92fe648139",
+            measurementId: "G-FQT1PGM9SW"
+        };
+
+        const firebaseApp = initializeApp(firebaseConfig);
+        const firebaseAuth = getAuth(firebaseApp);
+        const firebaseDb = getDatabase(firebaseApp);
+
+        window.MITSFirebase = {
+            app: firebaseApp,
+            auth: firebaseAuth,
+            db: firebaseDb,
+            ref, set, update, get, onValue, off, runTransaction, onDisconnect,
+            ready: signInAnonymously(firebaseAuth).then(({ user }) => user)
+        };
+    </script>
+    <!-- Babel for JSX compilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700;800&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #060911;
+            color: #f1f5f9;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .font-mono-custom {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #06b6d4;
+        }
+
+        /* Glassmorphism */
+        .glass-panel {
+            background: rgba(18, 24, 38, 0.85);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-panel-interactive {
+            background: rgba(18, 24, 38, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            transition: all 0.2s ease;
+        }
+        .glass-panel-interactive:hover {
+            border-color: rgba(6, 182, 212, 0.4);
+            box-shadow: 0 0 20px rgba(6, 182, 212, 0.15);
+        }
+
+        /* Neon Glows */
+        .glow-cyan {
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.4);
+        }
+        .glow-amber {
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.4);
+        }
+        .glow-red {
+            box-shadow: 0 0 15px rgba(244, 63, 94, 0.4);
+        }
+
+        @keyframes float-up {
+            0% { opacity: 1; transform: translate(-50%, -50%) scale(0.9); }
+            100% { opacity: 0; transform: translate(-50%, -100%) scale(1.15); }
+        }
+        .animate-float-damage {
+            animation: float-up 1s forwards ease-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // Sound Synthesis Utility (Web Audio API)
+        const playSynthSound = (type, soundEnabled = true) => {
+            if (!soundEnabled) return;
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                const now = ctx.currentTime;
+
+                if (type === 'roll') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(150, now);
+                    osc.frequency.exponentialRampToValueAtTime(600, now + 0.15);
+                    gain.gain.setValueAtTime(0.15, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                    osc.start(now);
+                    osc.stop(now + 0.15);
+                } else if (type === 'hit') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.exponentialRampToValueAtTime(60, now + 0.3);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'dodge') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(400, now);
+                    osc.frequency.exponentialRampToValueAtTime(800, now + 0.25);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                    osc.start(now);
+                    osc.stop(now + 0.25);
+                } else if (type === 'fail') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(180, now);
+                    osc.frequency.setValueAtTime(120, now + 0.1);
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(600, now);
+                    gain.gain.setValueAtTime(0.05, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+                    osc.start(now);
+                    osc.stop(now + 0.05);
+                }
+            } catch (e) {
+                // Ignore audio context errors before user gesture
+            }
+        };
+
+        // --- CLASSES DEFINITIONS ---
+        const MIT_CLASSES = [
+            { id: 'Agil1', name: 'Ágil 1', hp: 10, d: 2, a: 4, desc: 'Gran agilidad, muy frágil.' },
+            { id: 'Agil2', name: 'Ágil 2', hp: 15, d: 2, a: 3, desc: 'Agilidad moderada, alta evasión.' },
+            { id: 'Normal1', name: 'Normal 1', hp: 15, d: 2, a: 2, desc: 'Equilibrado táctico base.' },
+            { id: 'Normal2', name: 'Normal 2', hp: 20, d: 2, a: 1, desc: 'Tanque moderado de bajo esquive.' },
+            { id: 'Resistente1', name: 'Resistente 1', hp: 25, d: 3, a: 1, desc: 'Alta resistencia y buen ataque.' },
+            { id: 'Resistente2', name: 'Resistente 2', hp: 30, d: 2, a: 1, desc: 'Máxima vitalidad, difícil de batir.' },
+            { id: 'Dano1', name: 'Daño 1', hp: 20, d: 4, a: 1, desc: 'Fuerza brutal, cobertura ofensiva de 4.' },
+            { id: 'Dano2', name: 'Daño 2', hp: 20, d: 3, a: 2, desc: 'Ofensivo balanceado con evasión.' }
+        ];
+
+        // Generate AI MIT
+        const generateAiMit = (mitIndex) => {
+            const randomClass = MIT_CLASSES[Math.floor(Math.random() * MIT_CLASSES.length)];
+            const availableNumbers = [1, 2, 3, 4, 5, 6];
+            
+            for (let i = availableNumbers.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [availableNumbers[i], availableNumbers[j]] = [availableNumbers[j], availableNumbers[i]];
+            }
+
+            const attackNums = availableNumbers.slice(0, randomClass.d).sort((a,b) => a-b);
+            const evadeNums = availableNumbers.slice(randomClass.d, randomClass.d + randomClass.a).sort((a,b) => a-b);
+
+            return {
+                id: `ai_mit_${mitIndex}_${Date.now()}`,
+                classData: randomClass,
+                name: `MIT-AI ${randomClass.name}`,
+                maxHp: randomClass.hp,
+                currentHp: randomClass.hp,
+                attackNums,
+                evadeNums
+            };
+        };
+
+        // --- MAIN APP COMPONENT ---
+        function App() {
+            // Game State
+            const [gameState, setGameState] = useState('MENU'); // MENU, BUILD, BATTLE, GAMEOVER
+            const [gameMode, setGameMode] = useState('AI'); // 'AI' | 'LOCAL' | 'ONLINE'
+            const [onlineUser, setOnlineUser] = useState(null);
+            const [roomCode, setRoomCode] = useState('');
+            const [roomInput, setRoomInput] = useState('');
+            const [onlineStatus, setOnlineStatus] = useState('');
+            const [isRoomHost, setIsRoomHost] = useState(false);
+            const onlineListenerRef = useRef(null);
+            const [soundEnabled, setSoundEnabled] = useState(true);
+
+            // Players MIT List
+            const [builderPlayer, setBuilderPlayer] = useState(1);
+            const [p1Mits, setP1Mits] = useState([]);
+            const [p2Mits, setP2Mits] = useState([]);
+
+            // Builder Selection
+            const [selectedClass, setSelectedClass] = useState(MIT_CLASSES[2]);
+            const [currentDNums, setCurrentDNums] = useState([]);
+            const [currentANums, setCurrentANums] = useState([]);
+
+            // Combat Active State
+            const [activeP1Index, setActiveP1Index] = useState(0);
+            const [activeP2Index, setActiveP2Index] = useState(0);
+            const [currentTurnPlayer, setCurrentTurnPlayer] = useState(1);
+            const [combatPhase, setCombatPhase] = useState('ATTACK_ROLL'); // ATTACK_ROLL, DEFENSE_ROLL, RESOLVING
+            const [isRolling, setIsRolling] = useState(false);
+            const [isTurnProcessing, setIsTurnProcessing] = useState(false);
+            const [currentRollValue, setCurrentRollValue] = useState(1);
+            const [attackResult, setAttackResult] = useState(null);
+            const [combatLog, setCombatLog] = useState([]);
+            const [floatingEffect, setFloatingEffect] = useState(null);
+
+            const logContainerRef = useRef(null);
+            // Evita que una misma activación del turno de la IA ejecute varios lanzamientos.
+            const aiTurnInProgressRef = useRef(false);
+            // Referencias para que los temporizadores nunca usen un turno/MIT obsoleto.
+            const currentTurnPlayerRef = useRef(currentTurnPlayer);
+            currentTurnPlayerRef.current = currentTurnPlayer;
+            const activeP2MitRef = useRef(null);
+            const aiTurnTimerRef = useRef(null);
+
+            useEffect(() => {
+                if (logContainerRef.current) {
+                    logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+                }
+            }, [combatLog]);
+
+            const playSound = (type) => playSynthSound(type, soundEnabled);
+
+            useEffect(() => {
+                if (!window.MITSFirebase) return;
+                window.MITSFirebase.ready
+                    .then(user => setOnlineUser(user))
+                    .catch(error => {
+                        console.error('Firebase Auth:', error);
+                        setOnlineStatus('No se pudo conectar con Firebase.');
+                    });
+            }, []);
+
+            const onlineRoomRef = (code = roomCode) => {
+                if (!code || !window.MITSFirebase) return null;
+                return window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+            };
+
+            const generateRoomCode = () => {
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                let code = '';
+                for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+                return code;
+            };
+
+            const createOnlineRoom = async () => {
+                try {
+                    const user = onlineUser || await window.MITSFirebase.ready;
+                    let code = '';
+                    let roomCreated = false;
+                    for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
+                        code = generateRoomCode();
+                        const roomRef = onlineRoomRef(code);
+                        const tx = await window.MITSFirebase.runTransaction(roomRef, current => current || {
+                            hostUid: user.uid, guestUid: null, status: 'waiting',
+                            p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
+                            currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
+                            attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
+                            winner: null
+                        });
+                        roomCreated = tx.committed;
+                    }
+                    if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
+                    setRoomCode(code);
+                    setIsRoomHost(true);
+                    setGameMode('ONLINE');
+                    setGameState('ONLINE_LOBBY');
+                    setOnlineStatus('Comparte el código con tu rival.');
+                    subscribeToOnlineRoom(code);
+                } catch (error) {
+                    console.error(error);
+                    setOnlineStatus('Error al crear la sala: ' + error.message);
+                }
+            };
+
+            const joinOnlineRoom = async () => {
+                try {
+                    const user = onlineUser || await window.MITSFirebase.ready;
+                    const code = roomInput.trim().toUpperCase();
+                    if (!/^[A-Z0-9]{6}$/.test(code)) {
+                        setOnlineStatus('El código debe tener 6 caracteres.');
+                        return;
+                    }
+                    const roomRef = onlineRoomRef(code);
+                    const snapshot = await window.MITSFirebase.get(roomRef);
+                    if (!snapshot.exists()) {
+                        setOnlineStatus('No existe esa sala.');
+                        return;
+                    }
+                    const room = snapshot.val();
+                    if (room.guestUid && room.guestUid !== user.uid) {
+                        setOnlineStatus('La sala ya está llena.');
+                        return;
+                    }
+                    await window.MITSFirebase.update(roomRef, { guestUid: user.uid, status: 'building' });
+                    setRoomCode(code);
+                    setIsRoomHost(false);
+                    setGameMode('ONLINE');
+                    setGameState('BUILD');
+                    setBuilderPlayer(2);
+                    setOnlineStatus('Conectado. Construye tus 2 MITs.');
+                    subscribeToOnlineRoom(code);
+                } catch (error) {
+                    console.error(error);
+                    setOnlineStatus('Error al entrar: ' + error.message);
+                }
+            };
+
+            const subscribeToOnlineRoom = (code) => {
+                if (!window.MITSFirebase || !code) return;
+                if (onlineListenerRef.current) {
+                    window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                }
+                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                const handler = snapshot => {
+                    const room = snapshot.val();
+                    if (!room) return;
+                    setP1Mits(room.p1Mits || []);
+                    setP2Mits(room.p2Mits || []);
+                    setActiveP1Index(room.activeP1Index || 0);
+                    setActiveP2Index(room.activeP2Index || 0);
+                    setCurrentTurnPlayer(room.currentTurnPlayer || 1);
+                    currentTurnPlayerRef.current = room.currentTurnPlayer || 1;
+                    setCombatPhase(room.combatPhase || 'ATTACK_ROLL');
+                    setCurrentRollValue(room.currentRollValue || 1);
+                    setAttackResult(room.attackResult || null);
+                    setCombatLog(room.combatLog || []);
+                    if (room.status === 'waiting') {
+                        setGameState('ONLINE_LOBBY');
+                        setOnlineStatus('Esperando al Jugador 2...');
+                    } else if (room.status === 'building') {
+                        setGameState('BUILD');
+                        if (room.guestUid && room.hostUid) setOnlineStatus('Ambos jugadores conectados.');
+                    } else if (room.status === 'battle') {
+                        setGameState('BATTLE');
+                        setIsTurnProcessing(false);
+                        setIsRolling(false);
+                        setOnlineStatus((room.currentTurnPlayer === (isRoomHost ? 1 : 2)) ? 'Es tu turno.' : 'Turno del rival.');
+                    } else if (room.status === 'gameover') {
+                        setGameState('GAMEOVER');
+                    }
+                    if (room.guestUid && room.status === 'waiting' && isRoomHost) {
+                        window.MITSFirebase.update(roomRef, { status: 'building' });
+                    }
+                };
+                window.MITSFirebase.onValue(roomRef, handler);
+                onlineListenerRef.current = { ref: roomRef, handler };
+            };
+
+            const syncOnline = async (changes) => {
+                if (gameMode !== 'ONLINE' || !roomCode) return;
+                try { await window.MITSFirebase.update(onlineRoomRef(), changes); }
+                catch (error) { console.error('Firebase sync:', error); setOnlineStatus('Error de sincronización.'); }
+            };
+
+            // --- BUILDER ACTIONS ---
+            const handleSelectClass = (c) => {
+                playSound('click');
+                setSelectedClass(c);
+                setCurrentDNums([]);
+                setCurrentANums([]);
+            };
+
+            const handleToggleNumber = (num) => {
+                playSound('click');
+                if (currentDNums.includes(num)) {
+                    setCurrentDNums(currentDNums.filter(n => n !== num));
+                    return;
+                }
+                if (currentANums.includes(num)) {
+                    setCurrentANums(currentANums.filter(n => n !== num));
+                    return;
+                }
+                if (currentDNums.length < selectedClass.d) {
+                    setCurrentDNums([...currentDNums, num].sort((a,b) => a-b));
+                    return;
+                }
+                if (currentANums.length < selectedClass.a) {
+                    setCurrentANums([...currentANums, num].sort((a,b) => a-b));
+                    return;
+                }
+            };
+
+            const isBuildValid = currentDNums.length === selectedClass.d && currentANums.length === selectedClass.a;
+
+            const handleConfirmMit = async () => {
+                if (!isBuildValid) return;
+                playSound('click');
+
+                const newMit = {
+                    id: `mit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                    classData: selectedClass,
+                    name: `MIT ${selectedClass.name}`,
+                    maxHp: selectedClass.hp,
+                    currentHp: selectedClass.hp,
+                    attackNums: [...currentDNums],
+                    evadeNums: [...currentANums]
+                };
+
+                if (gameMode === 'ONLINE') {
+                    const user = onlineUser || await window.MITSFirebase.ready;
+                    const roomSnapshot = await window.MITSFirebase.get(onlineRoomRef());
+                    if (!roomSnapshot.exists()) return;
+                    const room = roomSnapshot.val();
+                    const playerKey = room.hostUid === user.uid ? 'p1Mits' : 'p2Mits';
+                    const current = Array.isArray(room[playerKey]) ? room[playerKey] : [];
+                    if (current.length >= 2) return;
+                    const updated = [...current, newMit];
+                    const otherReady = Array.isArray(room[playerKey === 'p1Mits' ? 'p2Mits' : 'p1Mits']) && room[playerKey === 'p1Mits' ? 'p2Mits' : 'p1Mits'].length === 2;
+                    await syncOnline({ [playerKey]: updated, status: otherReady && updated.length === 2 ? 'battle' : 'building', ...(otherReady && updated.length === 2 ? { currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', activeP1Index: 0, activeP2Index: 0, attackResult: null, combatLog: [{ type: 'system', text: '⚔️ ¡COMBATE ONLINE INICIADO!' }] } : {}) });
+                    setCurrentDNums([]);
+                    setCurrentANums([]);
+                    setSelectedClass(MIT_CLASSES[2]);
+                    return;
+                }
+
+                if (builderPlayer === 1) {
+                    const updated = [...p1Mits, newMit];
+                    setP1Mits(updated);
+                    setCurrentDNums([]);
+                    setCurrentANums([]);
+                    if (updated.length === 2) {
+                        if (gameMode === 'AI') {
+                            const aiList = [generateAiMit(1), generateAiMit(2)];
+                            setP2Mits(aiList);
+                            startBattle(updated, aiList);
+                        } else {
+                            setBuilderPlayer(2);
+                        }
+                    }
+                } else {
+                    const updated = [...p2Mits, newMit];
+                    setP2Mits(updated);
+                    setCurrentDNums([]);
+                    setCurrentANums([]);
+                    if (updated.length === 2) startBattle(p1Mits, updated);
+                }
+            };
+
+            const startBattle = (p1, p2) => {
+                setGameState('BATTLE');
+                setActiveP1Index(0);
+                setActiveP2Index(0);
+                currentTurnPlayerRef.current = 1;
+                setCurrentTurnPlayer(1);
+                setCombatPhase('ATTACK_ROLL');
+                setIsTurnProcessing(false);
+                setIsRolling(false);
+                aiTurnInProgressRef.current = false;
+                if (aiTurnTimerRef.current !== null) {
+                    clearTimeout(aiTurnTimerRef.current);
+                    aiTurnTimerRef.current = null;
+                }
+                const initialLog = [{
+                    type: 'system',
+                    text: gameMode === 'ONLINE' ? '⚔️ ¡COMBATE ONLINE INICIADO!' : '⚔️ ¡COMBATE INICIADO! Ambos jugadores revelan su primer MIT.'
+                }];
+                setCombatLog(initialLog);
+                if (gameMode === 'ONLINE') {
+                    syncOnline({ status: 'battle', p1Mits: p1, p2Mits: p2, activeP1Index: 0, activeP2Index: 0, currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1, attackResult: null, combatLog: initialLog, winner: null });
+                }
+            };
+
+            // --- COMBAT LOGIC ---
+            const activeP1Mit = p1Mits[activeP1Index] || {};
+            const activeP2Mit = p2Mits[activeP2Index] || {};
+            activeP2MitRef.current = activeP2Mit;
+
+            const currentAttacker = currentTurnPlayer === 1 ? activeP1Mit : activeP2Mit;
+            const currentDefender = currentTurnPlayer === 1 ? activeP2Mit : activeP1Mit;
+
+            const executeRollAnimation = (finalValue, callback) => {
+                setIsRolling(true);
+                playSound('roll');
+                let count = 0;
+                const interval = setInterval(() => {
+                    setCurrentRollValue(Math.floor(Math.random() * 6) + 1);
+                    count++;
+                    if (count >= 10) {
+                        clearInterval(interval);
+                        setCurrentRollValue(finalValue);
+                        setIsRolling(false);
+                        callback();
+                    }
+                }, 60);
+            };
+
+            // Attack Roll
+            const handleAttackRoll = () => {
+                if (isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL') return;
+                if (gameMode === 'ONLINE' && currentTurnPlayer !== (isRoomHost ? 1 : 2)) return;
+
+                setIsTurnProcessing(true);
+                const roll = Math.floor(Math.random() * 6) + 1;
+                executeRollAnimation(roll, () => {
+                    const isHit = currentAttacker.attackNums.includes(roll);
+                    if (isHit) {
+                        playSound('hit');
+                        const atkData = { success: true, damage: roll, roll };
+                        const newLog = [...combatLog, {
+                            type: 'attack_hit',
+                            text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → ¡Ataque Exitoso! El rival debe defender.`
+                        }];
+                        setAttackResult(atkData);
+                        setCombatPhase('DEFENSE_ROLL');
+                        setIsTurnProcessing(false);
+                        setCombatLog(newLog);
+                        if (gameMode === 'ONLINE') syncOnline({ currentRollValue: roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
+
+                        if (gameMode === 'AI' && currentTurnPlayer === 1) {
+                            setTimeout(() => triggerAiDefense(atkData), 800);
+                        }
+                    } else {
+                        // Attack Failed -> Switch Turn Directly
+                        playSound('fail');
+                        const newLog = [...combatLog, {
+                            type: 'attack_miss',
+                            text: `❌ Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → Ataque Fallado. Pasa el turno al rival.`
+                        }];
+                        setAttackResult({ success: false, damage: 0, roll });
+                        setCombatPhase('RESOLVING');
+                        setCombatLog(newLog);
+                        if (gameMode === 'ONLINE') syncOnline({ currentRollValue: roll, attackResult: { success: false, damage: 0, roll }, combatPhase: 'RESOLVING', combatLog: newLog });
+                        setFloatingEffect({
+                            player: currentTurnPlayer === 1 ? 2 : 1,
+                            text: '¡FALLÓ!',
+                            type: 'miss'
+                        });
+                        
+                        setTimeout(() => endTurn(currentTurnPlayer), 1000);
+                    }
+                });
+            };
+
+            // Defense Roll
+            const handleDefenseRoll = (overrideAttackData = null) => {
+                if (isRolling || isTurnProcessing || (combatPhase !== 'DEFENSE_ROLL' && !overrideAttackData)) return;
+                if (gameMode === 'ONLINE' && !overrideAttackData && currentTurnPlayer === (isRoomHost ? 1 : 2)) return;
+
+                setIsTurnProcessing(true);
+                const atkData = overrideAttackData || attackResult;
+                const defenderPlayerNum = currentTurnPlayer === 1 ? 2 : 1;
+                const roll = Math.floor(Math.random() * 6) + 1;
+
+                executeRollAnimation(roll, () => {
+                    const isEvadeNumber = currentDefender.evadeNums.includes(roll);
+                    let finalDamageTaken = atkData.damage;
+
+                    let defenseLogEntry;
+                    if (isEvadeNumber) {
+                        playSound('dodge');
+                        if (roll >= atkData.damage) {
+                            finalDamageTaken = 0;
+                        } else {
+                            finalDamageTaken = atkData.damage - roll;
+                        }
+
+                        defenseLogEntry = {
+                            type: 'defense_success',
+                            text: `🛡️ Jugador ${defenderPlayerNum} (${currentDefender.name}) sacó [${roll}] en Esquive → Daño recibido: ${finalDamageTaken}`
+                        };
+                        setCombatLog(prev => [...prev, defenseLogEntry]);
+                        setFloatingEffect({
+                            player: defenderPlayerNum,
+                            text: finalDamageTaken === 0 ? '¡ESQUIVADO!' : `-${finalDamageTaken} HP`,
+                            type: finalDamageTaken === 0 ? 'dodge' : 'damage'
+                        });
+                    } else {
+                        playSound('hit');
+                        defenseLogEntry = {
+                            type: 'defense_fail',
+                            text: `💥 Jugador ${defenderPlayerNum} (${currentDefender.name}) sacó [${roll}] en Esquive → Esquive fallido. Daño recibido: ${finalDamageTaken}`
+                        };
+                        setCombatLog(prev => [...prev, defenseLogEntry]);
+                        setFloatingEffect({
+                            player: defenderPlayerNum,
+                            text: `-${finalDamageTaken} HP`,
+                            type: 'damage'
+                        });
+                    }
+
+                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry]);
+                });
+            };
+
+            const triggerAiDefense = (atkData) => {
+                handleDefenseRoll(atkData);
+            };
+
+            const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null) => {
+                let updatedP1 = p1Mits;
+                let updatedP2 = p2Mits;
+                let defeated = false;
+
+                if (defenderPlayerNum === 1) {
+                    const newHp = Math.max(0, activeP1Mit.currentHp - damage);
+                    updatedP1 = [...p1Mits];
+                    updatedP1[activeP1Index] = { ...activeP1Mit, currentHp: newHp };
+                    setP1Mits(updatedP1);
+                    defeated = newHp === 0;
+                } else {
+                    const newHp = Math.max(0, activeP2Mit.currentHp - damage);
+                    updatedP2 = [...p2Mits];
+                    updatedP2[activeP2Index] = { ...activeP2Mit, currentHp: newHp };
+                    setP2Mits(updatedP2);
+                    defeated = newHp === 0;
+                }
+
+                if (gameMode === 'ONLINE') {
+                    const nextLog = logOverride || combatLog;
+                    syncOnline({
+                        p1Mits: updatedP1, p2Mits: updatedP2,
+                        combatLog: nextLog, attackResult: null, combatPhase: 'RESOLVING'
+                    });
+                }
+
+                if (defeated) {
+                    handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2);
+                    return;
+                }
+
+                const attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1;
+                setTimeout(() => endTurn(attackerPlayerNum), 1000);
+            };
+
+            const handleMitDefeated = (playerNum, updatedMits) => {
+                setCombatLog(prev => [...prev, {
+                    type: 'ko',
+                    text: `☠️ ¡MIT de Jugador ${playerNum} fue DERROTADO!`
+                }]);
+
+                if (gameMode === 'ONLINE') {
+                    const nextLog = [...combatLog, { type: 'ko', text: `☠️ ¡MIT de Jugador ${playerNum} fue DERROTADO!` }];
+                    if (playerNum === 1 && activeP1Index < 1) {
+                        syncOnline({ p1Mits: updatedMits, activeP1Index: 1, attackResult: null, combatPhase: 'ATTACK_ROLL', currentTurnPlayer: 2, combatLog: nextLog });
+                    } else if (playerNum === 2 && activeP2Index < 1) {
+                        syncOnline({ p2Mits: updatedMits, activeP2Index: 1, attackResult: null, combatPhase: 'ATTACK_ROLL', currentTurnPlayer: 1, combatLog: nextLog });
+                    }
+                }
+
+                if (playerNum === 1) {
+                    if (activeP1Index < 1) {
+                        setTimeout(() => {
+                            setActiveP1Index(1);
+                            setCombatLog(prev => [...prev, {
+                                type: 'system',
+                                text: `🔄 Entra el 2º MIT de Jugador 1: ${updatedMits[1].name}`
+                            }]);
+                            endTurn(2);
+                        }, 1000);
+                    } else {
+                        gameOver(2);
+                    }
+                } else {
+                    if (activeP2Index < 1) {
+                        setTimeout(() => {
+                            setActiveP2Index(1);
+                            setCombatLog(prev => [...prev, {
+                                type: 'system',
+                                text: `🔄 Entra el 2º MIT de Jugador 2: ${updatedMits[1].name}`
+                            }]);
+                            endTurn(1);
+                        }, 1000);
+                    } else {
+                        gameOver(1);
+                    }
+                }
+            };
+
+            const endTurn = (playerWhoJustActed) => {
+                // No inferimos el turno desde el estado de un render anterior.
+                // Quien llama esta función indica explícitamente quién acaba de jugar.
+                if (playerWhoJustActed !== 1 && playerWhoJustActed !== 2) return;
+
+                aiTurnInProgressRef.current = false;
+                setAttackResult(null);
+                setFloatingEffect(null);
+                setCombatPhase('ATTACK_ROLL');
+
+                const nextPlayer = playerWhoJustActed === 1 ? 2 : 1;
+                currentTurnPlayerRef.current = nextPlayer;
+                setCurrentTurnPlayer(nextPlayer);
+                setIsTurnProcessing(false);
+
+                if (gameMode === 'ONLINE') {
+                    syncOnline({ attackResult: null, floatingEffect: null, combatPhase: 'ATTACK_ROLL', currentTurnPlayer: nextPlayer, currentRollValue: currentRollValue, combatLog });
+                }
+
+                // Solo puede existir una activación de IA pendiente.
+                if (aiTurnTimerRef.current !== null) {
+                    clearTimeout(aiTurnTimerRef.current);
+                    aiTurnTimerRef.current = null;
+                }
+
+                if (gameMode === 'AI' && nextPlayer === 2) {
+                    aiTurnTimerRef.current = setTimeout(() => {
+                        aiTurnTimerRef.current = null;
+                        // Si el turno cambió durante la espera, se cancela la activación.
+                        if (currentTurnPlayerRef.current === 2) triggerAiTurn();
+                    }, 800);
+                }
+            };
+
+            const triggerAiTurn = () => {
+                // La IA solo puede actuar una vez y únicamente durante su turno.
+                if (gameState !== 'BATTLE' || gameMode !== 'AI' || currentTurnPlayerRef.current !== 2 || aiTurnInProgressRef.current) return;
+                const aiMit = activeP2MitRef.current;
+                if (!aiMit || !Array.isArray(aiMit.attackNums)) return;
+
+                aiTurnInProgressRef.current = true;
+                setIsTurnProcessing(true);
+                const roll = Math.floor(Math.random() * 6) + 1;
+                
+                executeRollAnimation(roll, () => {
+                    const isHit = aiMit.attackNums.includes(roll);
+                    if (isHit) {
+                        playSound('hit');
+                        const atkData = { success: true, damage: roll, roll };
+                        setAttackResult(atkData);
+                        setCombatPhase('DEFENSE_ROLL');
+                        setIsTurnProcessing(false);
+                        setCombatLog(prev => [...prev, {
+                            type: 'attack_hit',
+                            text: `🎯 Jugador 2 (IA) sacó [${roll}] → ¡Ataque Exitoso! Lanza tu dado de esquive.`
+                        }]);
+                        // El bloqueo se libera al terminar la resolución de este turno.
+                    } else {
+                        playSound('fail');
+                        setAttackResult({ success: false, damage: 0, roll });
+                        setCombatPhase('RESOLVING');
+                        setCombatLog(prev => [...prev, {
+                            type: 'attack_miss',
+                            text: `❌ Jugador 2 (IA) sacó [${roll}] → Ataque Fallado. Tu turno.`
+                        }]);
+                        setFloatingEffect({
+                            player: 1,
+                            text: '¡FALLÓ!',
+                            type: 'miss'
+                        });
+                        // Un fallo consume el turno: no se vuelve a lanzar el dado.
+                        setTimeout(() => endTurn(2), 1000);
+                    }
+                });
+            };
+
+            const gameOver = (winnerPlayerNum) => {
+                setGameState('GAMEOVER');
+                setIsTurnProcessing(false);
+                const victoryLog = [...combatLog, {
+                    type: 'victory',
+                    text: `🏆 ¡FIN DE LA PARTIDA! Jugador ${winnerPlayerNum} ha ganado.`
+                }];
+                setCombatLog(victoryLog);
+                if (gameMode === 'ONLINE') syncOnline({ status: 'gameover', winner: winnerPlayerNum, combatLog: victoryLog });
+            };
+
+            const resetGame = () => {
+                playSound('click');
+                if (onlineListenerRef.current && window.MITSFirebase) {
+                    window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    onlineListenerRef.current = null;
+                }
+                setGameState('MENU');
+                setRoomCode('');
+                setRoomInput('');
+                setOnlineStatus('');
+                setIsRoomHost(false);
+                setGameMode('AI');
+                setP1Mits([]);
+                setP2Mits([]);
+                setBuilderPlayer(1);
+                setCurrentDNums([]);
+                setCurrentANums([]);
+                setCombatLog([]);
+                setIsTurnProcessing(false);
+                currentTurnPlayerRef.current = 1;
+                aiTurnInProgressRef.current = false;
+                if (aiTurnTimerRef.current !== null) {
+                    clearTimeout(aiTurnTimerRef.current);
+                    aiTurnTimerRef.current = null;
+                }
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col justify-between p-3 md:p-6 max-w-7xl mx-auto w-full">
+                    {/* TOP HEADER */}
+                    <header className="glass-panel rounded-2xl p-4 mb-4 flex flex-wrap justify-between items-center border-b border-cyan-500/20">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-xl text-slate-950 shadow-lg shadow-cyan-500/30">
+                                🎲
+                            </div>
+                            <div>
+                                <h1 className="font-extrabold text-2xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-200 to-indigo-400 font-mono-custom">
+                                    MIT’S
+                                </h1>
+                                <p className="text-xs text-slate-400">Tactical Dice Combat Engine v1.0</p>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 mt-2 sm:mt-0">
+                            <button 
+                                onClick={() => setSoundEnabled(!soundEnabled)}
+                                className="p-2.5 rounded-xl glass-panel-interactive text-slate-300 hover:text-cyan-400 text-sm flex items-center gap-2"
+                            >
+                                <span>{soundEnabled ? '🔊 Sonido: ON' : '🔇 Sonido: OFF'}</span>
+                            </button>
+                            {gameState !== 'MENU' && (
+                                <button 
+                                    onClick={resetGame}
+                                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition"
+                                >
+                                    Reiniciar
+                                </button>
+                            )}
+                        </div>
+                    </header>
+
+                    {/* MAIN GAME CONTAINER */}
+                    <main className="flex-1 flex flex-col justify-center">
+                        {/* 1. MENU SCREEN */}
+                        {gameState === 'MENU' && (
+                            <div className="max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
+                                <div className="space-y-2">
+                                    <h2 className="text-3xl font-extrabold text-slate-100 font-mono-custom">SELECCIONA MODO</h2>
+                                    <p className="text-slate-400 text-sm">Construye tu equipo de 2 MITs y domina las probabilidades del dado.</p>
+                                </div>
+
+                                <div className="space-y-3 pt-4">
+                                    <button
+                                        onClick={() => { setGameMode('AI'); setGameState('BUILD'); playSound('click'); }}
+                                        className="w-full p-4 rounded-2xl glass-panel-interactive border border-cyan-500/30 flex items-center justify-between group hover:border-cyan-400"
+                                    >
+                                        <div className="flex items-center gap-4 text-left">
+                                            <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 group-hover:scale-110 transition">
+                                                🤖
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-100">Jugador vs IA</div>
+                                                <div className="text-xs text-slate-400">Enfréntate a la computadora en combate individual</div>
+                                            </div>
+                                        </div>
+                                        <span className="text-cyan-400 text-xl font-bold font-mono-custom">→</span>
+                                    </button>
+
+                                    <button
+                                        onClick={() => { setGameMode('LOCAL'); setGameState('BUILD'); playSound('click'); }}
+                                        className="w-full p-4 rounded-2xl glass-panel-interactive border border-purple-500/30 flex items-center justify-between group hover:border-purple-400"
+                                    >
+                                        <div className="flex items-center gap-4 text-left">
+                                            <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 group-hover:scale-110 transition">
+                                                👥
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-slate-100">Jugador vs Jugador</div>
+                                                <div className="text-xs text-slate-400">Pase y Juega local en la misma pantalla</div>
+                                            </div>
+                                        </div>
+                                        <span className="text-purple-400 text-xl font-bold font-mono-custom">→</span>
+                                    </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => { setGameMode('ONLINE'); setGameState('ONLINE_LOBBY'); setOnlineStatus(''); playSound('click'); }}
+                                        className="w-full p-4 rounded-2xl glass-panel-interactive border border-emerald-500/30 flex items-center justify-between group hover:border-emerald-400"
+                                    >
+                                        <div className="flex items-center gap-4 text-left">
+                                            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">🌐</div>
+                                            <div>
+                                                <div className="font-bold text-slate-100">Multijugador online</div>
+                                                <div className="text-xs text-slate-400">Crea o únete con un código de sala</div>
+                                            </div>
+                                        </div>
+                                        <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
+                                    </button>
+                                </div>
+
+                                <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-left text-xs space-y-2 text-slate-300">
+                                    <div className="font-bold text-cyan-400 flex items-center gap-1">
+                                        ℹ️ REGLAS OFICIALES
+                                    </div>
+                                    <ul className="list-disc list-inside space-y-1 text-slate-400">
+                                        <li>Cada jugador crea <strong>2 MITs</strong> con asignación de números.</li>
+                                        <li>Asigna números de <strong>Daño (D)</strong> y <strong>Esquive (A)</strong> sin repetir.</li>
+                                        <li>Ataque: Si coincide con tu rango <strong>D</strong>, ¡aciertas!</li>
+                                        <li>Defensa: Si esquivas con rango <strong>A</strong>, reduces el daño.</li>
+                                        <li>Si fallas el ataque, <strong>pasa el turno inmediatamente</strong>.</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ONLINE LOBBY */}
+                        {gameState === 'ONLINE_LOBBY' && (
+                            <div className="max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-5 text-center border border-emerald-500/20 shadow-2xl">
+                                <div>
+                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Multijugador online</span>
+                                    <h2 className="text-3xl font-extrabold text-slate-100 mt-3 font-mono-custom">SALAS DE COMBATE</h2>
+                                </div>
+
+                                <button onClick={createOnlineRoom} disabled={!onlineUser} className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black uppercase tracking-wider disabled:opacity-40">🏠 Crear sala</button>
+
+                                <div className="flex items-center gap-3 text-slate-500 text-xs font-mono-custom"><span className="h-px bg-slate-800 flex-1"></span>O<span className="h-px bg-slate-800 flex-1"></span></div>
+
+                                <div className="space-y-2">
+                                    <input value={roomInput} onChange={e => setRoomInput(e.target.value.toUpperCase())} maxLength={6} placeholder="CÓDIGO DE 6 CARACTERES" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-4 text-center text-xl font-black font-mono-custom tracking-[0.35em] uppercase focus:outline-none focus:border-emerald-400" />
+                                    <button onClick={joinOnlineRoom} disabled={!onlineUser || roomInput.length !== 6} className="w-full py-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-emerald-400 text-slate-100 font-bold disabled:opacity-40">🔑 Unirse a sala</button>
+                                </div>
+
+                                {roomCode && (
+                                    <div className="p-5 rounded-2xl bg-slate-950 border border-emerald-500/30">
+                                        <div className="text-xs text-slate-400 uppercase tracking-widest">Código de sala</div>
+                                        <div className="text-4xl font-black font-mono-custom tracking-[0.25em] text-emerald-400 my-2">{roomCode}</div>
+                                        <button onClick={() => navigator.clipboard?.writeText(roomCode)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm">📋 Copiar código</button>
+                                    </div>
+                                )}
+                                <p className="text-sm text-slate-400">{onlineStatus || (onlineUser ? 'Firebase conectado.' : 'Conectando con Firebase...')}</p>
+                            </div>
+                        )}
+
+                        {/* 2. MIT BUILDER SCREEN */}
+                        {gameState === 'BUILD' && (
+                            <div className="max-w-4xl mx-auto w-full glass-panel rounded-3xl p-6 space-y-6">
+                                <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4">
+                                    <div>
+                                        <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                                            Fase de Construcción
+                                        </span>
+                                        <h2 className="text-2xl font-bold text-slate-100 mt-1 font-mono-custom">
+                                            {gameMode === 'ONLINE' ? `JUGADOR ${isRoomHost ? 1 : 2}: ${((isRoomHost ? p1Mits : p2Mits).length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}` : `JUGADOR ${builderPlayer}: ${builderPlayer === 1 ? (p1Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2') : (p2Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}`}
+                                        </h2>
+                                    </div>
+                                    {gameMode === 'ONLINE' && (
+                                        <div className="text-xs text-emerald-400 font-mono-custom">🌐 SALA {roomCode} · {onlineStatus}</div>
+                                    )}
+                                    <div className="text-sm font-mono-custom text-slate-400">
+                                        MITs Listos: <span className="text-cyan-400 font-bold">{gameMode === 'ONLINE' ? (isRoomHost ? p1Mits.length : p2Mits.length) : (builderPlayer === 1 ? p1Mits.length : p2Mits.length)} / 2</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                    {/* Class Selection */}
+                                    <div className="lg:col-span-7 space-y-3">
+                                        <label className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Elige una Clase base</label>
+                                        <div className="grid grid-cols-2 gap-2.5">
+                                            {MIT_CLASSES.map(c => {
+                                                const isSelected = selectedClass.id === c.id;
+                                                return (
+                                                    <button
+                                                        key={c.id}
+                                                        onClick={() => handleSelectClass(c)}
+                                                        className={`p-3 rounded-xl text-left border transition ${
+                                                            isSelected 
+                                                            ? 'bg-cyan-950/40 border-cyan-400 text-slate-100 shadow-md shadow-cyan-500/10' 
+                                                            : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
+                                                        }`}
+                                                    >
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="font-bold text-sm">{c.name}</span>
+                                                            <span className="text-xs font-mono-custom text-rose-400 font-semibold">{c.hp} HP</span>
+                                                        </div>
+                                                        <div className="text-xs font-mono-custom text-slate-400 mt-1 flex gap-2">
+                                                            <span className="text-amber-400">D: {c.d}</span>
+                                                            <span className="text-cyan-400">A: {c.a}</span>
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Numbers Assignment */}
+                                    <div className="lg:col-span-5 flex flex-col justify-between glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
+                                        <div>
+                                            <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                                                2. Asigna Números al Dado (1 al 6)
+                                            </label>
+                                            <p className="text-xs text-slate-400 mb-4">
+                                                Necesitas <strong className="text-amber-400">{selectedClass.d} para Daño (D)</strong> y <strong className="text-cyan-400">{selectedClass.a} para Esquive (A)</strong>.
+                                            </p>
+
+                                            <div className="grid grid-cols-3 gap-3 my-4">
+                                                {[1, 2, 3, 4, 5, 6].map(num => {
+                                                    const isD = currentDNums.includes(num);
+                                                    const isA = currentANums.includes(num);
+
+                                                    let btnStyle = 'bg-slate-900 border-slate-700 text-slate-400 hover:border-cyan-500/50';
+                                                    let badge = null;
+
+                                                    if (isD) {
+                                                        btnStyle = 'bg-amber-950/60 border-amber-500 text-amber-300 glow-amber';
+                                                        badge = <span className="text-[10px] font-bold text-amber-400">DAÑO</span>;
+                                                    } else if (isA) {
+                                                        btnStyle = 'bg-cyan-950/60 border-cyan-500 text-cyan-300 glow-cyan';
+                                                        badge = <span className="text-[10px] font-bold text-cyan-400">ESQUIVE</span>;
+                                                    }
+
+                                                    return (
+                                                        <button
+                                                            key={num}
+                                                            onClick={() => handleToggleNumber(num)}
+                                                            className={`h-14 rounded-xl border-2 flex flex-col items-center justify-center font-mono-custom text-xl font-bold transition-all ${btnStyle}`}
+                                                        >
+                                                            <span>{num}</span>
+                                                            {badge}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+
+                                            <div className="space-y-1 text-xs font-mono-custom">
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-400">Números Daño (D):</span>
+                                                    <span className={currentDNums.length === selectedClass.d ? 'text-amber-400 font-bold' : 'text-slate-500'}>
+                                                        [{currentDNums.join(', ')}] ({currentDNums.length}/{selectedClass.d})
+                                                    </span>
+                                                </div>
+                                                <div className="flex justify-between">
+                                                    <span className="text-slate-400">Números Esquive (A):</span>
+                                                    <span className={currentANums.length === selectedClass.a ? 'text-cyan-400 font-bold' : 'text-slate-500'}>
+                                                        [{currentANums.join(', ')}] ({currentANums.length}/{selectedClass.a})
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <button
+                                            disabled={!isBuildValid}
+                                            onClick={handleConfirmMit}
+                                            className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider transition font-mono-custom ${
+                                                isBuildValid
+                                                ? 'bg-gradient-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-lg shadow-cyan-500/25 hover:brightness-110 cursor-pointer'
+                                                : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
+                                            }`}
+                                        >
+                                            Confirmar MIT
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 3. BATTLEFIELD SCREEN */}
+                        {(gameState === 'BATTLE' || gameState === 'GAMEOVER') && (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                                    {/* PLAYER 1 CARD */}
+                                    <div className={`glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
+                                        currentTurnPlayer === 1 && gameState === 'BATTLE' ? 'border-cyan-400 shadow-xl shadow-cyan-500/10' : 'border-slate-800 opacity-85'
+                                    }`}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <span className="text-xs font-bold font-mono-custom text-cyan-400 uppercase tracking-widest block">JUGADOR 1</span>
+                                                <h3 className="text-xl font-black text-slate-100 font-mono-custom">{activeP1Mit.name}</h3>
+                                            </div>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold font-mono-custom bg-slate-800 text-slate-300 border border-slate-700">
+                                                MIT #{activeP1Index + 1}/2
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-1 mb-4">
+                                            <div className="flex justify-between text-xs font-mono-custom">
+                                                <span className="text-slate-400">VIDA</span>
+                                                <span className="font-bold text-rose-400">{activeP1Mit.currentHp} / {activeP1Mit.maxHp} HP</span>
+                                            </div>
+                                            <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-rose-500 to-rose-400 rounded-full transition-all duration-500"
+                                                    style={{ width: `${(activeP1Mit.currentHp / activeP1Mit.maxHp) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-xs font-mono-custom">
+                                            <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30">
+                                                <span className="text-amber-400 block font-bold mb-1">🎯 ATAQUE (D:{activeP1Mit.classData?.d})</span>
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {activeP1Mit.attackNums?.map(n => (
+                                                        <span key={n} className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">{n}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-500/30">
+                                                <span className="text-cyan-400 block font-bold mb-1">🛡️ ESQUIVE (A:{activeP1Mit.classData?.a})</span>
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {activeP1Mit.evadeNums?.map(n => (
+                                                        <span key={n} className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">{n}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {floatingEffect && floatingEffect.player === 1 && (
+                                            <div className={`absolute top-1/2 left-1/2 animate-float-damage font-mono-custom font-extrabold text-2xl px-4 py-2 rounded-xl shadow-2xl z-20 ${
+                                                floatingEffect.type === 'damage' ? 'bg-rose-600 text-white border border-rose-400 glow-red' :
+                                                floatingEffect.type === 'dodge' ? 'bg-cyan-500 text-slate-950 border border-cyan-200 glow-cyan' :
+                                                'bg-slate-700 text-slate-200'
+                                            }`}>
+                                                {floatingEffect.text}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* PLAYER 2 CARD */}
+                                    <div className={`glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
+                                        currentTurnPlayer === 2 && gameState === 'BATTLE' ? 'border-purple-400 shadow-xl shadow-purple-500/10' : 'border-slate-800 opacity-85'
+                                    }`}>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <div>
+                                                <span className="text-xs font-bold font-mono-custom text-purple-400 uppercase tracking-widest block">
+                                                    {gameMode === 'AI' ? 'JUGADOR 2 (IA)' : 'JUGADOR 2'}
+                                                </span>
+                                                <h3 className="text-xl font-black text-slate-100 font-mono-custom">{activeP2Mit.name}</h3>
+                                            </div>
+                                            <span className="px-2.5 py-1 rounded-lg text-xs font-bold font-mono-custom bg-slate-800 text-slate-300 border border-slate-700">
+                                                MIT #{activeP2Index + 1}/2
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-1 mb-4">
+                                            <div className="flex justify-between text-xs font-mono-custom">
+                                                <span className="text-slate-400">VIDA</span>
+                                                <span className="font-bold text-rose-400">{activeP2Mit.currentHp} / {activeP2Mit.maxHp} HP</span>
+                                            </div>
+                                            <div className="h-3 w-full bg-slate-900 rounded-full overflow-hidden p-0.5 border border-slate-800">
+                                                <div 
+                                                    className="h-full bg-gradient-to-r from-rose-500 to-rose-400 rounded-full transition-all duration-500"
+                                                    style={{ width: `${(activeP2Mit.currentHp / activeP2Mit.maxHp) * 100}%` }}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-xs font-mono-custom">
+                                            <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30">
+                                                <span className="text-amber-400 block font-bold mb-1">🎯 ATAQUE (D:{activeP2Mit.classData?.d})</span>
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {activeP2Mit.attackNums?.map(n => (
+                                                        <span key={n} className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold border border-amber-500/40">{n}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            <div className="p-2.5 rounded-xl bg-cyan-950/20 border border-cyan-500/30">
+                                                <span className="text-cyan-400 block font-bold mb-1">🛡️ ESQUIVE (A:{activeP2Mit.classData?.a})</span>
+                                                <div className="flex gap-1 flex-wrap">
+                                                    {activeP2Mit.evadeNums?.map(n => (
+                                                        <span key={n} className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40">{n}</span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {floatingEffect && floatingEffect.player === 2 && (
+                                            <div className={`absolute top-1/2 left-1/2 animate-float-damage font-mono-custom font-extrabold text-2xl px-4 py-2 rounded-xl shadow-2xl z-20 ${
+                                                floatingEffect.type === 'damage' ? 'bg-rose-600 text-white border border-rose-400 glow-red' :
+                                                floatingEffect.type === 'dodge' ? 'bg-cyan-500 text-slate-950 border border-cyan-200 glow-cyan' :
+                                                'bg-slate-700 text-slate-200'
+                                            }`}>
+                                                {floatingEffect.text}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* ACTION CONTROL & DICE DISPLAY */}
+                                {gameState === 'BATTLE' && (
+                                    <div className="glass-panel rounded-3xl p-5 border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center">
+                                        <div className="text-xs font-mono-custom text-slate-400 flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                                            TURNO ACTUAL: <strong className="text-cyan-300 uppercase">JUGADOR {currentTurnPlayer} ({currentTurnPlayer === 1 ? activeP1Mit.name : activeP2Mit.name})</strong>
+                                        </div>
+
+                                        <div className="py-2">
+                                            <div className={`w-20 h-20 rounded-2xl border-4 flex items-center justify-center font-mono-custom text-4xl font-black transition-all shadow-2xl ${
+                                                isRolling ? 'animate-bounce border-cyan-400 bg-cyan-950/60 text-cyan-300 glow-cyan' : 'border-slate-700 bg-slate-900 text-slate-100'
+                                            }`}>
+                                                {currentRollValue}
+                                            </div>
+                                        </div>
+
+                                        <div className="w-full max-w-sm">
+                                            {combatPhase === 'ATTACK_ROLL' && (
+                                                <button
+                                                    disabled={isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 2)}
+                                                    onClick={handleAttackRoll}
+                                                    className={`w-full py-4 rounded-2xl font-black text-base uppercase tracking-wider transition-all font-mono-custom ${
+                                                        isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 2)
+                                                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                                                        : 'bg-gradient-to-r from-amber-500 to-red-600 text-slate-950 shadow-lg shadow-amber-500/20 hover:brightness-110 active:scale-95 cursor-pointer'
+                                                    }`}
+                                                >
+                                                    {isRolling ? 'Lanzando Dado...' : (gameMode === 'AI' && currentTurnPlayer === 2) ? 'IA Pensando...' : `🎲 Lanzar Dado de Ataque`}
+                                                </button>
+                                            )}
+
+                                            {combatPhase === 'DEFENSE_ROLL' && (
+                                                <button
+                                                    disabled={isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 1)}
+                                                    onClick={() => handleDefenseRoll()}
+                                                    className={`w-full py-4 rounded-2xl font-black text-base uppercase tracking-wider transition-all font-mono-custom ${
+                                                        isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 1)
+                                                        ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                                                        : 'bg-gradient-to-r from-cyan-400 to-blue-600 text-slate-950 shadow-lg shadow-cyan-500/20 hover:brightness-110 active:scale-95 cursor-pointer'
+                                                    }`}
+                                                >
+                                                    {isRolling ? 'Lanzando Dado...' : (gameMode === 'AI' && currentTurnPlayer === 1) ? 'IA Esquivando...' : `🛡️ Lanzar Dado de Esquive`}
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* COMBAT LOG */}
+                                <div className="glass-panel rounded-2xl p-4 border border-slate-800">
+                                    <h4 className="text-xs font-bold font-mono-custom text-slate-400 uppercase tracking-widest mb-2">BITÁCORA DE COMBATE</h4>
+                                    <div ref={logContainerRef} className="h-32 overflow-y-auto space-y-1 text-xs font-mono-custom pr-2">
+                                        {combatLog.map((log, index) => (
+                                            <div 
+                                                key={index} 
+                                                className={`p-1.5 rounded ${
+                                                    log.type === 'attack_hit' ? 'bg-amber-950/30 text-amber-300 border-l-2 border-amber-500' :
+                                                    log.type === 'attack_miss' ? 'bg-slate-900 text-slate-400 border-l-2 border-slate-600' :
+                                                    log.type === 'defense_success' ? 'bg-cyan-950/30 text-cyan-300 border-l-2 border-cyan-500' :
+                                                    log.type === 'defense_fail' ? 'bg-rose-950/30 text-rose-300 border-l-2 border-rose-500' :
+                                                    log.type === 'victory' ? 'bg-yellow-500/20 text-yellow-300 font-bold border-l-4 border-yellow-500' :
+                                                    'bg-slate-900/60 text-slate-300'
+                                                }`}
+                                            >
+                                                {log.text}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* FOOTER */}
+                    <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
+                        MIT’S Engine — Manual Oficial v1.0
+                    </footer>
+                </div>
+            );
+        }
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+</body>
+</html>
