@@ -651,7 +651,7 @@
                         });
                     }
 
-                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry]);
+                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll);
                 });
             };
 
@@ -659,7 +659,7 @@
                 handleDefenseRoll(atkData);
             };
 
-            const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null) => {
+            const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null, defenseRoll = null) => {
                 let updatedP1 = p1Mits;
                 let updatedP2 = p2Mits;
                 let defeated = false;
@@ -682,7 +682,8 @@
                     const nextLog = logOverride || combatLog;
                     syncOnline({
                         p1Mits: updatedP1, p2Mits: updatedP2,
-                        combatLog: nextLog, attackResult: null, combatPhase: 'RESOLVING'
+                        combatLog: nextLog, attackResult: null, combatPhase: 'RESOLVING',
+                        ...(Number.isInteger(defenseRoll) ? { currentRollValue: defenseRoll } : {})
                     });
                 }
 
