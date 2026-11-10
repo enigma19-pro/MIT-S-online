@@ -609,17 +609,23 @@
                 const roll = Math.floor(Math.random() * 6) + 1;
 
                 executeRollAnimation(roll, () => {
-                    const isEvadeNumber = currentDefender.evadeNums.includes(roll);
-                    let finalDamageTaken = atkData.damage;
+                    // Resolver el esquive con valores normalizados y una única fórmula.
+                    // Solo un número que esté explícitamente en evadeNums puede reducir daño.
+                    const evadeNums = Array.isArray(currentDefender.evadeNums)
+                        ? currentDefender.evadeNums.map(Number)
+                        : [];
+                    const defenseRoll = Number(roll);
+                    const attackDamage = Number.isFinite(Number(atkData?.damage))
+                        ? Math.max(0, Number(atkData.damage))
+                        : 0;
+                    const isEvadeNumber = evadeNums.includes(defenseRoll);
+                    const finalDamageTaken = isEvadeNumber
+                        ? Math.max(0, attackDamage - defenseRoll)
+                        : attackDamage;
 
                     let defenseLogEntry;
                     if (isEvadeNumber) {
                         playSound('dodge');
-                        if (roll >= atkData.damage) {
-                            finalDamageTaken = 0;
-                        } else {
-                            finalDamageTaken = atkData.damage - roll;
-                        }
 
                         defenseLogEntry = {
                             type: 'defense_success',
