@@ -681,7 +681,7 @@
                 }
 
                 if (defeated) {
-                    handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2);
+                    handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2, logOverride);
                     return;
                 }
 
@@ -689,51 +689,60 @@
                 setTimeout(() => endTurn(attackerPlayerNum), 1000);
             };
 
-            const handleMitDefeated = (playerNum, updatedMits) => {
-                setCombatLog(prev => [...prev, {
+            const handleMitDefeated = (playerNum, updatedMits, logOverride = null) => {
+                // Conservamos en una sola secuencia el registro de defensa y el KO.
+                const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
+                const koLog = [...baseLog, {
                     type: 'ko',
                     text: `☠️ ¡MIT de Jugador ${playerNum} fue DERROTADO!`
-                }]);
+                }];
+                setCombatLog(koLog);
 
                 if (gameMode === 'ONLINE') {
-                    const nextLog = [...combatLog, { type: 'ko', text: `☠️ ¡MIT de Jugador ${playerNum} fue DERROTADO!` }];
-                    if (playerNum === 1 && activeP1Index < 1) {
-                        syncOnline({ p1Mits: updatedMits, activeP1Index: 1, attackResult: null, combatPhase: 'ATTACK_ROLL', currentTurnPlayer: 2, combatLog: nextLog });
-                    } else if (playerNum === 2 && activeP2Index < 1) {
-                        syncOnline({ p2Mits: updatedMits, activeP2Index: 1, attackResult: null, combatPhase: 'ATTACK_ROLL', currentTurnPlayer: 1, combatLog: nextLog });
-                    }
+                    // Publica el KO sin adelantar todavía el turno: el MIT sustituto
+                    // debe entrar antes de habilitar la siguiente tirada.
+                    syncOnline({
+                        p1Mits: playerNum === 1 ? updatedMits : p1Mits,
+                        p2Mits: playerNum === 2 ? updatedMits : p2Mits,
+                        combatLog: koLog,
+                        attackResult: null,
+                        combatPhase: 'RESOLVING'
+                    });
                 }
 
-                if (playerNum === 1) {
-                    if (activeP1Index < 1) {
-                        setTimeout(() => {
-                            setActiveP1Index(1);
-                            setCombatLog(prev => [...prev, {
-                                type: 'system',
-                                text: `🔄 Entra el 2º MIT de Jugador 1: ${updatedMits[1].name}`
-                            }]);
-                            endTurn(2);
-                        }, 1000);
-                    } else {
-                        gameOver(2);
-                    }
-                } else {
-                    if (activeP2Index < 1) {
-                        setTimeout(() => {
-                            setActiveP2Index(1);
-                            setCombatLog(prev => [...prev, {
-                                type: 'system',
-                                text: `🔄 Entra el 2º MIT de Jugador 2: ${updatedMits[1].name}`
-                            }]);
-                            endTurn(1);
-                        }, 1000);
-                    } else {
-                        gameOver(1);
-                    }
+                const defeatedPlayerHasReserve = playerNum === 1
+                    ? activeP1Index < 1
+                    : activeP2Index < 1;
+
+                if (!defeatedPlayerHasReserve) {
+                    gameOver(playerNum === 1 ? 2 : 1, koLog);
+                    return;
                 }
+
+                const reserveIndex = 1;
+                const reserveMit = updatedMits[reserveIndex];
+                const entryLog = [...koLog, {
+                    type: 'system',
+                    text: `🔄 Entra el 2º MIT de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
+                }];
+
+                setTimeout(() => {
+                    if (playerNum === 1) setActiveP1Index(reserveIndex);
+                    else setActiveP2Index(reserveIndex);
+                    setCombatLog(entryLog);
+
+                    // Regla oficial: el jugador que perdió su MIT recibe el turno.
+                    // endTurn recibe al "último jugador que actuó", por eso indicamos
+                    // al contrario del derrotado para que el siguiente turno sea suyo.
+                    const playerWhoJustActed = playerNum === 1 ? 2 : 1;
+                    const onlineOverrides = playerNum === 1
+                        ? { activeP1Index: reserveIndex }
+                        : { activeP2Index: reserveIndex };
+                    endTurn(playerWhoJustActed, entryLog, onlineOverrides);
+                }, 1000);
             };
 
-            const endTurn = (playerWhoJustActed) => {
+            const endTurn = (playerWhoJustActed, logOverride = null, onlineOverrides = {}) => {
                 // No inferimos el turno desde el estado de un render anterior.
                 // Quien llama esta función indica explícitamente quién acaba de jugar.
                 if (playerWhoJustActed !== 1 && playerWhoJustActed !== 2) return;
@@ -749,7 +758,15 @@
                 setIsTurnProcessing(false);
 
                 if (gameMode === 'ONLINE') {
-                    syncOnline({ attackResult: null, floatingEffect: null, combatPhase: 'ATTACK_ROLL', currentTurnPlayer: nextPlayer, currentRollValue: currentRollValue, combatLog });
+                    syncOnline({
+                        ...onlineOverrides,
+                        attackResult: null,
+                        floatingEffect: null,
+                        combatPhase: 'ATTACK_ROLL',
+                        currentTurnPlayer: nextPlayer,
+                        currentRollValue: currentRollValue,
+                        combatLog: Array.isArray(logOverride) ? logOverride : combatLog
+                    });
                 }
 
                 // Solo puede existir una activación de IA pendiente.
@@ -809,10 +826,11 @@
                 });
             };
 
-            const gameOver = (winnerPlayerNum) => {
+            const gameOver = (winnerPlayerNum, logOverride = null) => {
                 setGameState('GAMEOVER');
                 setIsTurnProcessing(false);
-                const victoryLog = [...combatLog, {
+                const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
+                const victoryLog = [...baseLog, {
                     type: 'victory',
                     text: `🏆 ¡FIN DE LA PARTIDA! Jugador ${winnerPlayerNum} ha ganado.`
                 }];
