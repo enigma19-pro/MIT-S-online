@@ -593,7 +593,7 @@
                             type: 'miss'
                         });
                         
-                        setTimeout(() => endTurn(currentTurnPlayer), 1000);
+                        setTimeout(() => endTurn(currentTurnPlayer, newLog), 1000);
                     }
                 });
             };
@@ -686,7 +686,7 @@
                 }
 
                 const attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1;
-                setTimeout(() => endTurn(attackerPlayerNum), 1000);
+                setTimeout(() => endTurn(attackerPlayerNum, logOverride), 1000);
             };
 
             const handleMitDefeated = (playerNum, updatedMits, logOverride = null) => {
