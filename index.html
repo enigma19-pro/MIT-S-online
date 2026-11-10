@@ -264,6 +264,7 @@
             const [currentTurnPlayer, setCurrentTurnPlayer] = useState(1);
             const [combatPhase, setCombatPhase] = useState('ATTACK_ROLL'); // ATTACK_ROLL, DEFENSE_ROLL, RESOLVING
             const [isRolling, setIsRolling] = useState(false);
+            const isRollingRef = useRef(false);
             const [isTurnProcessing, setIsTurnProcessing] = useState(false);
             const [currentRollValue, setCurrentRollValue] = useState(1);
             const [attackResult, setAttackResult] = useState(null);
@@ -388,7 +389,7 @@
                     setCurrentTurnPlayer(room.currentTurnPlayer || 1);
                     currentTurnPlayerRef.current = room.currentTurnPlayer || 1;
                     setCombatPhase(room.combatPhase || 'ATTACK_ROLL');
-                    setCurrentRollValue(room.currentRollValue || 1);
+                    if (!isRollingRef.current) setCurrentRollValue(room.currentRollValue || 1);
                     setAttackResult(room.attackResult || null);
                     setCombatLog(room.combatLog || []);
                     if (room.status === 'waiting') {
@@ -400,7 +401,7 @@
                     } else if (room.status === 'battle') {
                         setGameState('BATTLE');
                         setIsTurnProcessing(false);
-                        setIsRolling(false);
+                        if (!isRollingRef.current) setIsRolling(false);
                         setOnlineStatus((room.currentTurnPlayer === (isRoomHost ? 1 : 2)) ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
                         setGameState('GAMEOVER');
@@ -536,6 +537,7 @@
             const currentDefender = currentTurnPlayer === 1 ? activeP2Mit : activeP1Mit;
 
             const executeRollAnimation = (finalValue, callback) => {
+                isRollingRef.current = true;
                 setIsRolling(true);
                 playSound('roll');
                 let count = 0;
@@ -545,6 +547,7 @@
                     if (count >= 10) {
                         clearInterval(interval);
                         setCurrentRollValue(finalValue);
+                        isRollingRef.current = false;
                         setIsRolling(false);
                         callback();
                     }
