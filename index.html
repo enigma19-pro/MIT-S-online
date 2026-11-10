@@ -1264,6 +1264,13 @@
                                         </div>
 
                                         <div className="w-full max-w-sm">
+                                            {(
+                                                gameMode !== 'ONLINE' ||
+                                                (combatPhase === 'ATTACK_ROLL'
+                                                    ? currentTurnPlayer === (isRoomHost ? 1 : 2)
+                                                    : currentTurnPlayer !== (isRoomHost ? 1 : 2))
+                                            ) && (
+                                                <>
                                             {combatPhase === 'ATTACK_ROLL' && (
                                                 <button
                                                     disabled={isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 2)}
@@ -1290,6 +1297,8 @@
                                                 >
                                                     {isRolling ? 'Lanzando Dado...' : (gameMode === 'AI' && currentTurnPlayer === 1) ? 'IA Esquivando...' : `🛡️ Lanzar Dado de Esquive`}
                                                 </button>
+                                            )}
+                                                </>
                                             )}
                                         </div>
                                     </div>
