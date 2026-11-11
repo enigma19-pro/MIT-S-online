@@ -417,10 +417,28 @@
                     });
                     if (!tx.committed) {
                         const snapshot = await window.MITSFirebase.get(roomRef);
-                        if (!snapshot.exists()) setOnlineStatus('No existe esa sala.');
-                        else if (snapshot.val().hostUid === user.uid) setOnlineStatus('No puedes unirte a tu propia sala desde el mismo jugador.');
-                        else if (snapshot.val().guestUid && snapshot.val().guestUid !== user.uid) setOnlineStatus('La sala ya está llena.');
-                        else setOnlineStatus('Esta sala ya terminó o no admite jugadores.');
+                        if (!snapshot.exists()) {
+                            setOnlineStatus('No existe esa sala. Revisa el código.');
+                        } else {
+                            const room = snapshot.val() || {};
+                            if (room.hostUid === user.uid) {
+                                setOnlineStatus('No puedes unirte a tu propia sala desde el mismo jugador.');
+                            } else if (room.guestUid && room.guestUid !== user.uid) {
+                                setOnlineStatus('La sala ya está llena.');
+                            } else if (!room.hostUid) {
+                                setOnlineStatus('La sala está dañada: no tiene anfitrión. Crea otra.');
+                            } else if (!['waiting', 'building'].includes(room.status)) {
+                                setOnlineStatus('La sala no admite jugadores. Estado actual: ' + String(room.status || 'SIN ESTADO') + '. Crea otra.');
+                            } else {
+                                console.error('Firebase abortó la reserva de jugador aunque la sala parece válida:', {
+                                    status: room.status,
+                                    hasHost: !!room.hostUid,
+                                    hasGuest: !!room.guestUid,
+                                    transactionCommitted: tx.committed
+                                });
+                                setOnlineStatus('Firebase rechazó la reserva de la sala. Revisa permisos de Realtime Database (PERMISSION_DENIED).');
+                            }
+                        }
                         return;
                     }
                     setRoomCode(code);
