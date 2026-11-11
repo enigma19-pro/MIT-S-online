@@ -352,10 +352,11 @@
             const registerOnlineDisconnect = async (code, playerNum) => {
                 const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
                 const disconnectAction = window.MITSFirebase.onDisconnect(roomRef);
+                // La salida posterior a GAMEOVER no debe modificar al ganador.
+                // Solo cambiamos el estado y quién se desconectó.
                 await disconnectAction.update({
                     status: 'player_left',
-                    disconnectedPlayer: playerNum,
-                    winner: playerNum === 1 ? 2 : 1
+                    disconnectedPlayer: playerNum
                 });
             };
 
@@ -553,9 +554,11 @@
                         setOnlineStatus((room.currentTurnPlayer === localPlayerNum) ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
                         setGameState('GAMEOVER');
-                        // Cada cliente cancela su propio onDisconnect para no convertir
-                        // una victoria normal en una falsa salida al cerrar la pestaña.
-                        cancelOnlineDisconnect(code);
+                        // Mantiene preparada la notificación si cualquiera cierra la
+                        // página después de terminar la partida. No modifica winner.
+                        registerOnlineDisconnect(code, localPlayerNum).catch(error => {
+                            console.warn('No se pudo preparar la notificación de salida:', error);
+                        });
                     } else if (room.status === 'player_left') {
                         setDisconnectedPlayer(room.disconnectedPlayer || null);
                         setGameState('GAMEOVER');
@@ -1052,7 +1055,6 @@
                 }];
                 setCombatLog(victoryLog);
                 if (gameMode === 'ONLINE') {
-                    await cancelOnlineDisconnect();
                     await syncOnline({ status: 'gameover', winner: winnerPlayerNum, combatLog: victoryLog });
                 }
             };
@@ -1158,16 +1160,19 @@
                         if (snapshot.exists()) {
                             const room = snapshot.val();
 
-                            // Una partida ya terminada no se convierte en abandono.
-                            // Si alguien reinicia después del GAMEOVER, conserva la victoria
-                            // original en lugar de regalarle la partida al rival.
-                            if (room.status !== 'gameover') {
+                            // También notificamos la salida después de GAMEOVER para que
+                            // el rival deje la pantalla de Victoria. En ese caso se conserva
+                            // el ganador original; nunca se le regala la partida al rival.
+                            if (room.status !== 'player_left') {
                                 const playerNum = room.hostUid === user.uid ? 1 : 2;
-                                await firebase.update(roomRef, {
+                                const departureUpdate = {
                                     status: 'player_left',
-                                    disconnectedPlayer: playerNum,
-                                    winner: playerNum === 1 ? 2 : 1
-                                });
+                                    disconnectedPlayer: playerNum
+                                };
+                                if (room.status !== 'gameover') {
+                                    departureUpdate.winner = playerNum === 1 ? 2 : 1;
+                                }
+                                await firebase.update(roomRef, departureUpdate);
                             }
 
                             await cancelOnlineDisconnect(previousRoomCode);
