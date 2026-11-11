@@ -1001,41 +1001,22 @@
 
             const resetGame = async () => {
                 playSound('click');
+                const previousRoomCode = roomCode;
+                const leavingOnlineGame = gameMode === 'ONLINE' && previousRoomCode && window.MITSFirebase;
+                const firebase = window.MITSFirebase;
+
                 // Invalida callbacks antiguos y detiene cualquier tirada/temporizador pendiente.
                 gameSessionRef.current += 1;
                 cancelGameTimers();
-                setIsRolling(false);
                 isSubmittingMitRef.current = false;
 
-                // Desuscribe primero al jugador que reinicia: el estado player_left
-                // está destinado al rival y no debe mostrarse en la propia pantalla.
-                const leavingOnlineGame = gameMode === 'ONLINE' && roomCode && window.MITSFirebase;
+                // Desuscribe primero al jugador que reinicia: player_left es para el rival.
                 if (leavingOnlineGame && onlineListenerRef.current) {
-                    window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     onlineListenerRef.current = null;
                 }
 
-                // Reiniciar desde una partida online también cuenta como abandonar:
-                // avisamos al rival explícitamente, sin depender de onDisconnect.
-                if (leavingOnlineGame) {
-                    try {
-                        const user = onlineUser || await window.MITSFirebase.ready;
-                        const roomRef = onlineRoomRef();
-                        const snapshot = await window.MITSFirebase.get(roomRef);
-                        if (snapshot.exists()) {
-                            const room = snapshot.val();
-                            const playerNum = room.hostUid === user.uid ? 1 : 2;
-                            await window.MITSFirebase.update(roomRef, {
-                                status: 'player_left',
-                                disconnectedPlayer: playerNum,
-                                winner: playerNum === 1 ? 2 : 1
-                            });
-                            await cancelOnlineDisconnect(roomCode);
-                        }
-                    } catch (error) {
-                        console.error('No se pudo notificar la salida al rival:', error);
-                    }
-                }
+                // El reinicio local no debe depender de la latencia de Firebase.
                 setGameState('MENU');
                 setRoomCode('');
                 setRoomInput('');
@@ -1063,7 +1044,28 @@
                 setCombatLog([]);
                 setIsTurnProcessing(false);
                 aiTurnInProgressRef.current = false;
-                cancelGameTimers();
+
+                // Notifica al rival usando la sala capturada, aunque el usuario ya
+                // haya vuelto al menú o iniciado otra sala mientras llega la respuesta.
+                if (leavingOnlineGame) {
+                    try {
+                        const user = onlineUser || await firebase.ready;
+                        const roomRef = firebase.ref(firebase.db, `rooms/${previousRoomCode}`);
+                        const snapshot = await firebase.get(roomRef);
+                        if (snapshot.exists()) {
+                            const room = snapshot.val();
+                            const playerNum = room.hostUid === user.uid ? 1 : 2;
+                            await firebase.update(roomRef, {
+                                status: 'player_left',
+                                disconnectedPlayer: playerNum,
+                                winner: playerNum === 1 ? 2 : 1
+                            });
+                            await cancelOnlineDisconnect(previousRoomCode);
+                        }
+                    } catch (error) {
+                        console.error('No se pudo notificar la salida al rival:', error);
+                    }
+                }
             };
 
             return (
