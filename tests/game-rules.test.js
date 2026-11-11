@@ -2,7 +2,11 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { isSuccessfulAttack, resolveDefense } = require('../game-rules.js');
+const {
+    isSuccessfulAttack,
+    resolveDefense,
+    resolveMitDefeat
+} = require('../game-rules.js');
 
 test('an attack succeeds only when the rolled face is in attackNums', () => {
     assert.equal(isSuccessfulAttack([1, 3, 5], 3), true);
@@ -17,6 +21,12 @@ test('attack rolls outside the six-sided die range cannot hit', () => {
     assert.equal(isSuccessfulAttack([0, 7], 0), false);
     assert.equal(isSuccessfulAttack([0, 7], 7), false);
     assert.equal(isSuccessfulAttack([1, 1.5], 1.5), false);
+});
+
+test('non-numeric values cannot be coerced into successful attack faces', () => {
+    assert.equal(isSuccessfulAttack([true, null, 1], true), false);
+    assert.equal(isSuccessfulAttack([true, null, 1], 1), true);
+    assert.equal(isSuccessfulAttack([1], null), false);
 });
 
 test('an explicit evade face reduces damage by the defense roll', () => {
@@ -40,6 +50,13 @@ test('defense rolls outside the six-sided die range cannot evade', () => {
     );
 });
 
+test('invalid values in evadeNums cannot become valid evade faces', () => {
+    assert.deepEqual(
+        resolveDefense({ attackDamage: 5, defenseRoll: 1, evadeNums: [true, null] }),
+        { isEvadeNumber: false, finalDamageTaken: 5 }
+    );
+});
+
 test('damage cannot become negative when the evade roll exceeds damage', () => {
     assert.deepEqual(
         resolveDefense({ attackDamage: 2, defenseRoll: 5, evadeNums: [5] }),
@@ -59,31 +76,37 @@ test('invalid damage is treated as zero rather than propagating NaN', () => {
         resolveDefense({ attackDamage: 'invalid', defenseRoll: 2, evadeNums: [2] }),
         { isEvadeNumber: true, finalDamageTaken: 0 }
     );
+    assert.deepEqual(
+        resolveDefense({ attackDamage: true, defenseRoll: 2, evadeNums: [2] }),
+        { isEvadeNumber: true, finalDamageTaken: 0 }
+    );
 });
 
 test('the player who loses a MIT with a reserve receives the next turn', () => {
     assert.deepEqual(
-        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 1, hasReserve: true }),
+        resolveMitDefeat({ defeatedPlayer: 1, hasReserve: true }),
         { isGameOver: false, winner: null, nextPlayer: 1 }
     );
     assert.deepEqual(
-        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 2, hasReserve: true }),
+        resolveMitDefeat({ defeatedPlayer: 2, hasReserve: true }),
         { isGameOver: false, winner: null, nextPlayer: 2 }
     );
 });
 
 test('the opponent wins when the defeated player has no reserve MIT', () => {
     assert.deepEqual(
-        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 1, hasReserve: false }),
+        resolveMitDefeat({ defeatedPlayer: 1, hasReserve: false }),
         { isGameOver: true, winner: 2, nextPlayer: null }
     );
     assert.deepEqual(
-        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 2, hasReserve: false }),
+        resolveMitDefeat({ defeatedPlayer: 2, hasReserve: false }),
         { isGameOver: true, winner: 1, nextPlayer: null }
     );
 });
 
 test('invalid defeated player numbers do not produce a turn transition', () => {
-    assert.equal(require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 3, hasReserve: true }), null);
-    assert.equal(require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 1 }), null);
+    assert.equal(resolveMitDefeat({ defeatedPlayer: 3, hasReserve: true }), null);
+    assert.equal(resolveMitDefeat({ defeatedPlayer: 1 }), null);
+    assert.equal(resolveMitDefeat({ defeatedPlayer: true, hasReserve: true }), null);
+    assert.equal(resolveMitDefeat({ defeatedPlayer: null, hasReserve: true }), null);
 });
