@@ -288,6 +288,8 @@
             const [disconnectedPlayer, setDisconnectedPlayer] = useState(null);
             const [winnerPlayer, setWinnerPlayer] = useState(null);
             const onlineListenerRef = useRef(null);
+            const onlinePresenceRef = useRef(null);
+            const presenceGraceTimerRef = useRef(null);
             const [soundEnabled, setSoundEnabled] = useState(true);
 
             // Players MIT List
@@ -402,6 +404,57 @@
                 }
             };
 
+            // Presencia por conexión: evita marcar una salida por una caída breve
+            // de red. Cada reconexión vuelve a registrar su limpieza en el servidor.
+            const registerOnlinePresence = (code, playerNum) => {
+                if (!code || !window.MITSFirebase) return Promise.reject(new Error('No se pudo iniciar la presencia online.'));
+                const firebase = window.MITSFirebase;
+                const connectionId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+                const connectionRef = firebase.ref(firebase.db, `rooms/${code}/presence/player${playerNum}/${connectionId}`);
+                const connectedRef = firebase.ref(firebase.db, '.info/connected');
+
+                if (onlinePresenceRef.current) {
+                    firebase.off(onlinePresenceRef.current.connectedRef, 'value', onlinePresenceRef.current.connectedHandler);
+                }
+
+                return new Promise((resolve, reject) => {
+                    let registering = false;
+                    let firstRegistration = true;
+                    const connectedHandler = snapshot => {
+                        if (snapshot.val() !== true || registering) return;
+                        registering = true;
+                        firebase.onDisconnect(connectionRef).remove()
+                            .then(() => firebase.set(connectionRef, true))
+                            .then(() => {
+                                registering = false;
+                                if (firstRegistration) {
+                                    firstRegistration = false;
+                                    resolve();
+                                }
+                            })
+                            .catch(error => {
+                                registering = false;
+                                console.warn('No se pudo registrar la presencia online:', error);
+                                if (firstRegistration) {
+                                    firstRegistration = false;
+                                    reject(error);
+                                }
+                            });
+                    };
+
+                    firebase.onValue(connectedRef, connectedHandler);
+                    onlinePresenceRef.current = { connectedRef, connectedHandler, connectionRef, code, playerNum };
+                });
+            };
+
+            const stopOnlinePresenceListener = () => {
+                const presence = onlinePresenceRef.current;
+                if (presence && window.MITSFirebase) {
+                    window.MITSFirebase.off(presence.connectedRef, 'value', presence.connectedHandler);
+                    onlinePresenceRef.current = null;
+                }
+            };
+
             const createOnlineRoom = async () => {
                 if (isCreatingRoomRef.current) return;
                 isCreatingRoomRef.current = true;
@@ -433,9 +486,9 @@
                     setGameState('ONLINE_LOBBY');
                     setOnlineStatus('Comparte el código con tu rival.');
                     setDisconnectedPlayer(null);
-                    // No registrar onDisconnect sobre toda la sala: una caída breve
-                    // de Firebase puede marcarla player_left y bloquear al invitado.
-                    // La salida voluntaria se notifica explícitamente desde resetGame().
+                    // La presencia individual detecta cierres reales sin convertir
+                    // una reconexión breve en una salida definitiva.
+                    await registerOnlinePresence(code, 1);
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
                     console.error(error);
@@ -526,7 +579,8 @@
                     setBuilderPlayer(2);
                     setOnlineStatus('Conectado. Construye tus 2 MITs.');
                     setDisconnectedPlayer(null);
-                    // Evita que una reconexión transitoria convierta la sala en player_left.
+                    // Registra presencia antes de comenzar a construir/pelear.
+                    await registerOnlinePresence(code, 2);
                     subscribeToOnlineRoom(code, 2);
                 } catch (error) {
                     console.error('Error al entrar a la sala (' + joinStep + '):', error);
@@ -554,11 +608,87 @@
                 if (!window.MITSFirebase || !code) return;
                 if (onlineListenerRef.current) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
+                        window.MITSFirebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                    }
                 }
-                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                if (presenceGraceTimerRef.current !== null) {
+                    clearTimeout(presenceGraceTimerRef.current);
+                    presenceGraceTimerRef.current = null;
+                }
+
+                const firebase = window.MITSFirebase;
+                const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
+                const opponentNum = localPlayerNum === 1 ? 2 : 1;
+                const opponentPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player${opponentNum}`);
+                let currentRoomStatus = null;
+                let opponentPresenceKnown = false;
+                let opponentIsPresent = false;
+
+                const clearPresenceGraceTimer = () => {
+                    if (presenceGraceTimerRef.current !== null) {
+                        clearTimeout(presenceGraceTimerRef.current);
+                        presenceGraceTimerRef.current = null;
+                    }
+                };
+
+                const schedulePresenceCheck = () => {
+                    if (currentRoomStatus !== 'battle' || presenceGraceTimerRef.current !== null) return;
+                    presenceGraceTimerRef.current = setTimeout(async () => {
+                        presenceGraceTimerRef.current = null;
+                        try {
+                            const [presenceSnapshot, roomSnapshot] = await Promise.all([
+                                firebase.get(opponentPresenceRef),
+                                firebase.get(roomRef)
+                            ]);
+                            const latestRoom = roomSnapshot.exists() ? roomSnapshot.val() : null;
+                            if (!presenceSnapshot.exists() && latestRoom?.status === 'battle') {
+                                // La transacción evita que ambos clientes sobrescriban
+                                // al mismo tiempo quién abandonó la partida.
+                                await firebase.runTransaction(roomRef, current => {
+                                    if (!current || current.status !== 'battle') return;
+                                    return {
+                                        ...current,
+                                        status: 'player_left',
+                                        disconnectedPlayer: opponentNum,
+                                        winner: localPlayerNum
+                                    };
+                                });
+                            }
+                        } catch (error) {
+                            console.warn('No se pudo verificar la desconexión del rival:', error);
+                        }
+                    }, 6000);
+                };
+
+                const presenceHandler = snapshot => {
+                    opponentPresenceKnown = true;
+                    opponentIsPresent = snapshot.exists();
+                    if (currentRoomStatus !== 'battle' || opponentIsPresent) {
+                        clearPresenceGraceTimer();
+                    } else {
+                        schedulePresenceCheck();
+                    }
+                };
+
                 const handler = snapshot => {
                     const room = snapshot.val();
                     if (!room) return;
+                    currentRoomStatus = room.status || null;
+                    if (currentRoomStatus !== 'battle') {
+                        clearPresenceGraceTimer();
+                        if (currentRoomStatus === 'gameover') {
+                            // A partir de GAMEOVER usamos el onDisconnect de la sala
+                            // ya existente para conservar la lógica del ganador.
+                            stopOnlinePresenceListener();
+                        }
+                    } else if (opponentPresenceKnown && !opponentIsPresent) {
+                        schedulePresenceCheck();
+                    } else if (!opponentPresenceKnown) {
+                        firebase.get(opponentPresenceRef).then(presenceHandler).catch(error => {
+                            console.warn('No se pudo consultar la presencia del rival:', error);
+                        });
+                    }
                     setP1Mits(room.p1Mits || []);
                     setP2Mits(room.p2Mits || []);
                     setActiveP1Index(room.activeP1Index || 0);
@@ -603,8 +733,14 @@
                         window.MITSFirebase.update(roomRef, { status: 'building' });
                     }
                 };
-                window.MITSFirebase.onValue(roomRef, handler);
-                onlineListenerRef.current = { ref: roomRef, handler };
+                firebase.onValue(roomRef, handler);
+                firebase.onValue(opponentPresenceRef, presenceHandler);
+                onlineListenerRef.current = {
+                    ref: roomRef,
+                    handler,
+                    presenceRef: opponentPresenceRef,
+                    presenceHandler
+                };
             };
 
             const syncOnline = async (changes) => {
@@ -1109,7 +1245,14 @@
 
                 if (onlineListenerRef.current && window.MITSFirebase) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
+                        window.MITSFirebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                    }
                     onlineListenerRef.current = null;
+                }
+                if (presenceGraceTimerRef.current !== null) {
+                    clearTimeout(presenceGraceTimerRef.current);
+                    presenceGraceTimerRef.current = null;
                 }
                 // Volver al lobby es solo un cambio de pantalla local:
                 // dejamos activo onDisconnect para detectar una desconexión real
@@ -1156,8 +1299,16 @@
                 // Desuscribe primero al jugador que reinicia: player_left es para el rival.
                 if (leavingOnlineGame && onlineListenerRef.current) {
                     firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
+                        firebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                    }
                     onlineListenerRef.current = null;
                 }
+                if (presenceGraceTimerRef.current !== null) {
+                    clearTimeout(presenceGraceTimerRef.current);
+                    presenceGraceTimerRef.current = null;
+                }
+                stopOnlinePresenceListener();
 
                 // El reinicio local no debe depender de la latencia de Firebase.
                 setGameState('MENU');
@@ -1720,7 +1871,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(29)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(30)
                     </footer>
                 </div>
             );
