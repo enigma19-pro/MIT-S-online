@@ -992,9 +992,17 @@
                 setIsRolling(false);
                 isSubmittingMitRef.current = false;
 
+                // Desuscribe primero al jugador que reinicia: el estado player_left
+                // está destinado al rival y no debe mostrarse en la propia pantalla.
+                const leavingOnlineGame = gameMode === 'ONLINE' && roomCode && window.MITSFirebase;
+                if (leavingOnlineGame && onlineListenerRef.current) {
+                    window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    onlineListenerRef.current = null;
+                }
+
                 // Reiniciar desde una partida online también cuenta como abandonar:
                 // avisamos al rival explícitamente, sin depender de onDisconnect.
-                if (gameMode === 'ONLINE' && roomCode && window.MITSFirebase) {
+                if (leavingOnlineGame) {
                     try {
                         const user = onlineUser || await window.MITSFirebase.ready;
                         const roomRef = onlineRoomRef();
@@ -1012,11 +1020,6 @@
                     } catch (error) {
                         console.error('No se pudo notificar la salida al rival:', error);
                     }
-                }
-
-                if (onlineListenerRef.current && window.MITSFirebase) {
-                    window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
-                    onlineListenerRef.current = null;
                 }
                 setGameState('MENU');
                 setRoomCode('');
