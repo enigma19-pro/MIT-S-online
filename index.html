@@ -143,10 +143,14 @@
         const { useState, useEffect, useRef } = React;
 
         // Sound Synthesis Utility (Web Audio API)
+        let sharedAudioContext = null;
         const playSynthSound = (type, soundEnabled = true) => {
             if (!soundEnabled) return;
             try {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+                if (!AudioContextClass) return;
+                const ctx = sharedAudioContext || (sharedAudioContext = new AudioContextClass());
+                if (ctx.state === 'suspended') ctx.resume().catch(() => {});
                 const osc = ctx.createOscillator();
                 const gain = ctx.createGain();
                 osc.connect(gain);
@@ -258,6 +262,7 @@
             const [selectedClass, setSelectedClass] = useState(MIT_CLASSES[2]);
             const [currentDNums, setCurrentDNums] = useState([]);
             const [currentANums, setCurrentANums] = useState([]);
+            const isSubmittingMitRef = useRef(false);
 
             // Combat Active State
             const [activeP1Index, setActiveP1Index] = useState(0);
@@ -266,8 +271,12 @@
             const [combatPhase, setCombatPhase] = useState('ATTACK_ROLL'); // ATTACK_ROLL, DEFENSE_ROLL, RESOLVING
             const [isRolling, setIsRolling] = useState(false);
             const isRollingRef = useRef(false);
+            const rollIntervalRef = useRef(null);
+            const gameSessionRef = useRef(0);
+            const pendingTimeoutsRef = useRef(new Set());
             const [isTurnProcessing, setIsTurnProcessing] = useState(false);
             const [currentRollValue, setCurrentRollValue] = useState(1);
+            const lastRollValueRef = useRef(1);
             const [attackResult, setAttackResult] = useState(null);
             const [combatLog, setCombatLog] = useState([]);
             const [floatingEffect, setFloatingEffect] = useState(null);
@@ -280,6 +289,30 @@
             currentTurnPlayerRef.current = currentTurnPlayer;
             const activeP2MitRef = useRef(null);
             const aiTurnTimerRef = useRef(null);
+
+            const scheduleGameTimeout = (callback, delay) => {
+                const timer = setTimeout(() => {
+                    pendingTimeoutsRef.current.delete(timer);
+                    callback();
+                }, delay);
+                pendingTimeoutsRef.current.add(timer);
+                return timer;
+            };
+
+            const cancelGameTimers = () => {
+                pendingTimeoutsRef.current.forEach(timer => clearTimeout(timer));
+                pendingTimeoutsRef.current.clear();
+                if (rollIntervalRef.current !== null) {
+                    clearInterval(rollIntervalRef.current);
+                    rollIntervalRef.current = null;
+                }
+                if (aiTurnTimerRef.current !== null) {
+                    clearTimeout(aiTurnTimerRef.current);
+                    pendingTimeoutsRef.current.delete(aiTurnTimerRef.current);
+                    aiTurnTimerRef.current = null;
+                }
+                isRollingRef.current = false;
+            };
 
             useEffect(() => {
                 if (logContainerRef.current) {
@@ -321,6 +354,16 @@
                 });
             };
 
+            const cancelOnlineDisconnect = async (code = roomCode) => {
+                if (!code || !window.MITSFirebase) return;
+                try {
+                    const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                    await window.MITSFirebase.onDisconnect(roomRef).cancel();
+                } catch (error) {
+                    console.warn('No se pudo cancelar la salida automática:', error);
+                }
+            };
+
             const createOnlineRoom = async () => {
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
@@ -329,12 +372,15 @@
                     for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
                         code = generateRoomCode();
                         const roomRef = onlineRoomRef(code);
-                        const tx = await window.MITSFirebase.runTransaction(roomRef, current => current || {
-                            hostUid: user.uid, guestUid: null, status: 'waiting',
-                            p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
-                            currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
-                            attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
-                            winner: null
+                        const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
+                            if (current !== null) return;
+                            return {
+                                hostUid: user.uid, guestUid: null, status: 'waiting',
+                                p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
+                                currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
+                                attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
+                                winner: null
+                            };
                         });
                         roomCreated = tx.committed;
                     }
@@ -362,21 +408,21 @@
                         return;
                     }
                     const roomRef = onlineRoomRef(code);
-                    const snapshot = await window.MITSFirebase.get(roomRef);
-                    if (!snapshot.exists()) {
-                        setOnlineStatus('No existe esa sala.');
+                    const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
+                        if (!current || !current.hostUid) return;
+                        if (current.hostUid === user.uid) return;
+                        if (!['waiting', 'building'].includes(current.status)) return;
+                        if (current.guestUid && current.guestUid !== user.uid) return;
+                        return { ...current, guestUid: user.uid, status: 'building' };
+                    });
+                    if (!tx.committed) {
+                        const snapshot = await window.MITSFirebase.get(roomRef);
+                        if (!snapshot.exists()) setOnlineStatus('No existe esa sala.');
+                        else if (snapshot.val().hostUid === user.uid) setOnlineStatus('No puedes unirte a tu propia sala desde el mismo jugador.');
+                        else if (snapshot.val().guestUid && snapshot.val().guestUid !== user.uid) setOnlineStatus('La sala ya está llena.');
+                        else setOnlineStatus('Esta sala ya terminó o no admite jugadores.');
                         return;
                     }
-                    const room = snapshot.val();
-                    if (room.status === 'player_left' || room.status === 'gameover') {
-                        setOnlineStatus('Esta sala ya terminó. Crea una nueva.');
-                        return;
-                    }
-                    if (room.guestUid && room.guestUid !== user.uid) {
-                        setOnlineStatus('La sala ya está llena.');
-                        return;
-                    }
-                    await window.MITSFirebase.update(roomRef, { guestUid: user.uid, status: 'building' });
                     setRoomCode(code);
                     setIsRoomHost(false);
                     setGameMode('ONLINE');
@@ -408,7 +454,11 @@
                     setCurrentTurnPlayer(room.currentTurnPlayer || 1);
                     currentTurnPlayerRef.current = room.currentTurnPlayer || 1;
                     setCombatPhase(room.combatPhase || 'ATTACK_ROLL');
-                    if (!isRollingRef.current) setCurrentRollValue(room.currentRollValue || 1);
+                    if (!isRollingRef.current) {
+                        const syncedRoll = Number(room.currentRollValue) || 1;
+                        setCurrentRollValue(syncedRoll);
+                        lastRollValueRef.current = syncedRoll;
+                    }
                     setAttackResult(room.attackResult || null);
                     setCombatLog(room.combatLog || []);
                     if (room.status === 'waiting') {
@@ -424,6 +474,9 @@
                         setOnlineStatus((room.currentTurnPlayer === (isRoomHost ? 1 : 2)) ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
                         setGameState('GAMEOVER');
+                        // Cada cliente cancela su propio onDisconnect para no convertir
+                        // una victoria normal en una falsa salida al cerrar la pestaña.
+                        cancelOnlineDisconnect(code);
                     } else if (room.status === 'player_left') {
                         setDisconnectedPlayer(room.disconnectedPlayer || null);
                         setGameState('GAMEOVER');
@@ -475,56 +528,83 @@
             const isBuildValid = currentDNums.length === selectedClass.d && currentANums.length === selectedClass.a;
 
             const handleConfirmMit = async () => {
-                if (!isBuildValid) return;
-                playSound('click');
+                if (!isBuildValid || isSubmittingMitRef.current) return;
+                isSubmittingMitRef.current = true;
+                try {
+                    playSound('click');
 
-                const newMit = {
-                    id: `mit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-                    classData: selectedClass,
-                    name: `MIT ${selectedClass.name}`,
-                    maxHp: selectedClass.hp,
-                    currentHp: selectedClass.hp,
-                    attackNums: [...currentDNums],
-                    evadeNums: [...currentANums]
-                };
+                    const newMit = {
+                        id: `mit_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+                        classData: selectedClass,
+                        name: `MIT ${selectedClass.name}`,
+                        maxHp: selectedClass.hp,
+                        currentHp: selectedClass.hp,
+                        attackNums: [...currentDNums],
+                        evadeNums: [...currentANums]
+                    };
 
-                if (gameMode === 'ONLINE') {
-                    const user = onlineUser || await window.MITSFirebase.ready;
-                    const roomSnapshot = await window.MITSFirebase.get(onlineRoomRef());
-                    if (!roomSnapshot.exists()) return;
-                    const room = roomSnapshot.val();
-                    const playerKey = room.hostUid === user.uid ? 'p1Mits' : 'p2Mits';
-                    const current = Array.isArray(room[playerKey]) ? room[playerKey] : [];
-                    if (current.length >= 2) return;
-                    const updated = [...current, newMit];
-                    const otherReady = Array.isArray(room[playerKey === 'p1Mits' ? 'p2Mits' : 'p1Mits']) && room[playerKey === 'p1Mits' ? 'p2Mits' : 'p1Mits'].length === 2;
-                    await syncOnline({ [playerKey]: updated, status: otherReady && updated.length === 2 ? 'battle' : 'building', ...(otherReady && updated.length === 2 ? { currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', activeP1Index: 0, activeP2Index: 0, attackResult: null, combatLog: [{ type: 'system', text: '⚔️ ¡COMBATE ONLINE INICIADO!' }] } : {}) });
-                    setCurrentDNums([]);
-                    setCurrentANums([]);
-                    setSelectedClass(MIT_CLASSES[2]);
-                    return;
-                }
-
-                if (builderPlayer === 1) {
-                    const updated = [...p1Mits, newMit];
-                    setP1Mits(updated);
-                    setCurrentDNums([]);
-                    setCurrentANums([]);
-                    if (updated.length === 2) {
-                        if (gameMode === 'AI') {
-                            const aiList = [generateAiMit(1), generateAiMit(2)];
-                            setP2Mits(aiList);
-                            startBattle(updated, aiList);
-                        } else {
-                            setBuilderPlayer(2);
+                    if (gameMode === 'ONLINE') {
+                        const user = onlineUser || await window.MITSFirebase.ready;
+                        const roomRef = onlineRoomRef();
+                        const tx = await window.MITSFirebase.runTransaction(roomRef, room => {
+                            if (!room || !['building', 'waiting'].includes(room.status)) return;
+                            const playerKey = room.hostUid === user.uid ? 'p1Mits'
+                                : room.guestUid === user.uid ? 'p2Mits' : null;
+                            if (!playerKey) return;
+                            const current = Array.isArray(room[playerKey]) ? room[playerKey] : [];
+                            if (current.length >= 2) return;
+                            const updated = [...current, newMit];
+                            const otherKey = playerKey === 'p1Mits' ? 'p2Mits' : 'p1Mits';
+                            const otherReady = Array.isArray(room[otherKey]) && room[otherKey].length === 2;
+                            const bothReady = otherReady && updated.length === 2;
+                            return {
+                                ...room,
+                                [playerKey]: updated,
+                                status: bothReady ? 'battle' : 'building',
+                                ...(bothReady ? {
+                                    currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL',
+                                    activeP1Index: 0, activeP2Index: 0,
+                                    currentRollValue: 1, attackResult: null,
+                                    combatLog: [{ type: 'system', text: '⚔️ ¡COMBATE ONLINE INICIADO!' }]
+                                } : {})
+                            };
+                        });
+                        if (!tx.committed) {
+                            setOnlineStatus('No se pudo guardar el MIT. Comprueba que la sala siga activa.');
+                            return;
                         }
+                        setCurrentDNums([]);
+                        setCurrentANums([]);
+                        setSelectedClass(MIT_CLASSES[2]);
+                        return;
                     }
-                } else {
-                    const updated = [...p2Mits, newMit];
-                    setP2Mits(updated);
-                    setCurrentDNums([]);
-                    setCurrentANums([]);
-                    if (updated.length === 2) startBattle(p1Mits, updated);
+
+                    if (builderPlayer === 1) {
+                        const updated = [...p1Mits, newMit];
+                        setP1Mits(updated);
+                        setCurrentDNums([]);
+                        setCurrentANums([]);
+                        if (updated.length === 2) {
+                            if (gameMode === 'AI') {
+                                const aiList = [generateAiMit(1), generateAiMit(2)];
+                                setP2Mits(aiList);
+                                startBattle(updated, aiList);
+                            } else {
+                                setBuilderPlayer(2);
+                            }
+                        }
+                    } else {
+                        const updated = [...p2Mits, newMit];
+                        setP2Mits(updated);
+                        setCurrentDNums([]);
+                        setCurrentANums([]);
+                        if (updated.length === 2) startBattle(p1Mits, updated);
+                    }
+                } catch (error) {
+                    console.error('Error al confirmar MIT:', error);
+                    setOnlineStatus('No se pudo guardar el MIT: ' + error.message);
+                } finally {
+                    isSubmittingMitRef.current = false;
                 }
             };
 
@@ -561,21 +641,32 @@
             const currentDefender = currentTurnPlayer === 1 ? activeP2Mit : activeP1Mit;
 
             const executeRollAnimation = (finalValue, callback) => {
+                const session = gameSessionRef.current;
                 isRollingRef.current = true;
                 setIsRolling(true);
                 playSound('roll');
                 let count = 0;
                 const interval = setInterval(() => {
-                    setCurrentRollValue(Math.floor(Math.random() * 6) + 1);
+                    if (session !== gameSessionRef.current) {
+                        clearInterval(interval);
+                        if (rollIntervalRef.current === interval) rollIntervalRef.current = null;
+                        return;
+                    }
+                    const animatedValue = Math.floor(Math.random() * 6) + 1;
+                    setCurrentRollValue(animatedValue);
+                    lastRollValueRef.current = animatedValue;
                     count++;
                     if (count >= 10) {
                         clearInterval(interval);
+                        if (rollIntervalRef.current === interval) rollIntervalRef.current = null;
                         setCurrentRollValue(finalValue);
+                        lastRollValueRef.current = finalValue;
                         isRollingRef.current = false;
                         setIsRolling(false);
                         callback();
                     }
                 }, 60);
+                rollIntervalRef.current = interval;
             };
 
             // Attack Roll
@@ -601,7 +692,7 @@
                         if (gameMode === 'ONLINE') syncOnline({ currentRollValue: roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
 
                         if (gameMode === 'AI' && currentTurnPlayer === 1) {
-                            setTimeout(() => triggerAiDefense(atkData), 800);
+                            scheduleGameTimeout(() => triggerAiDefense(atkData), 800);
                         }
                     } else {
                         // Attack Failed -> Switch Turn Directly
@@ -620,7 +711,7 @@
                             type: 'miss'
                         });
                         
-                        setTimeout(() => endTurn(currentTurnPlayer, newLog), 1000);
+                        scheduleGameTimeout(() => endTurn(currentTurnPlayer, newLog), 1000);
                     }
                 });
             };
@@ -720,7 +811,7 @@
                 }
 
                 const attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1;
-                setTimeout(() => endTurn(attackerPlayerNum, logOverride), 1000);
+                scheduleGameTimeout(() => endTurn(attackerPlayerNum, logOverride), 1000);
             };
 
             const handleMitDefeated = (playerNum, updatedMits, logOverride = null) => {
@@ -760,7 +851,7 @@
                     text: `🔄 Entra el 2º MIT de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
                 }];
 
-                setTimeout(() => {
+                scheduleGameTimeout(() => {
                     if (playerNum === 1) setActiveP1Index(reserveIndex);
                     else setActiveP2Index(reserveIndex);
                     setCombatLog(entryLog);
@@ -798,7 +889,7 @@
                         floatingEffect: null,
                         combatPhase: 'ATTACK_ROLL',
                         currentTurnPlayer: nextPlayer,
-                        currentRollValue: currentRollValue,
+                        currentRollValue: lastRollValueRef.current,
                         combatLog: Array.isArray(logOverride) ? logOverride : combatLog
                     });
                 }
@@ -810,7 +901,7 @@
                 }
 
                 if (gameMode === 'AI' && nextPlayer === 2) {
-                    aiTurnTimerRef.current = setTimeout(() => {
+                    aiTurnTimerRef.current = scheduleGameTimeout(() => {
                         aiTurnTimerRef.current = null;
                         // Si el turno cambió durante la espera, se cancela la activación.
                         if (currentTurnPlayerRef.current === 2) triggerAiTurn();
@@ -855,12 +946,12 @@
                             type: 'miss'
                         });
                         // Un fallo consume el turno: no se vuelve a lanzar el dado.
-                        setTimeout(() => endTurn(2), 1000);
+                        scheduleGameTimeout(() => endTurn(2), 1000);
                     }
                 });
             };
 
-            const gameOver = (winnerPlayerNum, logOverride = null) => {
+            const gameOver = async (winnerPlayerNum, logOverride = null) => {
                 setGameState('GAMEOVER');
                 setIsTurnProcessing(false);
                 const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
@@ -869,7 +960,10 @@
                     text: `🏆 ¡FIN DE LA PARTIDA! Jugador ${winnerPlayerNum} ha ganado.`
                 }];
                 setCombatLog(victoryLog);
-                if (gameMode === 'ONLINE') syncOnline({ status: 'gameover', winner: winnerPlayerNum, combatLog: victoryLog });
+                if (gameMode === 'ONLINE') {
+                    await cancelOnlineDisconnect();
+                    await syncOnline({ status: 'gameover', winner: winnerPlayerNum, combatLog: victoryLog });
+                }
             };
 
             const returnToOnlineLobby = () => {
@@ -892,6 +986,11 @@
 
             const resetGame = async () => {
                 playSound('click');
+                // Invalida callbacks antiguos y detiene cualquier tirada/temporizador pendiente.
+                gameSessionRef.current += 1;
+                cancelGameTimers();
+                setIsRolling(false);
+                isSubmittingMitRef.current = false;
 
                 // Reiniciar desde una partida online también cuenta como abandonar:
                 // avisamos al rival explícitamente, sin depender de onDisconnect.
@@ -908,6 +1007,7 @@
                                 disconnectedPlayer: playerNum,
                                 winner: playerNum === 1 ? 2 : 1
                             });
+                            await cancelOnlineDisconnect(roomCode);
                         }
                     } catch (error) {
                         console.error('No se pudo notificar la salida al rival:', error);
@@ -934,10 +1034,7 @@
                 setIsTurnProcessing(false);
                 currentTurnPlayerRef.current = 1;
                 aiTurnInProgressRef.current = false;
-                if (aiTurnTimerRef.current !== null) {
-                    clearTimeout(aiTurnTimerRef.current);
-                    aiTurnTimerRef.current = null;
-                }
+                cancelGameTimers();
             };
 
             return (
