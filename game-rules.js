@@ -38,8 +38,28 @@
         };
     }
 
+    function resolveMitDefeat({ defeatedPlayer, hasReserve } = {}) {
+        const player = Number(defeatedPlayer);
+        if (player !== 1 && player !== 2) return null;
+
+        if (hasReserve === true) {
+            return {
+                isGameOver: false,
+                winner: null,
+                nextPlayer: player
+            };
+        }
+
+        return {
+            isGameOver: true,
+            winner: player === 1 ? 2 : 1,
+            nextPlayer: null
+        };
+    }
+
     return Object.freeze({
         isSuccessfulAttack,
-        resolveDefense
+        resolveDefense,
+        resolveMitDefeat
     });
 }));
