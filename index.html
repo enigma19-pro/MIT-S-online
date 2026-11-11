@@ -890,8 +890,30 @@
                 setCombatLog([]);
             };
 
-            const resetGame = () => {
+            const resetGame = async () => {
                 playSound('click');
+
+                // Reiniciar desde una partida online también cuenta como abandonar:
+                // avisamos al rival explícitamente, sin depender de onDisconnect.
+                if (gameMode === 'ONLINE' && roomCode && window.MITSFirebase) {
+                    try {
+                        const user = onlineUser || await window.MITSFirebase.ready;
+                        const roomRef = onlineRoomRef();
+                        const snapshot = await window.MITSFirebase.get(roomRef);
+                        if (snapshot.exists()) {
+                            const room = snapshot.val();
+                            const playerNum = room.hostUid === user.uid ? 1 : 2;
+                            await window.MITSFirebase.update(roomRef, {
+                                status: 'player_left',
+                                disconnectedPlayer: playerNum,
+                                winner: playerNum === 1 ? 2 : 1
+                            });
+                        }
+                    } catch (error) {
+                        console.error('No se pudo notificar la salida al rival:', error);
+                    }
+                }
+
                 if (onlineListenerRef.current && window.MITSFirebase) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     onlineListenerRef.current = null;
