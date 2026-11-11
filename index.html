@@ -392,7 +392,7 @@
                     setOnlineStatus('Comparte el código con tu rival.');
                     setDisconnectedPlayer(null);
                     await registerOnlineDisconnect(code, 1);
-                    subscribeToOnlineRoom(code);
+                    subscribeToOnlineRoom(code, 1);
                 } catch (error) {
                     console.error(error);
                     setOnlineStatus('Error al crear la sala: ' + error.message);
@@ -431,14 +431,14 @@
                     setOnlineStatus('Conectado. Construye tus 2 MITs.');
                     setDisconnectedPlayer(null);
                     await registerOnlineDisconnect(code, 2);
-                    subscribeToOnlineRoom(code);
+                    subscribeToOnlineRoom(code, 2);
                 } catch (error) {
                     console.error(error);
                     setOnlineStatus('Error al entrar: ' + error.message);
                 }
             };
 
-            const subscribeToOnlineRoom = (code) => {
+            const subscribeToOnlineRoom = (code, localPlayerNum) => {
                 if (!window.MITSFirebase || !code) return;
                 if (onlineListenerRef.current) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
@@ -471,7 +471,7 @@
                         setGameState('BATTLE');
                         setIsTurnProcessing(false);
                         if (!isRollingRef.current) setIsRolling(false);
-                        setOnlineStatus((room.currentTurnPlayer === (isRoomHost ? 1 : 2)) ? 'Es tu turno.' : 'Turno del rival.');
+                        setOnlineStatus((room.currentTurnPlayer === localPlayerNum) ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
                         setGameState('GAMEOVER');
                         // Cada cliente cancela su propio onDisconnect para no convertir
@@ -483,7 +483,7 @@
                         setIsTurnProcessing(false);
                         setOnlineStatus(`El Jugador ${room.disconnectedPlayer || '?'} salió de la partida.`);
                     }
-                    if (room.guestUid && room.status === 'waiting' && isRoomHost) {
+                    if (room.guestUid && room.status === 'waiting' && localPlayerNum === 1) {
                         window.MITSFirebase.update(roomRef, { status: 'building' });
                     }
                 };
@@ -977,12 +977,16 @@
                 }
             };
 
-            const returnToOnlineLobby = () => {
+            const returnToOnlineLobby = async () => {
                 playSound('click');
+                const previousRoomCode = roomCode;
                 if (onlineListenerRef.current && window.MITSFirebase) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     onlineListenerRef.current = null;
                 }
+                // Ya estamos saliendo de esta sala: evita que el onDisconnect
+                // pendiente deje un aviso falso si la pestaña se cierra después.
+                await cancelOnlineDisconnect(previousRoomCode);
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
                 setRoomCode('');
