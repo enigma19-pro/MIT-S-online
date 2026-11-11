@@ -13,7 +13,9 @@
 
     function isSuccessfulAttack(attackNums, roll) {
         const rolledNumber = Number(roll);
-        if (!Array.isArray(attackNums) || !Number.isInteger(rolledNumber)) {
+        const isValidDieRoll = Number.isInteger(rolledNumber) && rolledNumber >= 1 && rolledNumber <= 6;
+
+        if (!Array.isArray(attackNums) || !isValidDieRoll) {
             return false;
         }
 
