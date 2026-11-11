@@ -1077,8 +1077,11 @@
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     onlineListenerRef.current = null;
                 }
-                await cancelOnlineDisconnect(previousRoomCode);
-
+                // Volver al lobby es solo un cambio de pantalla local:
+                // dejamos activo onDisconnect para detectar una desconexión real
+                // si la conexión se pierde más adelante. El rival conserva GAMEOVER
+                // mientras esta conexión siga viva.
+                
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
                 setRoomCode('');
@@ -1206,12 +1209,20 @@
                             >
                                 <span>{soundEnabled ? '🔊 Sonido: ON' : '🔇 Sonido: OFF'}</span>
                             </button>
-                            {gameState !== 'MENU' && (
+                            {gameState !== 'MENU' && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
                                 <button 
                                     onClick={resetGame}
                                     className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition"
                                 >
                                     Reiniciar
+                                </button>
+                            )}
+                            {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
+                                <button
+                                    onClick={returnToOnlineLobby}
+                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 text-sm font-bold transition hover:brightness-110"
+                                >
+                                    Regresar al lobby
                                 </button>
                             )}
                         </div>
