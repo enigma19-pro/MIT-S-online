@@ -139,6 +139,7 @@
 <body class="min-h-screen flex flex-col justify-between">
     <div id="root"></div>
 
+    <script src="./game-rules.js"></script>
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
@@ -766,7 +767,7 @@
                 setIsTurnProcessing(true);
                 const roll = Math.floor(Math.random() * 6) + 1;
                 executeRollAnimation(roll, () => {
-                    const isHit = currentAttacker.attackNums.includes(roll);
+                    const isHit = window.MITSGameRules.isSuccessfulAttack(currentAttacker.attackNums, roll);
                     if (isHit) {
                         playSound('hit');
                         const atkData = { success: true, damage: roll, roll };
@@ -818,17 +819,11 @@
                 executeRollAnimation(roll, () => {
                     // Resolver el esquive con valores normalizados y una única fórmula.
                     // Solo un número que esté explícitamente en evadeNums puede reducir daño.
-                    const evadeNums = Array.isArray(currentDefender.evadeNums)
-                        ? currentDefender.evadeNums.map(Number)
-                        : [];
-                    const defenseRoll = Number(roll);
-                    const attackDamage = Number.isFinite(Number(atkData?.damage))
-                        ? Math.max(0, Number(atkData.damage))
-                        : 0;
-                    const isEvadeNumber = evadeNums.includes(defenseRoll);
-                    const finalDamageTaken = isEvadeNumber
-                        ? Math.max(0, attackDamage - defenseRoll)
-                        : attackDamage;
+                    const { isEvadeNumber, finalDamageTaken } = window.MITSGameRules.resolveDefense({
+                        attackDamage: atkData?.damage,
+                        defenseRoll: roll,
+                        evadeNums: currentDefender.evadeNums
+                    });
 
                     let defenseLogEntry;
                     if (isEvadeNumber) {
@@ -931,8 +926,13 @@
                     ? activeP1Index < 1
                     : activeP2Index < 1;
 
-                if (!defeatedPlayerHasReserve) {
-                    gameOver(playerNum === 1 ? 2 : 1, koLog);
+                const defeatResolution = window.MITSGameRules.resolveMitDefeat({
+                    defeatedPlayer: playerNum,
+                    hasReserve: defeatedPlayerHasReserve
+                });
+
+                if (!defeatResolution || defeatResolution.isGameOver) {
+                    if (defeatResolution) gameOver(defeatResolution.winner, koLog);
                     return;
                 }
 
@@ -948,10 +948,9 @@
                     else setActiveP2Index(reserveIndex);
                     setCombatLog(entryLog);
 
-                    // Regla oficial: el jugador que perdió su MIT recibe el turno.
-                    // endTurn recibe al "último jugador que actuó", por eso indicamos
-                    // al contrario del derrotado para que el siguiente turno sea suyo.
-                    const playerWhoJustActed = playerNum === 1 ? 2 : 1;
+                    // La regla de turno tras un KO se resuelve en el módulo puro.
+                    // endTurn recibe al jugador anterior para que el turno pase al derrotado.
+                    const playerWhoJustActed = defeatResolution.nextPlayer === 1 ? 2 : 1;
                     const onlineOverrides = playerNum === 1
                         ? { activeP1Index: reserveIndex, p1Mits: updatedMits, p2Mits: p2Mits }
                         : { activeP2Index: reserveIndex, p1Mits: p1Mits, p2Mits: updatedMits };
@@ -1012,7 +1011,7 @@
                 const roll = Math.floor(Math.random() * 6) + 1;
                 
                 executeRollAnimation(roll, () => {
-                    const isHit = aiMit.attackNums.includes(roll);
+                    const isHit = window.MITSGameRules.isSuccessfulAttack(aiMit.attackNums, roll);
                     if (isHit) {
                         playSound('hit');
                         const atkData = { success: true, damage: roll, roll };
