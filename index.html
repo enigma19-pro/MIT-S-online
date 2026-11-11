@@ -609,12 +609,23 @@
             };
 
             const startBattle = (p1, p2) => {
+                // Cada combate comienza desde un estado visual y lógico limpio.
+                // Evita arrastrar resultados, efectos o valores de dado de otra partida.
+                gameSessionRef.current += 1;
+                cancelGameTimers();
                 setGameState('BATTLE');
+                setP1Mits(p1);
+                setP2Mits(p2);
                 setActiveP1Index(0);
                 setActiveP2Index(0);
                 currentTurnPlayerRef.current = 1;
                 setCurrentTurnPlayer(1);
                 setCombatPhase('ATTACK_ROLL');
+                setAttackResult(null);
+                setFloatingEffect(null);
+                setCurrentRollValue(1);
+                lastRollValueRef.current = 1;
+                isRollingRef.current = false;
                 setIsTurnProcessing(false);
                 setIsRolling(false);
                 aiTurnInProgressRef.current = false;
@@ -1031,11 +1042,22 @@
                 setP1Mits([]);
                 setP2Mits([]);
                 setBuilderPlayer(1);
+                setSelectedClass(MIT_CLASSES[2]);
                 setCurrentDNums([]);
                 setCurrentANums([]);
+                setActiveP1Index(0);
+                setActiveP2Index(0);
+                setCurrentTurnPlayer(1);
+                currentTurnPlayerRef.current = 1;
+                setCombatPhase('ATTACK_ROLL');
+                setCurrentRollValue(1);
+                lastRollValueRef.current = 1;
+                setAttackResult(null);
+                setFloatingEffect(null);
+                setIsRolling(false);
+                isRollingRef.current = false;
                 setCombatLog([]);
                 setIsTurnProcessing(false);
-                currentTurnPlayerRef.current = 1;
                 aiTurnInProgressRef.current = false;
                 cancelGameTimers();
             };
