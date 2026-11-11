@@ -1061,13 +1061,23 @@
             const returnToOnlineLobby = async () => {
                 playSound('click');
                 const previousRoomCode = roomCode;
+
+                // Cierra por completo la sesión local anterior antes de mostrar el lobby.
+                // Así ningún timeout/animación de ese combate puede alterar el estado nuevo.
+                gameSessionRef.current += 1;
+                cancelGameTimers();
+                isRollingRef.current = false;
+                setIsRolling(false);
+                setIsTurnProcessing(false);
+                aiTurnInProgressRef.current = false;
+                isSubmittingMitRef.current = false;
+
                 if (onlineListenerRef.current && window.MITSFirebase) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     onlineListenerRef.current = null;
                 }
-                // Ya estamos saliendo de esta sala: evita que el onDisconnect
-                // pendiente deje un aviso falso si la pestaña se cierra después.
                 await cancelOnlineDisconnect(previousRoomCode);
+
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
                 setRoomCode('');
@@ -1075,9 +1085,22 @@
                 setOnlineStatus('');
                 setDisconnectedPlayer(null);
                 setIsRoomHost(false);
+                setBuilderPlayer(1);
                 setP1Mits([]);
                 setP2Mits([]);
+                setActiveP1Index(0);
+                setActiveP2Index(0);
+                setCurrentTurnPlayer(1);
+                currentTurnPlayerRef.current = 1;
+                setCombatPhase('ATTACK_ROLL');
+                setCurrentRollValue(1);
+                lastRollValueRef.current = 1;
+                setAttackResult(null);
+                setFloatingEffect(null);
                 setCombatLog([]);
+                setCurrentDNums([]);
+                setCurrentANums([]);
+                setSelectedClass(MIT_CLASSES[2]);
             };
 
             const resetGame = async () => {
