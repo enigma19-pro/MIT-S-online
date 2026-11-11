@@ -82,26 +82,31 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
-        .victory-rays {
+        .victory-rays-anchor {
             position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            pointer-events: none;
+        }
+
+        .victory-rays {
+            position: relative;
             width: 140vmin;
             height: 140vmin;
-            left: 50%;
-            top: 50%;
             border-radius: 50%;
-            pointer-events: none;
             background:
                 radial-gradient(circle at center, rgba(251, 191, 36, 0.28) 0%, rgba(245, 158, 11, 0.12) 13%, transparent 42%),
                 repeating-conic-gradient(from 0deg at 50% 50%, rgba(251, 191, 36, 0) 0deg 7deg, rgba(251, 191, 36, 0.24) 7.5deg 8.5deg, rgba(251, 191, 36, 0) 9deg 15deg);
             -webkit-mask-image: radial-gradient(circle at center, transparent 0%, black 28%, black 78%, transparent 100%);
             mask-image: radial-gradient(circle at center, transparent 0%, black 28%, black 78%, transparent 100%);
-            transform: translate(-50%, -50%) scale(0.94);
+            transform: scale(0.94);
             animation: victory-rays-pulse 5s ease-in-out infinite, victory-rays-turn 36s linear infinite;
         }
 
         @keyframes victory-rays-pulse {
-            0%, 100% { opacity: 0.45; transform: translate(-50%, -50%) scale(0.94); }
-            50% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+            0%, 100% { opacity: 0.45; }
+            50% { opacity: 1; }
         }
 
         @keyframes victory-rays-turn {
@@ -1647,7 +1652,9 @@
                                 )}
                                 {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
                                     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/95 backdrop-blur-md p-6">
-                                        <div className="victory-rays" aria-hidden="true"></div>
+                                        <div className="victory-rays-anchor" aria-hidden="true">
+                                            <div className="victory-rays"></div>
+                                        </div>
                                         <div className="relative z-10 w-full max-w-2xl text-center space-y-8">
                                             <div className="flex items-center justify-center gap-5 md:gap-8 text-4xl md:text-6xl text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.9)]" aria-hidden="true">
                                                 <span className="inline-block animate-pulse">⭐</span>
@@ -1871,7 +1878,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(31)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(32)
                     </footer>
                 </div>
             );
