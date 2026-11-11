@@ -391,7 +391,9 @@
                     setGameState('ONLINE_LOBBY');
                     setOnlineStatus('Comparte el código con tu rival.');
                     setDisconnectedPlayer(null);
-                    await registerOnlineDisconnect(code, 1);
+                    // No registrar onDisconnect sobre toda la sala: una caída breve
+                    // de Firebase puede marcarla player_left y bloquear al invitado.
+                    // La salida voluntaria se notifica explícitamente desde resetGame().
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
                     console.error(error);
@@ -448,7 +450,7 @@
                     setBuilderPlayer(2);
                     setOnlineStatus('Conectado. Construye tus 2 MITs.');
                     setDisconnectedPlayer(null);
-                    await registerOnlineDisconnect(code, 2);
+                    // Evita que una reconexión transitoria convierta la sala en player_left.
                     subscribeToOnlineRoom(code, 2);
                 } catch (error) {
                     console.error(error);
