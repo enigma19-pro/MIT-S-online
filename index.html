@@ -643,10 +643,16 @@
                             ]);
                             const latestRoom = roomSnapshot.exists() ? roomSnapshot.val() : null;
                             if (!presenceSnapshot.exists() && latestRoom?.status === 'battle') {
-                                await firebase.update(roomRef, {
-                                    status: 'player_left',
-                                    disconnectedPlayer: opponentNum,
-                                    winner: localPlayerNum
+                                // La transacción evita que ambos clientes sobrescriban
+                                // al mismo tiempo quién abandonó la partida.
+                                await firebase.runTransaction(roomRef, current => {
+                                    if (!current || current.status !== 'battle') return;
+                                    return {
+                                        ...current,
+                                        status: 'player_left',
+                                        disconnectedPlayer: opponentNum,
+                                        winner: localPlayerNum
+                                    };
                                 });
                             }
                         } catch (error) {
