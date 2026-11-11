@@ -245,6 +245,7 @@
             const [roomInput, setRoomInput] = useState('');
             const [onlineStatus, setOnlineStatus] = useState('');
             const [isRoomHost, setIsRoomHost] = useState(false);
+            const [disconnectedPlayer, setDisconnectedPlayer] = useState(null);
             const onlineListenerRef = useRef(null);
             const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -310,6 +311,16 @@
                 return code;
             };
 
+            const registerOnlineDisconnect = async (code, playerNum) => {
+                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                const disconnectAction = window.MITSFirebase.onDisconnect(roomRef);
+                await disconnectAction.update({
+                    status: 'player_left',
+                    disconnectedPlayer: playerNum,
+                    winner: playerNum === 1 ? 2 : 1
+                });
+            };
+
             const createOnlineRoom = async () => {
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
@@ -333,6 +344,8 @@
                     setGameMode('ONLINE');
                     setGameState('ONLINE_LOBBY');
                     setOnlineStatus('Comparte el código con tu rival.');
+                    setDisconnectedPlayer(null);
+                    await registerOnlineDisconnect(code, 1);
                     subscribeToOnlineRoom(code);
                 } catch (error) {
                     console.error(error);
@@ -366,6 +379,8 @@
                     setGameState('BUILD');
                     setBuilderPlayer(2);
                     setOnlineStatus('Conectado. Construye tus 2 MITs.');
+                    setDisconnectedPlayer(null);
+                    await registerOnlineDisconnect(code, 2);
                     subscribeToOnlineRoom(code);
                 } catch (error) {
                     console.error(error);
@@ -405,6 +420,11 @@
                         setOnlineStatus((room.currentTurnPlayer === (isRoomHost ? 1 : 2)) ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
                         setGameState('GAMEOVER');
+                    } else if (room.status === 'player_left') {
+                        setDisconnectedPlayer(room.disconnectedPlayer || null);
+                        setGameState('GAMEOVER');
+                        setIsTurnProcessing(false);
+                        setOnlineStatus(`El Jugador ${room.disconnectedPlayer || '?'} salió de la partida.`);
                     }
                     if (room.guestUid && room.status === 'waiting' && isRoomHost) {
                         window.MITSFirebase.update(roomRef, { status: 'building' });
@@ -848,6 +868,24 @@
                 if (gameMode === 'ONLINE') syncOnline({ status: 'gameover', winner: winnerPlayerNum, combatLog: victoryLog });
             };
 
+            const returnToOnlineLobby = () => {
+                playSound('click');
+                if (onlineListenerRef.current && window.MITSFirebase) {
+                    window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    onlineListenerRef.current = null;
+                }
+                setGameState('ONLINE_LOBBY');
+                setGameMode('ONLINE');
+                setRoomCode('');
+                setRoomInput('');
+                setOnlineStatus('');
+                setDisconnectedPlayer(null);
+                setIsRoomHost(false);
+                setP1Mits([]);
+                setP2Mits([]);
+                setCombatLog([]);
+            };
+
             const resetGame = () => {
                 playSound('click');
                 if (onlineListenerRef.current && window.MITSFirebase) {
@@ -1137,7 +1175,16 @@
                         {/* 3. BATTLEFIELD SCREEN */}
                         {(gameState === 'BATTLE' || gameState === 'GAMEOVER') && (
                             <div className="space-y-4">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                                {gameMode === 'ONLINE' && disconnectedPlayer && (
+                                    <div className="max-w-xl mx-auto w-full glass-panel rounded-3xl p-7 text-center border border-rose-500/40 shadow-2xl space-y-4">
+                                        <div className="text-4xl">🚪</div>
+                                        <h2 className="text-2xl font-black text-rose-300 font-mono-custom">PARTIDA TERMINADA</h2>
+                                        <p className="text-slate-200">El Jugador {disconnectedPlayer} salió de la partida.</p>
+                                        <p className="text-sm text-slate-400">La conexión se perdió o el jugador cerró o reinició la página. Has ganado por abandono.</p>
+                                        <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider hover:brightness-110">Regresar al lobby</button>
+                                    </div>
+                                )}
+                                {!disconnectedPlayer && <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
                                     {/* PLAYER 1 CARD */}
                                     <div className={`glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
                                         currentTurnPlayer === 1 && gameState === 'BATTLE' ? 'border-cyan-400 shadow-xl shadow-cyan-500/10' : 'border-slate-800 opacity-85'
@@ -1334,7 +1381,7 @@
                                             </div>
                                         ))}
                                     </div>
-                                </div>
+                                </div>}
                             </div>
                         )}
                     </main>
