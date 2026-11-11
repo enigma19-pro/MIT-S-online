@@ -891,7 +891,10 @@
                 }
 
                 const attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1;
-                scheduleGameTimeout(() => endTurn(attackerPlayerNum, logOverride), 1000);
+                scheduleGameTimeout(() => endTurn(attackerPlayerNum, logOverride, {
+                        p1Mits: updatedP1,
+                        p2Mits: updatedP2
+                    }), 1000);
             };
 
             const handleMitDefeated = (playerNum, updatedMits, logOverride = null) => {
@@ -941,8 +944,8 @@
                     // al contrario del derrotado para que el siguiente turno sea suyo.
                     const playerWhoJustActed = playerNum === 1 ? 2 : 1;
                     const onlineOverrides = playerNum === 1
-                        ? { activeP1Index: reserveIndex }
-                        : { activeP2Index: reserveIndex };
+                        ? { activeP1Index: reserveIndex, p1Mits: updatedMits, p2Mits: p2Mits }
+                        : { activeP2Index: reserveIndex, p1Mits: p1Mits, p2Mits: updatedMits };
                     endTurn(playerWhoJustActed, entryLog, onlineOverrides);
                 }, 1000);
             };
