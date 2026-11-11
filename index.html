@@ -82,6 +82,32 @@
             font-family: 'JetBrains Mono', monospace;
         }
 
+        .victory-rays {
+            position: absolute;
+            inset: -35%;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at center, rgba(251, 191, 36, 0.28) 0%, rgba(245, 158, 11, 0.12) 13%, transparent 42%),
+                repeating-conic-gradient(from 0deg at 50% 50%, rgba(251, 191, 36, 0) 0deg 7deg, rgba(251, 191, 36, 0.24) 7.5deg 8.5deg, rgba(251, 191, 36, 0) 9deg 15deg);
+            -webkit-mask-image: radial-gradient(ellipse at center, transparent 0%, black 28%, black 78%, transparent 100%);
+            mask-image: radial-gradient(ellipse at center, transparent 0%, black 28%, black 78%, transparent 100%);
+            animation: victory-rays-pulse 5s ease-in-out infinite, victory-rays-turn 36s linear infinite;
+        }
+
+        @keyframes victory-rays-pulse {
+            0%, 100% { opacity: 0.45; transform: scale(0.94); }
+            50% { opacity: 1; transform: scale(1.06); }
+        }
+
+        @keyframes victory-rays-turn {
+            from { rotate: 0deg; }
+            to { rotate: 360deg; }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .victory-rays { animation: none; opacity: 0.65; }
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -1464,9 +1490,14 @@
                                     </div>
                                 )}
                                 {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
-                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-6">
-                                        <div className="w-full max-w-2xl text-center space-y-8">
-                                            <div className="text-6xl md:text-8xl">🏆</div>
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/95 backdrop-blur-md p-6">
+                                        <div className="victory-rays" aria-hidden="true"></div>
+                                        <div className="relative z-10 w-full max-w-2xl text-center space-y-8">
+                                            <div className="flex items-center justify-center gap-5 md:gap-8 text-4xl md:text-6xl text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.9)]" aria-hidden="true">
+                                                <span className="inline-block animate-pulse">⭐</span>
+                                                <span className="text-6xl md:text-8xl">🏆</span>
+                                                <span className="inline-block animate-pulse">⭐</span>
+                                            </div>
                                             <h2 className="text-4xl md:text-6xl font-black font-mono-custom text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-100 to-amber-500 drop-shadow-lg">
                                                 ¡GANÓ EL JUGADOR {winnerPlayer || '?'}!
                                             </h2>
@@ -1684,7 +1715,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(26)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(27)
                     </footer>
                 </div>
             );
