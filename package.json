@@ -1,0 +1,12 @@
+{
+  "name": "mits-online",
+  "version": "1.0.0",
+  "private": true,
+  "description": "MIT'S tactical dice combat game",
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
