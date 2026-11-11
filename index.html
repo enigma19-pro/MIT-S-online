@@ -368,6 +368,10 @@
                         return;
                     }
                     const room = snapshot.val();
+                    if (room.status === 'player_left' || room.status === 'gameover') {
+                        setOnlineStatus('Esta sala ya terminó. Crea una nueva.');
+                        return;
+                    }
                     if (room.guestUid && room.guestUid !== user.uid) {
                         setOnlineStatus('La sala ya está llena.');
                         return;
@@ -897,6 +901,7 @@
                 setRoomInput('');
                 setOnlineStatus('');
                 setIsRoomHost(false);
+                setDisconnectedPlayer(null);
                 setGameMode('AI');
                 setP1Mits([]);
                 setP2Mits([]);
