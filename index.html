@@ -248,6 +248,8 @@
             const [roomCode, setRoomCode] = useState('');
             const [roomInput, setRoomInput] = useState('');
             const [onlineStatus, setOnlineStatus] = useState('');
+            const [isJoiningRoom, setIsJoiningRoom] = useState(false);
+            const isJoiningRoomRef = useRef(false);
             const [isRoomHost, setIsRoomHost] = useState(false);
             const [disconnectedPlayer, setDisconnectedPlayer] = useState(null);
             const onlineListenerRef = useRef(null);
@@ -396,12 +398,13 @@
                     // La salida voluntaria se notifica explícitamente desde resetGame().
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
-                    console.error(error);
-                    setOnlineStatus('Error al crear la sala: ' + error.message);
-                }
-            };
+                    console.error(            const joinOnlineRoom = async () => {
+                // Evita que un doble clic dispare dos reservas desde el mismo navegador.
+                if (isJoiningRoomRef.current) return;
+                isJoiningRoomRef.current = true;
+                setIsJoiningRoom(true);
+                let joinStep = 'autenticación';
 
-            const joinOnlineRoom = async () => {
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
                     const code = roomInput.trim().toUpperCase();
@@ -409,14 +412,18 @@
                         setOnlineStatus('El código debe tener 6 caracteres.');
                         return;
                     }
+
                     const roomRef = onlineRoomRef(code);
                     if (!roomRef) throw new Error('No se pudo abrir la referencia de la sala.');
-                    // Leer primero permite diferenciar sala inexistente/ocupada de un rechazo real de reglas.
+
+                    // El invitado puede leer salas sin ocupar; después intenta reservar el único lugar disponible.
+                    joinStep = 'lectura de la sala';
                     const initialSnapshot = await window.MITSFirebase.get(roomRef);
                     if (!initialSnapshot.exists()) {
                         setOnlineStatus('No existe esa sala. Revisa el código.');
                         return;
                     }
+
                     const initialRoom = initialSnapshot.val() || {};
                     if (!initialRoom.hostUid) {
                         setOnlineStatus('La sala está dañada: no tiene anfitrión. Crea otra.');
@@ -435,33 +442,35 @@
                         return;
                     }
 
-                    // La transacción conserva la reserva atómica: dos invitados no pueden ocupar el mismo lugar.
-                    const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
-                        if (!current || !current.hostUid) return;
-                        if (current.hostUid === user.uid) return;
-                        if (!['waiting', 'building'].includes(current.status)) return;
-                        if (current.guestUid && current.guestUid !== user.uid) return;
-                        return { ...current, guestUid: user.uid, status: 'building' };
-                    }, { applyLocally: false });
+                    // Reserva atómica mediante update. Las reglas de RTDB solo permiten esta
+                    // transición si el hueco sigue libre y el nuevo guestUid coincide con auth.uid.
+                    // Si dos invitados compiten, Firebase acepta uno y rechaza el otro.
+                    joinStep = 'reserva del lugar';
+                    await window.MITSFirebase.update(roomRef, {
+                        guestUid: user.uid,
+                        status: 'building'
+                    });
 
-                    if (!tx.committed) {
-                        const latestRoom = tx.snapshot && tx.snapshot.exists() ? (tx.snapshot.val() || {}) : {};
-                        console.warn('Reserva de sala no confirmada; estado recibido:', {
+                    // Confirma que el servidor guardó la reserva para este usuario antes de entrar al constructor.
+                    joinStep = 'verificación de la reserva';
+                    const confirmedSnapshot = await window.MITSFirebase.get(roomRef);
+                    const confirmedRoom = confirmedSnapshot.exists() ? (confirmedSnapshot.val() || {}) : {};
+                    if (
+                        !confirmedSnapshot.exists() ||
+                        confirmedRoom.hostUid !== initialRoom.hostUid ||
+                        confirmedRoom.guestUid !== user.uid ||
+                        confirmedRoom.status !== 'building'
+                    ) {
+                        console.warn('La sala no confirmó la reserva del invitado:', {
                             roomCode: code,
                             uid: user.uid,
-                            status: latestRoom.status || null,
-                            hasHost: !!latestRoom.hostUid,
-                            guestAlreadySet: !!latestRoom.guestUid
+                            status: confirmedRoom.status || null,
+                            guestMatches: confirmedRoom.guestUid === user.uid
                         });
-                        if (latestRoom.guestUid && latestRoom.guestUid !== user.uid) {
-                            setOnlineStatus('La sala acaba de ser ocupada por otro jugador. Prueba con otra.');
-                        } else if (latestRoom.status && !['waiting', 'building'].includes(latestRoom.status)) {
-                            setOnlineStatus('La sala dejó de estar disponible. Estado: ' + latestRoom.status + '.');
-                        } else {
-                            setOnlineStatus('No se pudo reservar el lugar. La sala cambió mientras te unías; vuelve a intentarlo con una sala nueva.');
-                        }
+                        setOnlineStatus('Firebase no confirmó tu lugar en la sala. Vuelve al listado y prueba con una sala nueva.');
                         return;
                     }
+
                     setRoomCode(code);
                     setIsRoomHost(false);
                     setGameMode('ONLINE');
@@ -472,7 +481,27 @@
                     // Evita que una reconexión transitoria convierta la sala en player_left.
                     subscribeToOnlineRoom(code, 2);
                 } catch (error) {
-                    console.error(error);
+                    console.error('Error al entrar a la sala (' + joinStep + '):', error);
+                    const errorCode = String(error?.code || '').toUpperCase();
+                    const errorMessage = String(error?.message || '');
+                    const permissionDenied =
+                        errorCode.includes('PERMISSION_DENIED') ||
+                        errorCode.includes('PERMISSION-DENIED') ||
+                        /permission denied/i.test(errorMessage);
+
+                    if (permissionDenied && joinStep === 'reserva del lugar') {
+                        setOnlineStatus('Firebase rechazó la reserva. Puede que otro jugador haya ocupado la sala o que las reglas de /rooms/$roomId no estén publicadas correctamente.');
+                    } else if (permissionDenied) {
+                        setOnlineStatus('Firebase denegó el acceso durante ' + joinStep + '. Revisa las reglas de lectura de /rooms/$roomId.');
+                    } else {
+                        setOnlineStatus('Error al entrar: ' + (errorMessage || 'Error desconocido.'));
+                    }
+                } finally {
+                    isJoiningRoomRef.current = false;
+                    setIsJoiningRoom(false);
+                }
+            };
+e.error(error);
                     setOnlineStatus('Error al entrar: ' + error.message);
                 }
             };
@@ -1230,7 +1259,7 @@
 
                                 <div className="space-y-2">
                                     <input value={roomInput} onChange={e => setRoomInput(e.target.value.toUpperCase())} maxLength={6} placeholder="CÓDIGO DE 6 CARACTERES" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-4 text-center text-xl font-black font-mono-custom tracking-[0.35em] uppercase focus:outline-none focus:border-emerald-400" />
-                                    <button onClick={joinOnlineRoom} disabled={!onlineUser || roomInput.length !== 6} className="w-full py-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-emerald-400 text-slate-100 font-bold disabled:opacity-40">🔑 Unirse a sala</button>
+                                    <button onClick={joinOnlineRoom} disabled={!onlineUser || roomInput.length !== 6 || isJoiningRoom} className="w-full py-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-emerald-400 text-slate-100 font-bold disabled:opacity-40">{isJoiningRoom ? 'Conectando...' : '🔑 Unirse a sala'}</button>
                                 </div>
 
                                 {roomCode && (
