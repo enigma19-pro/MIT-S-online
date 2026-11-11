@@ -1011,7 +1011,7 @@
                 const roll = Math.floor(Math.random() * 6) + 1;
                 
                 executeRollAnimation(roll, () => {
-                    const isHit = aiMit.attackNums.includes(roll);
+                    const isHit = window.MITSGameRules.isSuccessfulAttack(aiMit.attackNums, roll);
                     if (isHit) {
                         playSound('hit');
                         const atkData = { success: true, damage: roll, roll };
