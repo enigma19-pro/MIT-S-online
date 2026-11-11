@@ -633,7 +633,7 @@
                 };
 
                 const schedulePresenceCheck = () => {
-                    if (currentRoomStatus !== 'battle' || presenceGraceTimerRef.current !== null) return;
+                    if (!['building', 'battle'].includes(currentRoomStatus) || presenceGraceTimerRef.current !== null) return;
                     presenceGraceTimerRef.current = setTimeout(async () => {
                         presenceGraceTimerRef.current = null;
                         try {
@@ -642,7 +642,7 @@
                                 firebase.get(roomRef)
                             ]);
                             const latestRoom = roomSnapshot.exists() ? roomSnapshot.val() : null;
-                            if (!presenceSnapshot.exists() && latestRoom?.status === 'battle') {
+                            if (!presenceSnapshot.exists() && ['building', 'battle'].includes(latestRoom?.status)) {
                                 // La transacción evita que ambos clientes sobrescriban
                                 // al mismo tiempo quién abandonó la partida.
                                 await firebase.runTransaction(roomRef, current => {
@@ -664,7 +664,7 @@
                 const presenceHandler = snapshot => {
                     opponentPresenceKnown = true;
                     opponentIsPresent = snapshot.exists();
-                    if (currentRoomStatus !== 'battle' || opponentIsPresent) {
+                    if (!['building', 'battle'].includes(currentRoomStatus) || opponentIsPresent) {
                         clearPresenceGraceTimer();
                     } else {
                         schedulePresenceCheck();
@@ -675,7 +675,7 @@
                     const room = snapshot.val();
                     if (!room) return;
                     currentRoomStatus = room.status || null;
-                    if (currentRoomStatus !== 'battle') {
+                    if (!['building', 'battle'].includes(currentRoomStatus)) {
                         clearPresenceGraceTimer();
                         if (currentRoomStatus === 'gameover') {
                             // A partir de GAMEOVER usamos el onDisconnect de la sala
@@ -1871,7 +1871,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(30)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(31)
                     </footer>
                 </div>
             );
