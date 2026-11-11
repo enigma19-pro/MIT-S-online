@@ -291,7 +291,7 @@
             const aiTurnTimerRef = useRef(null);
 
             const scheduleGameTimeout = (callback, delay) => {
-                const timer = scheduleGameTimeout(() => {
+                const timer = setTimeout(() => {
                     pendingTimeoutsRef.current.delete(timer);
                     callback();
                 }, delay);
