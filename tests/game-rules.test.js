@@ -85,4 +85,5 @@ test('the opponent wins when the defeated player has no reserve MIT', () => {
 
 test('invalid defeated player numbers do not produce a turn transition', () => {
     assert.equal(require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 3, hasReserve: true }), null);
+    assert.equal(require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 1 }), null);
 });
