@@ -1189,7 +1189,9 @@
                                         <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider hover:brightness-110">Regresar al lobby</button>
                                     </div>
                                 )}
-                                {!disconnectedPlayer && <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                                {!disconnectedPlayer && (
+                                    <>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
                                     {/* PLAYER 1 CARD */}
                                     <div className={`glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
                                         currentTurnPlayer === 1 && gameState === 'BATTLE' ? 'border-cyan-400 shadow-xl shadow-cyan-500/10' : 'border-slate-800 opacity-85'
@@ -1386,7 +1388,9 @@
                                             </div>
                                         ))}
                                     </div>
-                                </div>}
+                                </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </main>
