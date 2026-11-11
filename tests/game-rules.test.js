@@ -60,3 +60,29 @@ test('invalid damage is treated as zero rather than propagating NaN', () => {
         { isEvadeNumber: true, finalDamageTaken: 0 }
     );
 });
+
+test('the player who loses a MIT with a reserve receives the next turn', () => {
+    assert.deepEqual(
+        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 1, hasReserve: true }),
+        { isGameOver: false, winner: null, nextPlayer: 1 }
+    );
+    assert.deepEqual(
+        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 2, hasReserve: true }),
+        { isGameOver: false, winner: null, nextPlayer: 2 }
+    );
+});
+
+test('the opponent wins when the defeated player has no reserve MIT', () => {
+    assert.deepEqual(
+        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 1, hasReserve: false }),
+        { isGameOver: true, winner: 2, nextPlayer: null }
+    );
+    assert.deepEqual(
+        require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 2, hasReserve: false }),
+        { isGameOver: true, winner: 1, nextPlayer: null }
+    );
+});
+
+test('invalid defeated player numbers do not produce a turn transition', () => {
+    assert.equal(require('../game-rules.js').resolveMitDefeat({ defeatedPlayer: 3, hasReserve: true }), null);
+});
