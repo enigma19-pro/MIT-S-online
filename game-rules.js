@@ -11,26 +11,39 @@
 }(typeof globalThis !== 'undefined' ? globalThis : this, function () {
     'use strict';
 
-    function isSuccessfulAttack(attackNums, roll) {
-        const rolledNumber = Number(roll);
-        const isValidDieRoll = Number.isInteger(rolledNumber) && rolledNumber >= 1 && rolledNumber <= 6;
+    // Accept numeric values and numeric strings, but never coerce booleans,
+    // null, arrays, or objects into die faces.
+    function parseDieFace(value) {
+        if (typeof value !== 'number' && typeof value !== 'string') return null;
+        if (typeof value === 'string' && value.trim() === '') return null;
 
-        if (!Array.isArray(attackNums) || !isValidDieRoll) {
+        const number = Number(value);
+        return Number.isInteger(number) && number >= 1 && number <= 6
+            ? number
+            : null;
+    }
+
+    function isSuccessfulAttack(attackNums, roll) {
+        const rolledNumber = parseDieFace(roll);
+
+        if (!Array.isArray(attackNums) || rolledNumber === null) {
             return false;
         }
 
-        return attackNums.some(number => Number(number) === rolledNumber);
+        return attackNums.some(number => parseDieFace(number) === rolledNumber);
     }
 
     function resolveDefense({ attackDamage, defenseRoll, evadeNums } = {}) {
-        const rawDamage = Number(attackDamage);
+        const rawDamage = (
+            typeof attackDamage === 'number' ||
+            (typeof attackDamage === 'string' && attackDamage.trim() !== '')
+        ) ? Number(attackDamage) : NaN;
         const damage = Number.isFinite(rawDamage) ? Math.max(0, rawDamage) : 0;
-        const roll = Number(defenseRoll);
-        const validRoll = Number.isInteger(roll) && roll >= 1 && roll <= 6;
+        const roll = parseDieFace(defenseRoll);
         const evadeNumbers = Array.isArray(evadeNums)
-            ? evadeNums.map(Number).filter(Number.isInteger)
+            ? evadeNums.map(parseDieFace).filter(number => number !== null)
             : [];
-        const isEvadeNumber = validRoll && evadeNumbers.includes(roll);
+        const isEvadeNumber = roll !== null && evadeNumbers.includes(roll);
 
         return {
             isEvadeNumber,
@@ -39,7 +52,11 @@
     }
 
     function resolveMitDefeat({ defeatedPlayer, hasReserve } = {}) {
-        const player = Number(defeatedPlayer);
+        const player = (
+            typeof defeatedPlayer === 'number' ||
+            (typeof defeatedPlayer === 'string' && defeatedPlayer.trim() !== '')
+        ) ? Number(defeatedPlayer) : NaN;
+
         if ((player !== 1 && player !== 2) || typeof hasReserve !== 'boolean') return null;
 
         if (hasReserve) {
