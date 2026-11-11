@@ -398,7 +398,12 @@
                     // La salida voluntaria se notifica explícitamente desde resetGame().
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
-                    console.error(            const joinOnlineRoom = async () => {
+                    console.error(error);
+                    setOnlineStatus('Error al crear la sala: ' + error.message);
+                }
+            };
+
+            const joinOnlineRoom = async () => {
                 // Evita que un doble clic dispare dos reservas desde el mismo navegador.
                 if (isJoiningRoomRef.current) return;
                 isJoiningRoomRef.current = true;
@@ -499,10 +504,6 @@
                 } finally {
                     isJoiningRoomRef.current = false;
                     setIsJoiningRoom(false);
-                }
-            };
-e.error(error);
-                    setOnlineStatus('Error al entrar: ' + error.message);
                 }
             };
 
