@@ -139,6 +139,7 @@
 <body class="min-h-screen flex flex-col justify-between">
     <div id="root"></div>
 
+    <script src="./game-rules.js"></script>
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
@@ -766,7 +767,7 @@
                 setIsTurnProcessing(true);
                 const roll = Math.floor(Math.random() * 6) + 1;
                 executeRollAnimation(roll, () => {
-                    const isHit = currentAttacker.attackNums.includes(roll);
+                    const isHit = window.MITSGameRules.isSuccessfulAttack(currentAttacker.attackNums, roll);
                     if (isHit) {
                         playSound('hit');
                         const atkData = { success: true, damage: roll, roll };
@@ -818,17 +819,11 @@
                 executeRollAnimation(roll, () => {
                     // Resolver el esquive con valores normalizados y una única fórmula.
                     // Solo un número que esté explícitamente en evadeNums puede reducir daño.
-                    const evadeNums = Array.isArray(currentDefender.evadeNums)
-                        ? currentDefender.evadeNums.map(Number)
-                        : [];
-                    const defenseRoll = Number(roll);
-                    const attackDamage = Number.isFinite(Number(atkData?.damage))
-                        ? Math.max(0, Number(atkData.damage))
-                        : 0;
-                    const isEvadeNumber = evadeNums.includes(defenseRoll);
-                    const finalDamageTaken = isEvadeNumber
-                        ? Math.max(0, attackDamage - defenseRoll)
-                        : attackDamage;
+                    const { isEvadeNumber, finalDamageTaken } = window.MITSGameRules.resolveDefense({
+                        attackDamage: atkData?.damage,
+                        defenseRoll: roll,
+                        evadeNums: currentDefender.evadeNums
+                    });
 
                     let defenseLogEntry;
                     if (isEvadeNumber) {
