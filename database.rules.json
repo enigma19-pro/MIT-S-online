@@ -3,7 +3,8 @@
     "rooms": {
       "$roomId": {
         ".read": "auth != null && (!data.exists() || data.child('hostUid').val() == auth.uid || data.child('guestUid').val() == auth.uid || !data.child('guestUid').exists())",
-        ".write": "auth != null && (!data.exists() || data.child('hostUid').val() == auth.uid || data.child('guestUid').val() == auth.uid || (!data.child('guestUid').exists() && newData.child('hostUid').val() == data.child('hostUid').val() && newData.child('guestUid').val() == auth.uid && newData.child('status').val() == 'building'))"
+        ".write": "auth != null && newData.exists() && (!data.exists() || data.child('hostUid').val() == auth.uid || data.child('guestUid').val() == auth.uid || (!data.child('guestUid').exists() && data.child('status').val() == 'waiting' && newData.child('hostUid').val() == data.child('hostUid').val() && newData.child('guestUid').val() == auth.uid && newData.child('status').val() == 'building'))",
+        ".validate": "newData.hasChildren(['hostUid', 'status']) && newData.child('hostUid').isString() && newData.child('status').isString() && (newData.child('status').val() == 'waiting' || newData.child('status').val() == 'building' || newData.child('status').val() == 'battle' || newData.child('status').val() == 'gameover' || newData.child('status').val() == 'player_left') && (!data.exists() ? newData.child('hostUid').val() == auth.uid : newData.child('hostUid').val() == data.child('hostUid').val()) && (!data.child('guestUid').exists() ? (!newData.child('guestUid').exists() || (newData.child('guestUid').val() == auth.uid && newData.child('guestUid').val() != newData.child('hostUid').val())) : newData.child('guestUid').val() == data.child('guestUid').val())"
       }
     }
   }
