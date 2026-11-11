@@ -407,27 +407,44 @@
             // Presencia por conexión: evita marcar una salida por una caída breve
             // de red. Cada reconexión vuelve a registrar su limpieza en el servidor.
             const registerOnlinePresence = (code, playerNum) => {
-                if (!code || !window.MITSFirebase) return;
+                if (!code || !window.MITSFirebase) return Promise.reject(new Error('No se pudo iniciar la presencia online.'));
                 const firebase = window.MITSFirebase;
                 const connectionId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
                 const connectionRef = firebase.ref(firebase.db, `rooms/${code}/presence/player${playerNum}/${connectionId}`);
                 const connectedRef = firebase.ref(firebase.db, '.info/connected');
-                let registering = false;
-
-                const connectedHandler = snapshot => {
-                    if (snapshot.val() !== true || registering) return;
-                    registering = true;
-                    firebase.onDisconnect(connectionRef).remove()
-                        .then(() => firebase.set(connectionRef, true))
-                        .catch(error => console.warn('No se pudo registrar la presencia online:', error))
-                        .finally(() => { registering = false; });
-                };
 
                 if (onlinePresenceRef.current) {
                     firebase.off(onlinePresenceRef.current.connectedRef, 'value', onlinePresenceRef.current.connectedHandler);
                 }
-                firebase.onValue(connectedRef, connectedHandler);
-                onlinePresenceRef.current = { connectedRef, connectedHandler, connectionRef, code, playerNum };
+
+                return new Promise((resolve, reject) => {
+                    let registering = false;
+                    let firstRegistration = true;
+                    const connectedHandler = snapshot => {
+                        if (snapshot.val() !== true || registering) return;
+                        registering = true;
+                        firebase.onDisconnect(connectionRef).remove()
+                            .then(() => firebase.set(connectionRef, true))
+                            .then(() => {
+                                registering = false;
+                                if (firstRegistration) {
+                                    firstRegistration = false;
+                                    resolve();
+                                }
+                            })
+                            .catch(error => {
+                                registering = false;
+                                console.warn('No se pudo registrar la presencia online:', error);
+                                if (firstRegistration) {
+                                    firstRegistration = false;
+                                    reject(error);
+                                }
+                            });
+                    };
+
+                    firebase.onValue(connectedRef, connectedHandler);
+                    onlinePresenceRef.current = { connectedRef, connectedHandler, connectionRef, code, playerNum };
+                });
             };
 
             const stopOnlinePresenceListener = () => {
@@ -471,7 +488,7 @@
                     setDisconnectedPlayer(null);
                     // La presencia individual detecta cierres reales sin convertir
                     // una reconexión breve en una salida definitiva.
-                    registerOnlinePresence(code, 1);
+                    await registerOnlinePresence(code, 1);
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
                     console.error(error);
@@ -563,7 +580,7 @@
                     setOnlineStatus('Conectado. Construye tus 2 MITs.');
                     setDisconnectedPlayer(null);
                     // Registra presencia antes de comenzar a construir/pelear.
-                    registerOnlinePresence(code, 2);
+                    await registerOnlinePresence(code, 2);
                     subscribeToOnlineRoom(code, 2);
                 } catch (error) {
                     console.error('Error al entrar a la sala (' + joinStep + '):', error);
