@@ -40,9 +40,9 @@
 
     function resolveMitDefeat({ defeatedPlayer, hasReserve } = {}) {
         const player = Number(defeatedPlayer);
-        if (player !== 1 && player !== 2) return null;
+        if ((player !== 1 && player !== 2) || typeof hasReserve !== 'boolean') return null;
 
-        if (hasReserve === true) {
+        if (hasReserve) {
             return {
                 isGameOver: false,
                 winner: null,
