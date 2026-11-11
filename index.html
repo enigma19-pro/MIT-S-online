@@ -255,6 +255,7 @@
             const isJoiningRoomRef = useRef(false);
             const [isRoomHost, setIsRoomHost] = useState(false);
             const [disconnectedPlayer, setDisconnectedPlayer] = useState(null);
+            const [winnerPlayer, setWinnerPlayer] = useState(null);
             const onlineListenerRef = useRef(null);
             const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -553,6 +554,7 @@
                         if (!isRollingRef.current) setIsRolling(false);
                         setOnlineStatus((room.currentTurnPlayer === localPlayerNum) ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
+                        setWinnerPlayer(room.winner || null);
                         setGameState('GAMEOVER');
                         // Mantiene preparada la notificación si cualquiera cierra la
                         // página después de terminar la partida. No modifica winner.
@@ -560,6 +562,7 @@
                             console.warn('No se pudo preparar la notificación de salida:', error);
                         });
                     } else if (room.status === 'player_left') {
+                        setWinnerPlayer(room.winner || null);
                         setDisconnectedPlayer(room.disconnectedPlayer || null);
                         setGameState('GAMEOVER');
                         setIsTurnProcessing(false);
@@ -1046,6 +1049,7 @@
             };
 
             const gameOver = async (winnerPlayerNum, logOverride = null) => {
+                setWinnerPlayer(winnerPlayerNum);
                 setGameState('GAMEOVER');
                 setIsTurnProcessing(false);
                 const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
@@ -1087,6 +1091,7 @@
                 setRoomInput('');
                 setOnlineStatus('');
                 setDisconnectedPlayer(null);
+                setWinnerPlayer(null);
                 setIsRoomHost(false);
                 setBuilderPlayer(1);
                 setP1Mits([]);
@@ -1130,6 +1135,7 @@
                 setOnlineStatus('');
                 setIsRoomHost(false);
                 setDisconnectedPlayer(null);
+                setWinnerPlayer(null);
                 setGameMode('AI');
                 setP1Mits([]);
                 setP2Mits([]);
@@ -1216,14 +1222,7 @@
                                     Reiniciar
                                 </button>
                             )}
-                            {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
-                                <button
-                                    onClick={returnToOnlineLobby}
-                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 text-sm font-bold transition hover:brightness-110"
-                                >
-                                    Regresar al lobby
-                                </button>
-                            )}
+
                         </div>
                     </header>
 
@@ -1464,7 +1463,20 @@
                                         <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider hover:brightness-110">Regresar al lobby</button>
                                     </div>
                                 )}
-                                {!disconnectedPlayer && (
+                                {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
+                                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-6">
+                                        <div className="w-full max-w-2xl text-center space-y-8">
+                                            <div className="text-6xl md:text-8xl">🏆</div>
+                                            <h2 className="text-4xl md:text-6xl font-black font-mono-custom text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-100 to-amber-500 drop-shadow-lg">
+                                                ¡GANÓ EL JUGADOR {winnerPlayer || '?'}!
+                                            </h2>
+                                            <button onClick={returnToOnlineLobby} className="px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 text-lg font-black uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition">
+                                                Regresar al lobby
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                {!disconnectedPlayer && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
                                     <>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
                                     {/* PLAYER 1 CARD */}
