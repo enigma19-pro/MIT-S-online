@@ -1146,18 +1146,26 @@
             };
 
             const sanitizeOnlineIndex = (value, mits) => {
+                if (typeof value !== 'number' && typeof value !== 'string') return 0;
+                if (typeof value === 'string' && value.trim() === '') return 0;
                 const index = Number(value);
                 if (Number.isInteger(index) && index >= 0 && index < mits.length && mits[index]) return index;
                 const firstValid = mits.findIndex(Boolean);
                 return firstValid >= 0 ? firstValid : 0;
             };
 
-            const sanitizeOnlineTurnPlayer = value => Number(value) === 2 ? 2 : 1;
+            const sanitizeOnlineTurnPlayer = value => {
+                if (typeof value !== 'number' && typeof value !== 'string') return 1;
+                if (typeof value === 'string' && value.trim() === '') return 1;
+                return Number(value) === 2 ? 2 : 1;
+            };
 
             const sanitizeOnlineCombatPhase = value =>
                 ['ATTACK_ROLL', 'DEFENSE_ROLL', 'RESOLVING'].includes(value) ? value : 'ATTACK_ROLL';
 
             const sanitizeOnlinePlayerNumber = value => {
+                if (typeof value !== 'number' && typeof value !== 'string') return null;
+                if (typeof value === 'string' && value.trim() === '') return null;
                 const player = Number(value);
                 return player === 1 || player === 2 ? player : null;
             };
@@ -1263,6 +1271,11 @@
                     const normalizedTurnPlayer = sanitizeOnlineTurnPlayer(room.currentTurnPlayer);
                     const normalizedCombatPhase = sanitizeOnlineCombatPhase(room.combatPhase);
                     const normalizedCombatLog = sanitizeOnlineCombatLog(room.combatLog);
+                    const currentAttackerMit = normalizedTurnPlayer === 1
+                        ? normalizedP1Mits[normalizedActiveP1Index]
+                        : normalizedP2Mits[normalizedActiveP2Index];
+                    const normalizedAttackResult = sanitizeOnlineAttackResult(room.attackResult, currentAttackerMit);
+                    const normalizedFloatingEffect = sanitizeOnlineFloatingEffect(room.floatingEffect);
                     const normalizedWinner = sanitizeOnlinePlayerNumber(room.winner);
                     const normalizedDisconnectedPlayer = sanitizeOnlinePlayerNumber(room.disconnectedPlayer);
                     const rebuildPlayer = sanitizeOnlinePlayerNumber(room.berserkerRebuild?.playerNum);
@@ -1284,20 +1297,16 @@
 
                     if (!isRollingRef.current) {
                         const syncedRoll = Number(room.currentRollValue);
-                        const safeRoll = Number.isFinite(syncedRoll) ? Math.min(6, Math.max(1, syncedRoll)) : 1;
+                        const safeRoll = Number.isInteger(syncedRoll) && syncedRoll >= 1 && syncedRoll <= 6 ? syncedRoll : 1;
                         setCurrentRollValue(safeRoll);
                         lastRollValueRef.current = safeRoll;
                     }
 
-                    if (room.attackResult && typeof room.attackResult === 'object' && !Array.isArray(room.attackResult)) {
-                        setAttackResult(room.attackResult);
-                    } else {
-                        setAttackResult(null);
-                    }
+                    setAttackResult(normalizedAttackResult);
                     setCombatLog(normalizedCombatLog);
 
-                    if (room.floatingEffect?.id && room.floatingEffect.id !== lastFloatingEffectIdRef.current) {
-                        displayFloatingEffect(room.floatingEffect);
+                    if (normalizedFloatingEffect?.id && normalizedFloatingEffect.id !== lastFloatingEffectIdRef.current) {
+                        displayFloatingEffect(normalizedFloatingEffect);
                     }
 
                     if (room.status === 'waiting') {
@@ -1344,8 +1353,18 @@
                         setOnlineStatus('El Jugador ' + (normalizedDisconnectedPlayer || '?') + ' salió de la partida.');
                     }
 
+                    const invalidMitData = (
+                        (Array.isArray(room.p1Mits) && room.p1Mits.slice(0, 2).some((mit, index) => !!mit && !normalizedP1Mits[index])) ||
+                        (Array.isArray(room.p2Mits) && room.p2Mits.slice(0, 2).some((mit, index) => !!mit && !normalizedP2Mits[index]))
+                    );
+                    if (invalidMitData) {
+                        setOnlineStatus('La sala contiene datos de MIT inválidos. No se cargarán esas unidades; vuelve al lobby y crea una sala nueva.');
+                    }
+
                     if (room.guestUid && room.status === 'waiting' && localPlayerNum === 1) {
-                        window.MITSFirebase.update(roomRef, { status: 'building' });
+                        window.MITSFirebase.update(roomRef, { status: 'building' }).catch(error => {
+                            console.warn('No se pudo cambiar la sala a construcción:', error);
+                        });
                     }
                 };
                 firebase.onValue(roomRef, handler);
