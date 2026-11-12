@@ -1253,7 +1253,45 @@
                 setFloatingEffect(null);
                 setCombatPhase('ATTACK_ROLL');
 
-                const nextPlayer = playerWhoJustActed === 1 ? 2 : 1;
+                let nextPlayer = playerWhoJustActed === 1 ? 2 : 1;
+                let nextP1Mits = [...(onlineOverrides.p1Mits || p1Mits)];
+                let nextP2Mits = [...(onlineOverrides.p2Mits || p2Mits)];
+                const p1Index = Number.isInteger(onlineOverrides.activeP1Index) ? onlineOverrides.activeP1Index : activeP1Index;
+                const p2Index = Number.isInteger(onlineOverrides.activeP2Index) ? onlineOverrides.activeP2Index : activeP2Index;
+
+                const advanceActive = (playerNum, list, index) => {
+                    const mit = list[index];
+                    if (!mit) return list;
+                    const advanced = window.MITSGameRules.advancePassiveTurn(mit, {
+                        opponentTurnEnded: playerWhoJustActed !== playerNum,
+                        ownTurnEnded: playerWhoJustActed === playerNum
+                    });
+                    const updated = [...list];
+                    updated[index] = { ...mit, passiveState: advanced.state };
+                    advanced.events.forEach(event => publishFloatingEffect({ player: playerNum, text: event, type: 'hit' }));
+                    return updated;
+                };
+                nextP1Mits = advanceActive(1, nextP1Mits, p1Index);
+                nextP2Mits = advanceActive(2, nextP2Mits, p2Index);
+
+                const actorList = playerWhoJustActed === 1 ? nextP1Mits : nextP2Mits;
+                const actorIndex = playerWhoJustActed === 1 ? p1Index : p2Index;
+                const actorMit = actorList[actorIndex];
+                const sequence = actorMit?.passiveState?.counterSequence;
+                let nextLog = Array.isArray(logOverride) ? [...logOverride] : [...combatLog];
+                if (sequence?.phase === 'FIRST') {
+                    const updatedActor = { ...actorMit, passiveState: { ...actorMit.passiveState, counterSequence: { ...sequence, phase: 'SECOND' } } };
+                    actorList[actorIndex] = updatedActor;
+                    nextPlayer = playerWhoJustActed;
+                    nextLog.push({ type: 'system', text: '⚔️ El rival pierde su ataque. ¡Duelista realiza su segundo contraataque!' });
+                } else if (sequence?.phase === 'SECOND') {
+                    const updatedActor = { ...actorMit, passiveState: { ...actorMit.passiveState, counterSequence: null, counterCooldownTurns: 1 } };
+                    actorList[actorIndex] = updatedActor;
+                    nextLog.push({ type: 'system', text: '🛡️ Contraataque completado. El rival recupera su turno.' });
+                }
+                setP1Mits(nextP1Mits);
+                setP2Mits(nextP2Mits);
+                if (Array.isArray(logOverride) || sequence) setCombatLog(nextLog);
                 currentTurnPlayerRef.current = nextPlayer;
                 setCurrentTurnPlayer(nextPlayer);
                 setIsTurnProcessing(false);
@@ -1261,12 +1299,16 @@
                 if (gameMode === 'ONLINE') {
                     syncOnline({
                         ...onlineOverrides,
+                        p1Mits: nextP1Mits,
+                        p2Mits: nextP2Mits,
+                        activeP1Index: p1Index,
+                        activeP2Index: p2Index,
                         attackResult: null,
                         floatingEffect: null,
                         combatPhase: 'ATTACK_ROLL',
                         currentTurnPlayer: nextPlayer,
                         currentRollValue: lastRollValueRef.current,
-                        combatLog: Array.isArray(logOverride) ? logOverride : combatLog
+                        combatLog: nextLog
                     });
                 }
 
