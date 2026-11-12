@@ -213,6 +213,79 @@
             .mits-modal-panel .mits-modal-content { padding: 3rem; }
         }
 
+        /* Class guide: true full-screen workspace on desktop. Avoid max-width
+           caps so the description has the actual viewport, not a centered card. */
+        @media (hover: hover) and (pointer: fine) {
+            .mits-class-guide-overlay {
+                position: fixed !important;
+                inset: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                max-width: none !important;
+                max-height: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                align-items: stretch !important;
+                justify-content: stretch !important;
+                overflow: hidden !important;
+            }
+            .mits-class-guide-panel {
+                position: relative !important;
+                width: 100vw !important;
+                max-width: none !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                max-height: none !important;
+                min-height: 0 !important;
+                margin: 0 !important;
+                border-radius: 0 !important;
+                overflow: hidden !important;
+                flex: 1 1 auto !important;
+            }
+            .mits-class-guide-panel > div:first-child {
+                flex: 0 0 auto !important;
+                padding: 18px 3vw !important;
+            }
+            .mits-class-guide-grid {
+                flex: 1 1 0 !important;
+                min-height: 0 !important;
+                height: auto !important;
+                grid-template-columns: minmax(230px, 21vw) minmax(0, 1fr) !important;
+                grid-template-rows: minmax(0, 1fr) !important;
+            }
+            .mits-class-guide-list {
+                padding: 24px !important;
+                gap: 14px !important;
+            }
+            .mits-class-guide-list button {
+                padding: 20px !important;
+            }
+            .mits-class-guide-details {
+                padding: clamp(28px, 3vw, 64px) !important;
+                overflow: auto !important;
+            }
+            .mits-class-guide-details > div:first-child h4 {
+                font-size: clamp(2.5rem, 4vw, 4.5rem) !important;
+                line-height: 1.08 !important;
+            }
+            .mits-class-guide-details .grid.grid-cols-1.sm\\:grid-cols-3 {
+                gap: clamp(14px, 1.5vw, 28px) !important;
+                margin-top: clamp(24px, 3vh, 48px) !important;
+            }
+            .mits-class-guide-details .grid.grid-cols-1.sm\\:grid-cols-3 > div {
+                padding: clamp(18px, 2vw, 36px) !important;
+            }
+            .mits-class-guide-details > div:last-child {
+                margin-top: clamp(24px, 3vh, 48px) !important;
+                padding: clamp(22px, 2.5vw, 44px) !important;
+            }
+            .mits-class-guide-details > div:last-child p {
+                font-size: clamp(1.1rem, 1.35vw, 1.5rem) !important;
+                line-height: 1.7 !important;
+            }
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -2281,8 +2354,8 @@
                                 {showClassGuide && (() => {
                                     const guideClass = MIT_CLASSES.find(c => c.id === guideClassId) || MIT_CLASSES[0];
                                     return (
-                                        <div className="mits-modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-3 md:p-6 lg:p-10" role="dialog" aria-modal="true" aria-labelledby="class-guide-title">
-                                            <div className="mits-modal-panel w-full overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
+                                        <div className="mits-modal-overlay mits-class-guide-overlay fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-3 md:p-6 lg:p-10" role="dialog" aria-modal="true" aria-labelledby="class-guide-title">
+                                            <div className="mits-modal-panel mits-class-guide-panel w-full overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
                                                 <div className="flex items-center justify-between gap-5 px-6 py-5 md:px-9 md:py-7 xl:px-12 xl:py-9 border-b border-slate-800 bg-gradient-to-r from-cyan-950/30 via-slate-950 to-purple-950/20">
                                                     <div className="text-left">
                                                         <h3 id="class-guide-title" className="text-2xl md:text-3xl lg:text-4xl font-black text-cyan-300 font-mono-custom tracking-wide">MANUAL DE CLASES</h3>
@@ -2731,7 +2804,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(45)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(46)
                     </footer>
                 </div>
             );
