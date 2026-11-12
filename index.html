@@ -852,7 +852,24 @@
                     let registering = false;
                     let firstRegistration = true;
                     let disposed = false;
-                    const dispose = () => { disposed = true; };
+                    const finishFailure = error => {
+                        if (!firstRegistration) return;
+                        firstRegistration = false;
+                        disposed = true;
+                        if (onlinePresenceRef.current?.connectionRef === connectionRef) {
+                            firebase.off(connectedRef, 'value', connectedHandler);
+                            onlinePresenceRef.current = null;
+                        }
+                        firebase.set(connectionRef, null).catch(() => {});
+                        reject(error);
+                    };
+                    const dispose = () => {
+                        if (disposed) return;
+                        const error = new Error('Registro de presencia cancelado.');
+                        error.code = 'PRESENCE_CANCELLED';
+                        finishFailure(error);
+                        disposed = true;
+                    };
                     const connectedHandler = snapshot => {
                         if (snapshot.val() !== true || registering || disposed) return;
                         registering = true;
@@ -863,7 +880,10 @@
                             })
                             .then(() => {
                                 registering = false;
-                                if (disposed) return;
+                                if (disposed) {
+                                    firebase.set(connectionRef, null).catch(() => {});
+                                    return;
+                                }
                                 if (firstRegistration) {
                                     firstRegistration = false;
                                     resolve();
@@ -872,10 +892,7 @@
                             .catch(error => {
                                 registering = false;
                                 console.warn('No se pudo registrar la presencia online:', error);
-                                if (firstRegistration) {
-                                    firstRegistration = false;
-                                    reject(error);
-                                }
+                                finishFailure(error);
                             });
                     };
 
@@ -936,8 +953,10 @@
                     await registerOnlinePresence(code, 1);
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
-                    console.error(error);
-                    setOnlineStatus('Error al crear la sala: ' + error.message);
+                    if (error?.code !== 'PRESENCE_CANCELLED') {
+                        console.error(error);
+                        setOnlineStatus('Error al crear la sala: ' + error.message);
+                    }
                 } finally {
                     isCreatingRoomRef.current = false;
                     setIsCreatingRoom(false);
@@ -1028,6 +1047,7 @@
                     await registerOnlinePresence(code, 2);
                     subscribeToOnlineRoom(code, 2);
                 } catch (error) {
+                    if (error?.code === 'PRESENCE_CANCELLED') return;
                     console.error('Error al entrar a la sala (' + joinStep + '):', error);
                     const errorCode = String(error?.code || '').toUpperCase();
                     const errorMessage = String(error?.message || '');
