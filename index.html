@@ -1125,7 +1125,7 @@
                 const reserveMit = updatedMits[reserveIndex];
                 const entryLog = [...koLog, {
                     type: 'system',
-                    text: `🔄 Entra el 2º MIT de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
+                    text: `🔄 Entra el MIT de reserva de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
                 }];
 
                 scheduleGameTimeout(() => {
