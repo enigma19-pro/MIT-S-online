@@ -161,7 +161,7 @@
         return { hit, roll: selectedRoll, damage, state: next, events, unstoppable: ultra };
     }
 
-    function resolvePassiveDefense({ attacker, defender, attackDamage, defenseRoll, unstoppable = false, random = Math.random } = {}) {
+    function resolvePassiveDefense({ attacker, defender, attackDamage, defenseRoll, unstoppable = false, allowCounterTrigger = true, forceHit = false, random = Math.random } = {}) {
         const attackState = passiveState(attacker);
         const state = passiveState(defender);
         const events = [];
@@ -170,7 +170,7 @@
         const base = resolveDefense({
             attackDamage,
             defenseRoll,
-            evadeNums: isUltra || shadow ? [] : defender?.evadeNums
+            evadeNums: isUltra || shadow || forceHit ? [] : defender?.evadeNums
         });
         let damage = isUltra ? Math.max(0, Number(attackDamage) || 0) : (shadow ? 0 : base.finalDamageTaken);
         let next = { ...state };
@@ -201,7 +201,7 @@
             next.shadowCooldownTurns = 1;
             events.push('Sombra activada: invulnerable durante el próximo turno rival');
         }
-        const triggersCounter = state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
+        const triggersCounter = allowCounterTrigger && state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
             !state.counterSequence && state.counterCooldownTurns <= 0 && damage <= 1;
         return {
             damage, fullyDodged, isEvadeNumber: base.isEvadeNumber,
