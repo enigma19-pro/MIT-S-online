@@ -253,7 +253,7 @@
             { id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3, desc: 'Sombra: un esquive completo otorga 1 turno rival de invulnerabilidad; enfriamiento de 1 turno.' },
             { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Útil: 50% de obtener un bono al atacar; puede guardar uno de ataque y uno de defensa.' },
             { id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1, desc: 'Adaptabilidad: cada daño recibido carga; con 2 cargas reduce 2 del siguiente golpe.' },
-            { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Último Instinto: al caer, reconstruye su dado y vuelve con 3 HP una sola vez.' },
+            { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Último Instinto: al caer, vuelve con 3 HP; en Fase 2, cualquier A acertado anula todo el daño. Ultra Impulso lo atraviesa.' },
             { id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1, desc: 'Revestimiento: cada impacto mejora su resistencia hasta reducir 3 de daño.' },
             { id: 'Dano1', name: 'Destructor', hp: 15, d: 4, a: 1, desc: 'Enfurecimiento: ataques acertados empiezan en 1 y aumentan al quitar HP.' },
             { id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2, desc: 'Contraataque: si recibe 0 o 1 de daño, encadena dos ataques.' }
@@ -2012,73 +2012,70 @@
                     <main className="flex-1 flex flex-col justify-center">
                         {/* BERSERKER TRANSFORMATION OVERLAY */}
                         {berserkerRebuild && (
-                            <div className="fixed inset-0 z-[80] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
-                                <div className="w-full max-w-2xl glass-panel rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-500/20 p-6 md:p-8">
-                                    <div className="text-center space-y-2 mb-6">
-                                        {gameMode === 'ONLINE' && berserkerRebuild.playerNum !== (isRoomHost ? 1 : 2) && (
-                                            <div className="fixed inset-0 z-[90] flex items-center justify-center pointer-events-none">
-                                                <div className="text-red-500 text-5xl md:text-7xl font-black uppercase tracking-widest font-mono-custom drop-shadow-[0_0_25px_rgba(239,68,68,0.9)]">
-                                                    una vez más..
+                            <div className="fixed inset-0 z-[80] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4">
+                                {gameMode === 'ONLINE' && berserkerRebuild.playerNum !== (isRoomHost ? 1 : 2) ? (
+                                    <div className="w-full h-full flex items-center justify-center pointer-events-none">
+                                        <div className="text-red-500 text-5xl md:text-7xl font-black uppercase tracking-widest font-mono-custom drop-shadow-[0_0_25px_rgba(239,68,68,0.9)] text-center">
+                                            una vez más..
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="w-full max-w-2xl glass-panel rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-500/20 p-6 md:p-8">
+                                        <div className="text-center space-y-2 mb-6">
+                                            <div className="text-5xl">🔥</div>
+                                            <div className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">ÚLTIMO INSTINTO</div>
+                                            <h2 className="text-3xl md:text-4xl font-black text-white font-mono-custom">¡BERSERKER, FASE 2!</h2>
+                                            <p className="text-sm text-slate-300">
+                                                El Berserker volvió con <strong className="text-orange-300">3 HP</strong>.
+                                                Debes reasignar su dado: <strong className="text-amber-300">1 D</strong> y <strong className="text-cyan-300">5 A</strong>.
+                                            </p>
+                                            <p className="text-xs text-cyan-300 font-mono-custom">
+                                                Si acierta cualquier cara A, anula todo el daño del ataque. <strong>Ultra Impulso atraviesa este esquive.</strong>
+                                            </p>
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-3 mb-5">
+                                            <div className="rounded-2xl bg-amber-950/30 border border-amber-500/30 p-4 text-center">
+                                                <div className="text-xs uppercase tracking-widest text-amber-300 font-bold">D · Ataque</div>
+                                                <div className="text-2xl font-black font-mono-custom text-amber-200 mt-1">
+                                                    {currentDNums.length ? currentDNums.join(', ') : '—'}
                                                 </div>
-                                            </div>
-                                        )}
-                                        <div className="text-5xl">🔥</div>
-                                        <div className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">ÚLTIMO INSTINTO</div>
-                                        <h2 className="text-3xl md:text-4xl font-black text-white font-mono-custom">¡BERSERKER, FASE 2!</h2>
-                                        <p className="text-sm text-slate-300">
-                                            El Berserker volvió con <strong className="text-orange-300">3 HP</strong>.
-                                            Debes reasignar su dado: <strong className="text-amber-300">1 D</strong> y <strong className="text-cyan-300">5 A</strong>.
-                                        </p>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3 mb-5">
-                                        <div className="rounded-2xl bg-amber-950/30 border border-amber-500/30 p-4 text-center">
-                                            <div className="text-xs uppercase tracking-widest text-amber-300 font-bold">D · Ataque</div>
-                                            <div className="text-2xl font-black font-mono-custom text-amber-200 mt-1">
-                                                {currentDNums.length ? currentDNums.join(', ') : '—'}
-                                            </div>
                                                 <div className="text-[11px] text-slate-400 mt-1">1 de 1</div>
-                                        </div>
-                                        <div className="rounded-2xl bg-cyan-950/30 border border-cyan-500/30 p-4 text-center">
-                                            <div className="text-xs uppercase tracking-widest text-cyan-300 font-bold">A · Esquive</div>
-                                            <div className="text-2xl font-black font-mono-custom text-cyan-200 mt-1">
-                                                {currentANums.length ? currentANums.join(', ') : '—'}
                                             </div>
-                                            <div className="text-[11px] text-slate-400 mt-1">5 de 5</div>
+                                            <div className="rounded-2xl bg-cyan-950/30 border border-cyan-500/30 p-4 text-center">
+                                                <div className="text-xs uppercase tracking-widest text-cyan-300 font-bold">A · Esquive</div>
+                                                <div className="text-2xl font-black font-mono-custom text-cyan-200 mt-1">
+                                                    {currentANums.length ? currentANums.join(', ') : '—'}
+                                                </div>
+                                                <div className="text-[11px] text-slate-400 mt-1">5 de 5</div>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-6">
-                                        {[1,2,3,4,5,6].map(num => {
-                                            const isD = currentDNums.includes(num);
-                                            const isA = currentANums.includes(num);
-                                            return (
-                                                <button
-                                                    key={num}
-                                                    disabled={gameMode === 'ONLINE' && (isRoomHost ? 1 : 2) !== berserkerRebuild.playerNum}
-                                                    onClick={() => handleToggleNumber(num)}
-                                                    className={`h-14 rounded-xl font-black font-mono-custom text-xl border transition-all ${
-                                                        isD
-                                                            ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/10'
-                                                            : isA
-                                                            ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-lg shadow-cyan-500/10'
-                                                            : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
-                                                    }`}
-                                                >
-                                                    {num}
-                                                    <span className="block text-[9px] uppercase tracking-widest mt-0.5 opacity-70">
-                                                        {isD ? 'D' : isA ? 'A' : '—'}
-                                                    </span>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {gameMode === 'ONLINE' && (isRoomHost ? 1 : 2) !== berserkerRebuild.playerNum ? (
-                                        <div className="rounded-xl bg-slate-900/80 border border-slate-700 p-4 text-center text-sm text-slate-300 font-mono-custom">
-                                            ⏳ Esperando al Jugador {berserkerRebuild.playerNum} para reconstruir su Berserker...
+                                        <div className="grid grid-cols-3 md:grid-cols-6 gap-2 mb-6">
+                                            {[1,2,3,4,5,6].map(num => {
+                                                const isD = currentDNums.includes(num);
+                                                const isA = currentANums.includes(num);
+                                                return (
+                                                    <button
+                                                        key={num}
+                                                        onClick={() => handleToggleNumber(num)}
+                                                        className={`h-14 rounded-xl font-black font-mono-custom text-xl border transition-all ${
+                                                            isD
+                                                                ? 'bg-amber-500/20 border-amber-400 text-amber-200 shadow-lg shadow-amber-500/10'
+                                                                : isA
+                                                                ? 'bg-cyan-500/20 border-cyan-400 text-cyan-200 shadow-lg shadow-cyan-500/10'
+                                                                : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-slate-500'
+                                                        }`}
+                                                    >
+                                                        {num}
+                                                        <span className="block text-[9px] uppercase tracking-widest mt-0.5 opacity-70">
+                                                            {isD ? 'D' : isA ? 'A' : '—'}
+                                                        </span>
+                                                    </button>
+                                                );
+                                            })}
                                         </div>
-                                    ) : (
+
                                         <button
                                             onClick={handleConfirmMit}
                                             disabled={!isBuildValid || isSubmittingMitRef.current}
@@ -2086,12 +2083,12 @@
                                         >
                                             🔥 Confirmar Fase 2
                                         </button>
-                                    )}
 
-                                    <div className="mt-4 text-center text-xs text-slate-500 font-mono-custom">
-                                        La batalla permanece abierta detrás de esta ventana. No se crea un MIT nuevo.
+                                        <div className="mt-4 text-center text-xs text-slate-500 font-mono-custom">
+                                            La batalla permanece congelada hasta confirmar la segunda fase.
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         )}
 
@@ -2573,7 +2570,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(40)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(41)
                     </footer>
                 </div>
             );
