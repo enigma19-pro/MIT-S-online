@@ -52,7 +52,7 @@
 
         return {
             isEvadeNumber,
-            finalDamageTaken: isEvadeNumber && damage > 0 ? Math.max(1, damage - roll) : damage
+            finalDamageTaken: isEvadeNumber && damage > 0 ? Math.max(0, damage - roll) : damage
         };
     }
 
