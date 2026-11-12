@@ -340,3 +340,35 @@ test('Ultra Impulso consumes Technical defense bonus without allowing its reduct
     assert.equal(result.state.technicalDefenseBonus, false);
 });
 
+
+test('Berserker cleanse removes rival charges and temporary effects but preserves permanent Destructor damage and Berserker phase', () => {
+    const mit = {
+        classData: { id: PASSIVE_CLASS_IDS.DESTRUCTOR },
+        passiveState: {
+            ...createPassiveState(PASSIVE_CLASS_IDS.DESTRUCTOR),
+            ultraCharges: 2,
+            shadowInvulnerableTurns: 1,
+            shadowCooldownTurns: 1,
+            technicalAttackBonus: true,
+            technicalDefenseBonus: true,
+            adaptabilityCharges: 2,
+            murallaHits: 3,
+            murallaQuietTurns: 2,
+            murallaDamagedThisTurn: true,
+            counterCooldownTurns: 1,
+            counterSequence: { phase: 'FIRST' },
+            destructorBonus: 7,
+            berserkerPhase: 2
+        }
+    };
+    const clean = clearTemporaryPassiveEffects(mit);
+    assert.equal(clean.passiveState.ultraCharges, 0);
+    assert.equal(clean.passiveState.shadowInvulnerableTurns, 0);
+    assert.equal(clean.passiveState.technicalAttackBonus, false);
+    assert.equal(clean.passiveState.adaptabilityCharges, 0);
+    assert.equal(clean.passiveState.murallaHits, 0);
+    assert.equal(clean.passiveState.counterSequence, null);
+    assert.equal(clean.passiveState.destructorBonus, 7);
+    assert.equal(clean.passiveState.berserkerPhase, 2);
+});
+
