@@ -161,11 +161,11 @@
         return { hit, roll: selectedRoll, damage, state: next, events, unstoppable: ultra };
     }
 
-    function resolvePassiveDefense({ attacker, defender, attackDamage, defenseRoll, random = Math.random } = {}) {
+    function resolvePassiveDefense({ attacker, defender, attackDamage, defenseRoll, unstoppable = false, random = Math.random } = {}) {
         const attackState = passiveState(attacker);
         const state = passiveState(defender);
         const events = [];
-        const isUltra = attackState.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && attackState.ultraCharges >= 3;
+        const isUltra = unstoppable || (attackState.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && attackState.ultraCharges >= 3);
         const shadow = state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowInvulnerableTurns > 0 && !isUltra;
         const base = resolveDefense({
             attackDamage,
@@ -236,7 +236,7 @@
         return { attackerState: nextAttacker, defenderState: nextDefender, events };
     }
 
-    function advancePassiveTurn(mit, { tookDamage = false } = {}) {
+    function advancePassiveTurn(mit, { tookDamage = false, opponentTurnEnded = false, ownTurnEnded = false } = {}) {
         const state = passiveState(mit);
         const next = { ...state };
         const events = [];
