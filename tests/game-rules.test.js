@@ -312,6 +312,80 @@ test('Berserker rejects overlapping or incomplete die distributions', () => {
     assert.equal(activateBerserkerSecondPhase(mit, [1], [2,3,4]), null);
 });
 
+test('Berserker phase 2 fully negates any hit when its A face is rolled', () => {
+    const attacker = {
+        classData: { id: 'other' },
+        passiveState: createPassiveState('other')
+    };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.BERSERKER },
+        evadeNums: [1,2,3,4,5],
+        passiveState: {
+            ...createPassiveState(PASSIVE_CLASS_IDS.BERSERKER),
+            berserkerPhase: 2
+        }
+    };
+
+    const lowFace = resolvePassiveDefense({
+        attacker, defender, attackDamage: 6, defenseRoll: 1
+    });
+    const highFace = resolvePassiveDefense({
+        attacker, defender, attackDamage: 6, defenseRoll: 5
+    });
+
+    assert.equal(lowFace.damage, 0);
+    assert.equal(highFace.damage, 0);
+    assert.equal(lowFace.fullyDodged, true);
+    assert.equal(highFace.fullyDodged, true);
+});
+
+test('Berserker phase 2 still receives damage when the rolled face is not A', () => {
+    const attacker = {
+        classData: { id: 'other' },
+        passiveState: createPassiveState('other')
+    };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.BERSERKER },
+        evadeNums: [1,2,3,4,5],
+        passiveState: {
+            ...createPassiveState(PASSIVE_CLASS_IDS.BERSERKER),
+            berserkerPhase: 2
+        }
+    };
+
+    const result = resolvePassiveDefense({
+        attacker, defender, attackDamage: 6, defenseRoll: 6
+    });
+
+    assert.equal(result.damage, 6);
+    assert.equal(result.fullyDodged, false);
+});
+
+test('Ultra Impulso bypasses Berserker phase 2 perfect evasion', () => {
+    const attacker = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        passiveState: {
+            ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO),
+            ultraCharges: 3
+        }
+    };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.BERSERKER },
+        evadeNums: [1,2,3,4,5],
+        passiveState: {
+            ...createPassiveState(PASSIVE_CLASS_IDS.BERSERKER),
+            berserkerPhase: 2
+        }
+    };
+
+    const result = resolvePassiveDefense({
+        attacker, defender, attackDamage: 6, defenseRoll: 5, unstoppable: true
+    });
+
+    assert.equal(result.damage, 6);
+    assert.equal(result.fullyDodged, false);
+});
+
 test('Duelista counter triggers only when it receives zero or one damage', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.DUELISTA }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA), evadeNums: [6] };
