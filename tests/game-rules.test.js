@@ -612,3 +612,22 @@ test('Ultra Impulso bypasses Duelista counter-trigger defenses even for a one-po
     assert.equal(result.damage, 1);
     assert.equal(result.triggersCounter, false);
 });
+
+
+test('Muralla scales impact damage as +1, neutral, then reduction up to three', () => {
+    const expectedDamage = [6, 5, 4, 3, 2];
+    for (let hits = 0; hits <= 4; hits++) {
+        const defender = {
+            classData: { id: PASSIVE_CLASS_IDS.MURALLA },
+            evadeNums: [],
+            passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: hits }
+        };
+        const result = resolvePassiveDefense({
+            attacker: {},
+            defender,
+            attackDamage: 5,
+            defenseRoll: 6
+        });
+        assert.equal(result.damage, expectedDamage[hits], `murallaHits=${hits}`);
+    }
+});
