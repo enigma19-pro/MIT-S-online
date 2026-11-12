@@ -133,3 +133,109 @@ test('reserve lookup rejects invalid lists and active indices', () => {
     assert.equal(findAvailableMitIndex([{ currentHp: 5 }], 2), null);
     assert.equal(findAvailableMitIndex([{ currentHp: 5 }], -1), null);
 });
+
+
+const {
+    PASSIVE_CLASS_IDS, createPassiveState, beginPassiveAttackTurn,
+    resolvePassiveAttack, resolvePassiveDefense, applyPassiveDamageConsequences,
+    advancePassiveTurn, activateBerserkerSecondPhase
+} = require('../game-rules.js');
+
+test('passive state starts with clean counters and independent Technical slots', () => {
+    const state = createPassiveState(PASSIVE_CLASS_IDS.TECNICO);
+    assert.equal(state.technicalAttackBonus, false);
+    assert.equal(state.technicalDefenseBonus, false);
+    assert.equal(state.ultraCharges, 0);
+});
+
+test('Technical has a 50 percent proc followed by a 50/50 bonus type', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
+    const result = beginPassiveAttackTurn(mit, () => 0.1);
+    assert.equal(result.state.technicalAttackBonus, true);
+    assert.equal(result.state.technicalDefenseBonus, false);
+});
+
+test('Technical can store one attack and one defense bonus independently', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
+    const result = beginPassiveAttackTurn(mit, (() => { const values = [0.1, 0.9]; return () => values.shift(); })());
+    assert.equal(result.state.technicalAttackBonus, true);
+    assert.equal(result.state.technicalDefenseBonus, true);
+});
+
+test('Ultra Impulso selects one assigned attack face, adds one damage and consumes three charges', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, attackNums: [2, 5], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
+    const result = resolvePassiveAttack({ attacker: mit, roll: 1, random: () => 0.9 });
+    assert.equal(result.hit, true);
+    assert.equal(result.roll, 5);
+    assert.equal(result.damage, 6);
+    assert.equal(result.unstoppable, true);
+    assert.equal(result.state.ultraCharges, 0);
+});
+
+test('Ultra Impulso bypasses evasion and invulnerability but still leaves target-specific damage rules downstream', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 1 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 6 });
+    assert.equal(result.damage, 6);
+    assert.equal(result.shadowNullified, false);
+});
+
+test('Sombra nullifies a normal hit and activates its one-turn shield', () => {
+    const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 6 });
+    assert.equal(result.damage, 0);
+    assert.equal(result.state.shadowInvulnerableTurns, 1);
+    assert.equal(result.state.shadowCooldownTurns, 1);
+});
+
+test('Adaptabilidad consumes two charges and prevents exactly two damage', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 1 });
+    assert.equal(result.damage, 1);
+    assert.equal(result.state.adaptabilityCharges, 0);
+});
+
+test('Muralla progresses only after HP loss and reaches three points of reduction', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 4 } };
+    const result = applyPassiveDamageConsequences({ attacker: {}, defender: mit, hpLost: 1 });
+    assert.equal(result.defenderState.murallaHits, 4);
+    assert.equal(result.defenderState.murallaQuietTurns, 0);
+});
+
+test('Muralla loses progression after three quiet turns', () => {
+    let mit = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 3 } };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit).state };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit).state };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit).state };
+    assert.equal(mit.passiveState.murallaHits, 0);
+});
+
+test('Destructor grows only when it actually removes HP', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.DESTRUCTOR }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.DESTRUCTOR) };
+    assert.equal(applyPassiveDamageConsequences({ attacker, defender: {}, hpLost: 0 }).attackerState.destructorBonus, 0);
+    assert.equal(applyPassiveDamageConsequences({ attacker, defender: {}, hpLost: 1 }).attackerState.destructorBonus, 1);
+});
+
+test('Berserker transforms once with exactly one attack face and five evade faces', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.BERSERKER }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.BERSERKER) };
+    const phase2 = activateBerserkerSecondPhase(mit, [6], [1,2,3,4,5]);
+    assert.equal(phase2.currentHp, 3);
+    assert.equal(phase2.passiveState.berserkerPhase, 2);
+    assert.equal(activateBerserkerSecondPhase(phase2, [1], [2,3,4,5,6]), null);
+});
+
+test('Berserker rejects overlapping or incomplete die distributions', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.BERSERKER }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.BERSERKER) };
+    assert.equal(activateBerserkerSecondPhase(mit, [1], [1,2,3,4,5]), null);
+    assert.equal(activateBerserkerSecondPhase(mit, [1], [2,3,4]), null);
+});
+
+test('Duelista counter triggers only when it receives zero or one damage', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.DUELISTA }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA), evadeNums: [6] };
+    assert.equal(resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 6 }).triggersCounter, true);
+    assert.equal(resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 1 }).triggersCounter, false);
+});
+
