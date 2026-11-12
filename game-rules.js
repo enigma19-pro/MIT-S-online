@@ -262,6 +262,27 @@
         return { state: next, events };
     }
 
+    function clearTemporaryPassiveEffects(mit) {
+        const state = passiveState(mit);
+        return {
+            ...mit,
+            passiveState: {
+                ...state,
+                ultraCharges: 0,
+                shadowInvulnerableTurns: 0,
+                shadowCooldownTurns: 0,
+                technicalAttackBonus: false,
+                technicalDefenseBonus: false,
+                adaptabilityCharges: 0,
+                murallaHits: 0,
+                murallaQuietTurns: 0,
+                murallaDamagedThisTurn: false,
+                counterCooldownTurns: 0,
+                counterSequence: null
+            }
+        };
+    }
+
     function activateBerserkerSecondPhase(mit, attackNums, evadeNums) {
         const state = passiveState(mit);
         if (state.passiveClassId !== PASSIVE_CLASS_IDS.BERSERKER || state.berserkerPhase !== 1) return null;
@@ -297,6 +318,7 @@
         resolvePassiveDefense,
         applyPassiveDamageConsequences,
         advancePassiveTurn,
+        clearTemporaryPassiveEffects,
         activateBerserkerSecondPhase
     });
 }));
