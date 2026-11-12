@@ -1003,7 +1003,7 @@
                         });
                         await window.MITSFirebase.onDisconnect(publicRoomRef).remove();
                     }
-                    setOnlineRoomData({ hostUid: user.uid, guestUid: null, roomName: (roomName.trim() || 'Sala de combate').slice(0, 40), isPublic: roomVisibility === 'public', status: 'waiting' });
+                    setOnlineRoomData({ hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '', roomName: (roomName.trim() || 'Sala de combate').slice(0, 40), isPublic: roomVisibility === 'public', status: 'waiting' });
                     setRoomCode(code);
                     setIsRoomHost(true);
                     setGameMode('ONLINE');
@@ -2687,7 +2687,7 @@
                         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-5">
                             <form onSubmit={event => {
                                 event.preventDefault();
-                                const cleanName = nameDraft.trim().replace(/\\s+/g, ' ').slice(0, 24);
+                                const cleanName = nameDraft.trim().replace(/\s+/g, ' ').slice(0, 24);
                                 if (cleanName) setPlayerName(cleanName);
                             }} className="w-full max-w-md glass-panel rounded-3xl border border-cyan-400/30 p-7 md:p-9 text-center space-y-5 shadow-2xl">
                                 <div className="text-5xl">🎲</div>
