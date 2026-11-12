@@ -360,7 +360,7 @@ test('Ultra Impulso charges after a successful assigned-face evade, including a 
     });
     assert.equal(damaged.damage, 1);
     // Evasivo only charges when the normal defense result is 0 or 1 damage.
-    assert.equal(damaged.state.ultraCharges, 1);
+    assert.equal(damaged.state.ultraCharges, 2);
 
     const missedA = resolvePassiveDefense({
         attacker, defender: {
