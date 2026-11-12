@@ -183,7 +183,7 @@
             passiveClassId: classId,
             ultraCharges: safeCounter(raw.ultraCharges, 0, 3),
             shadowInvulnerableTurns: safeCounter(raw.shadowInvulnerableTurns, 0, 2),
-            shadowCooldownTurns: safeCounter(raw.shadowCooldownTurns, 0, 1),
+            shadowCooldownTurns: safeCounter(raw.shadowCooldownTurns, 0, 2),
             technicalAttackBonus: raw.technicalAttackBonus === true ? 1 : safeCounter(raw.technicalAttackBonus, 0, 3),
             technicalDefenseBonus: raw.technicalDefenseBonus === true ? 1 : safeCounter(raw.technicalDefenseBonus, 0, 3),
             adaptabilityCharges: safeCounter(raw.adaptabilityCharges, 0, 2),
@@ -320,8 +320,8 @@
         }
         if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && damage === 0 && state.shadowCooldownTurns <= 0) {
             next.shadowInvulnerableTurns = 2;
-            next.shadowCooldownTurns = 1;
-            events.push('Sombra activada: invulnerable durante el próximo turno rival');
+            next.shadowCooldownTurns = 2;
+            events.push('Sombra activada: invulnerable durante 2 turnos rivales; el cooldown de 2 turnos propios empezará al terminar Sombra');
         }
         // Ultra Impulso no puede activar una defensa de contraataque:
         // el primer golpe del Duelista tampoco puede encadenar otra secuencia.
@@ -393,7 +393,7 @@
             }
         }
         if (opponentTurnEnded && state.shadowInvulnerableTurns > 0) next.shadowInvulnerableTurns = Math.max(0, state.shadowInvulnerableTurns - 1);
-        if (ownTurnEnded && state.shadowCooldownTurns > 0) next.shadowCooldownTurns = Math.max(0, state.shadowCooldownTurns - 1);
+        if (ownTurnEnded && state.shadowInvulnerableTurns <= 0 && state.shadowCooldownTurns > 0) next.shadowCooldownTurns = Math.max(0, state.shadowCooldownTurns - 1);
         if (opponentTurnEnded && state.counterCooldownTurns > 0) next.counterCooldownTurns = Math.max(0, state.counterCooldownTurns - 1);
         return { state: next, events };
     }
