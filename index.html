@@ -170,6 +170,9 @@
         .animate-float-damage {
             animation: float-up 1.75s forwards ease-out;
         }
+        .effect-hit {
+            box-shadow: 0 0 18px rgba(245, 158, 11, 0.5);
+        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between">
@@ -992,6 +995,11 @@
                         setIsTurnProcessing(false);
                         setCombatLog(newLog);
                         if (gameMode === 'ONLINE') syncOnline({ currentRollValue: roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
+                        publishFloatingEffect({
+                            player: currentTurnPlayer,
+                            text: '¡ACERTÓ!',
+                            type: 'hit'
+                        });
 
                         if (gameMode === 'AI' && currentTurnPlayer === 1) {
                             scheduleGameTimeout(() => triggerAiDefense(atkData), 800);
@@ -1265,6 +1273,11 @@
                             type: 'attack_hit',
                             text: `🎯 Jugador 2 (IA) sacó [${roll}] → ¡Ataque Exitoso! Lanza tu dado de esquive.`
                         }]);
+                        publishFloatingEffect({
+                            player: 2,
+                            text: '¡ACERTÓ!',
+                            type: 'hit'
+                        });
                         // El bloqueo se libera al terminar la resolución de este turno.
                     } else {
                         playSound('fail');
@@ -1789,6 +1802,7 @@
                                             <div key={floatingEffect.id || `${floatingEffect.text}-${floatingEffect.player}`} className={`absolute top-1/2 left-1/2 animate-float-damage font-mono-custom font-extrabold text-2xl px-4 py-2 rounded-xl shadow-2xl z-20 ${
                                                 floatingEffect.type === 'damage' ? 'bg-rose-600 text-white border border-rose-400 glow-red' :
                                                 floatingEffect.type === 'dodge' ? 'bg-cyan-500 text-slate-950 border border-cyan-200 glow-cyan' :
+                                                floatingEffect.type === 'hit' ? 'bg-amber-400 text-slate-950 border border-amber-200 effect-hit' :
                                                 'bg-slate-700 text-slate-200'
                                             }`}>
                                                 {floatingEffect.text}
@@ -1849,6 +1863,7 @@
                                             <div key={floatingEffect.id || `${floatingEffect.text}-${floatingEffect.player}`} className={`absolute top-1/2 left-1/2 animate-float-damage font-mono-custom font-extrabold text-2xl px-4 py-2 rounded-xl shadow-2xl z-20 ${
                                                 floatingEffect.type === 'damage' ? 'bg-rose-600 text-white border border-rose-400 glow-red' :
                                                 floatingEffect.type === 'dodge' ? 'bg-cyan-500 text-slate-950 border border-cyan-200 glow-cyan' :
+                                                floatingEffect.type === 'hit' ? 'bg-amber-400 text-slate-950 border border-amber-200 effect-hit' :
                                                 'bg-slate-700 text-slate-200'
                                             }`}>
                                                 {floatingEffect.text}
