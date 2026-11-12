@@ -172,27 +172,40 @@
         /* Desktop input devices keep a permanent side-by-side guide layout,
            even when Windows display scaling makes the CSS viewport look narrow. */
         @media (hover: hover) and (pointer: fine) {
+            .mits-modal-overlay {
+                padding: 1vh 1vw !important;
+                align-items: center !important;
+                justify-content: center !important;
+            }
             .mits-modal-panel {
-                width: min(96vw, 1500px) !important;
-                height: min(86vh, 980px);
+                width: 98vw !important;
+                max-width: 98vw !important;
+                height: 96vh !important;
+                max-height: 96vh !important;
+                min-height: 0 !important;
+                margin: 0 auto !important;
+                overflow: hidden !important;
+                flex: 0 0 98vw !important;
             }
             .mits-class-guide-grid {
-                display: grid;
-                grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
-                grid-template-rows: minmax(0, 1fr);
-                height: 100%;
-                min-height: 0;
+                display: grid !important;
+                grid-template-columns: minmax(250px, 22vw) minmax(0, 1fr) !important;
+                grid-template-rows: minmax(0, 1fr) !important;
+                height: 100% !important;
+                min-height: 0 !important;
+                flex: 1 1 auto !important;
             }
             .mits-class-guide-list {
-                display: flex;
-                flex-direction: column;
-                max-height: none;
-                min-height: 0;
-                overflow-y: auto;
+                display: flex !important;
+                flex-direction: column !important;
+                max-height: none !important;
+                min-height: 0 !important;
+                overflow-y: auto !important;
             }
             .mits-class-guide-details {
-                min-height: 0;
-                overflow-y: auto;
+                min-width: 0 !important;
+                min-height: 0 !important;
+                overflow-y: auto !important;
             }
         }
         @media (min-width: 1440px) {
@@ -2269,7 +2282,7 @@
                                     const guideClass = MIT_CLASSES.find(c => c.id === guideClassId) || MIT_CLASSES[0];
                                     return (
                                         <div className="mits-modal-overlay fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-3 md:p-6 lg:p-10" role="dialog" aria-modal="true" aria-labelledby="class-guide-title">
-                                            <div className="mits-modal-panel w-full max-w-[1600px] max-h-[90vh] overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
+                                            <div className="mits-modal-panel w-full overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
                                                 <div className="flex items-center justify-between gap-5 px-6 py-5 md:px-9 md:py-7 xl:px-12 xl:py-9 border-b border-slate-800 bg-gradient-to-r from-cyan-950/30 via-slate-950 to-purple-950/20">
                                                     <div className="text-left">
                                                         <h3 id="class-guide-title" className="text-2xl md:text-3xl lg:text-4xl font-black text-cyan-300 font-mono-custom tracking-wide">MANUAL DE CLASES</h3>
@@ -2718,7 +2731,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(44)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(45)
                     </footer>
                 </div>
             );
