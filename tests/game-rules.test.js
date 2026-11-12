@@ -487,7 +487,7 @@ test('Muralla receives at least one damage even when its A face exceeds incoming
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
-    assert.equal(result.damage, 0);
+    assert.equal(result.damage, 1);
 });
 
 
