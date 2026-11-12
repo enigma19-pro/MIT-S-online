@@ -1038,27 +1038,8 @@
                 return items;
             };
 
-            const clearOpponentTemporaryEffects = (mits) => (Array.isArray(mits) ? mits : []).map(mit => {
-                if (!mit) return mit;
-                const state = { ...window.MITSGameRules.createPassiveState(mit.classData?.id), ...(mit.passiveState || {}) };
-                return {
-                    ...mit,
-                    passiveState: {
-                        ...state,
-                        ultraCharges: 0,
-                        shadowInvulnerableTurns: 0,
-                        shadowCooldownTurns: 0,
-                        technicalAttackBonus: false,
-                        technicalDefenseBonus: false,
-                        adaptabilityCharges: 0,
-                        murallaHits: 0,
-                        counterCooldownTurns: 0,
-                        counterSequence: null,
-                        murallaQuietTurns: 0,
-                        murallaDamagedThisTurn: false
-                    }
-                };
-            });
+            const clearOpponentTemporaryEffects = (mits) => (Array.isArray(mits) ? mits : [])
+                .map(mit => mit ? window.MITSGameRules.clearTemporaryPassiveEffects(mit) : mit);
 
             const activeP1Mit = p1Mits[activeP1Index] || {};
             const activeP2Mit = p2Mits[activeP2Index] || {};
