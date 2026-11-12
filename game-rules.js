@@ -37,7 +37,7 @@
         if (typeof value !== 'number' && typeof value !== 'string') return 0;
         if (typeof value === 'string' && value.trim() === '') return 0;
         const number = Number(value);
-        return Number.isFinite(number)
+        return Number.isSafeInteger(number)
             ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, number))
             : 0;
     }
@@ -64,8 +64,11 @@
 
         const availableIndex = mits.findIndex((mit, index) => {
             if (index === activeIndex || !mit || typeof mit !== 'object') return false;
-            const hp = Number(mit.currentHp);
-            return Number.isFinite(hp) && hp > 0;
+            const rawHp = mit.currentHp;
+            if (typeof rawHp !== 'number' && typeof rawHp !== 'string') return false;
+            if (typeof rawHp === 'string' && rawHp.trim() === '') return false;
+            const hp = Number(rawHp);
+            return Number.isSafeInteger(hp) && hp > 0;
         });
 
         return availableIndex === -1 ? null : availableIndex;
@@ -121,8 +124,13 @@
     }
 
     function safeRandom(random) {
-        const value = Number(typeof random === 'function' ? random() : 0);
-        if (!Number.isFinite(value)) return 0;
+        let value;
+        try {
+            value = typeof random === 'function' ? random() : 0;
+        } catch (error) {
+            return 0;
+        }
+        if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
         return Math.min(1 - Number.EPSILON, Math.max(0, value));
     }
 
