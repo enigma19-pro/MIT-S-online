@@ -637,6 +637,10 @@
             const [onlineUser, setOnlineUser] = useState(null);
             const [roomCode, setRoomCode] = useState('');
             const [roomInput, setRoomInput] = useState('');
+            const [roomName, setRoomName] = useState('Sala de combate');
+            const [roomVisibility, setRoomVisibility] = useState('public');
+            const [publicRooms, setPublicRooms] = useState([]);
+            const [onlineRoomData, setOnlineRoomData] = useState(null);
             const [onlineStatus, setOnlineStatus] = useState('');
             const [isJoiningRoom, setIsJoiningRoom] = useState(false);
             const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -649,6 +653,24 @@
             const onlinePresenceRef = useRef(null);
             const presenceGraceTimerRef = useRef(null);
             const [soundEnabled, setSoundEnabled] = useState(true);
+
+            useEffect(() => {
+                if (gameState !== 'ONLINE_LOBBY' || !onlineUser || !window.MITSFirebase) return;
+                const publicRef = window.MITSFirebase.ref(window.MITSFirebase.db, 'publicRooms');
+                const handler = snapshot => {
+                    const value = snapshot.val() || {};
+                    const rooms = Object.entries(value).map(([code, room]) => ({
+                        code,
+                        name: typeof room?.name === 'string' ? room.name.slice(0, 40) : 'Sala pública',
+                        hostUid: typeof room?.hostUid === 'string' ? room.hostUid : '',
+                        createdAt: Number(room?.createdAt) || 0
+                    })).filter(room => room.hostUid && room.hostUid !== onlineUser.uid)
+                      .sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
+                    setPublicRooms(rooms);
+                };
+                window.MITSFirebase.onValue(publicRef, handler);
+                return () => window.MITSFirebase.off(publicRef, 'value', handler);
+            }, [gameState, onlineUser]);
 
             // Players MIT List
             const [builderPlayer, setBuilderPlayer] = useState(1);
@@ -950,6 +972,8 @@
                             if (current !== null) return;
                             return {
                                 hostUid: user.uid, guestUid: null, status: 'waiting',
+                                roomName: (roomName.trim() || 'Sala de combate').slice(0, 40),
+                                isPublic: roomVisibility === 'public', createdAt: Date.now(),
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
                                 currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
                                 attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
@@ -959,6 +983,12 @@
                         roomCreated = tx.committed;
                     }
                     if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
+                    if (roomVisibility === 'public') {
+                        await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`), {
+                            hostUid: user.uid, name: (roomName.trim() || 'Sala de combate').slice(0, 40), createdAt: Date.now()
+                        });
+                    }
+                    setOnlineRoomData({ hostUid: user.uid, guestUid: null, roomName: (roomName.trim() || 'Sala de combate').slice(0, 40), isPublic: roomVisibility === 'public', status: 'waiting' });
                     setRoomCode(code);
                     setIsRoomHost(true);
                     setGameMode('ONLINE');
@@ -978,6 +1008,54 @@
                 } finally {
                     isCreatingRoomRef.current = false;
                     setIsCreatingRoom(false);
+                }
+            };
+
+            const startOnlineMatch = async () => {
+                if (!isRoomHost || !roomCode || !onlineUser) return;
+                try {
+                    const roomRef = onlineRoomRef();
+                    const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
+                        if (!current || current.hostUid !== onlineUser.uid || !current.guestUid || current.status !== 'waiting') return;
+                        return { ...current, status: 'building' };
+                    });
+                    if (!tx.committed) {
+                        setOnlineStatus('No se pudo iniciar: falta el rival o la sala ya cambió de estado.');
+                        return;
+                    }
+                    if (onlineRoomData?.isPublic) await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
+                } catch (error) {
+                    console.error('No se pudo iniciar la sala:', error);
+                    setOnlineStatus('Error al iniciar: ' + (error?.message || 'desconocido'));
+                }
+            };
+
+            const cancelOnlineRoom = async () => {
+                if (!isRoomHost || !roomCode || !onlineUser) return;
+                try {
+                    const roomRef = onlineRoomRef();
+                    const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
+                        if (!current || current.hostUid !== onlineUser.uid || current.status !== 'waiting') return;
+                        return { ...current, status: 'cancelled' };
+                    });
+                    if (!tx.committed) {
+                        setOnlineStatus('La sala ya no se puede cancelar.');
+                        return;
+                    }
+                    await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
+                    await stopOnlinePresenceListener(true);
+                    if (onlineListenerRef.current) {
+                        window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                        if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) window.MITSFirebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                        onlineListenerRef.current = null;
+                    }
+                    setRoomCode('');
+                    setOnlineRoomData(null);
+                    setGameState('ONLINE_LOBBY');
+                    setOnlineStatus('Sala cancelada.');
+                } catch (error) {
+                    console.error('No se pudo cancelar la sala:', error);
+                    setOnlineStatus('Error al cancelar: ' + (error?.message || 'desconocido'));
                 }
             };
 
@@ -1046,8 +1124,7 @@
                     // Si dos invitados compiten, Firebase acepta uno y rechaza el otro.
                     joinStep = 'reserva del lugar';
                     await window.MITSFirebase.update(roomRef, {
-                        guestUid: user.uid,
-                        status: 'building'
+                        guestUid: user.uid
                     });
 
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al constructor.
@@ -1061,7 +1138,7 @@
                         confirmedRoom.hostUid === user.uid ||
                         (initialRoom && confirmedRoom.hostUid !== initialRoom.hostUid) ||
                         confirmedRoom.guestUid !== user.uid ||
-                        confirmedRoom.status !== 'building'
+                        confirmedRoom.status !== 'waiting'
                     ) {
                         console.warn('La sala no confirmó la reserva del invitado:', {
                             roomCode: code,
@@ -1074,11 +1151,12 @@
                     }
 
                     setRoomCode(code);
+                    setOnlineRoomData(confirmedRoom);
                     setIsRoomHost(false);
                     setGameMode('ONLINE');
-                    setGameState('BUILD');
+                    setGameState('ONLINE_LOBBY');
                     setBuilderPlayer(2);
-                    setOnlineStatus('Conectado. Construye tus 2 MITs.');
+                    setOnlineStatus('Te uniste a la sala. Espera a que el anfitrión inicie.');
                     setDisconnectedPlayer(null);
                     // Registra presencia antes de comenzar a construir/pelear.
                     await registerOnlinePresence(code, 2);
@@ -1340,8 +1418,9 @@
 
                     const previousStatus = currentRoomStatus;
                     currentRoomStatus = room.status || null;
+                    setOnlineRoomData(room);
 
-                    if (['gameover', 'player_left'].includes(currentRoomStatus) && previousStatus !== currentRoomStatus) {
+                    if (['gameover', 'player_left', 'cancelled'].includes(currentRoomStatus) && previousStatus !== currentRoomStatus) {
                         gameSessionRef.current += 1;
                         cancelGameTimers();
                         isRollingRef.current = false;
@@ -1411,7 +1490,7 @@
 
                     if (room.status === 'waiting') {
                         setGameState('ONLINE_LOBBY');
-                        setOnlineStatus('Esperando al Jugador 2...');
+                        setOnlineStatus(room.guestUid ? 'Rival conectado. El anfitrión puede iniciar la partida.' : 'Esperando a otro jugador...');
                     } else if (room.status === 'building') {
                         setGameState('BUILD');
                         if (room.guestUid && room.hostUid) setOnlineStatus('Ambos jugadores conectados.');
@@ -1444,6 +1523,18 @@
                         registerOnlineDisconnect(code, localPlayerNum).catch(error => {
                             console.warn('No se pudo preparar la notificación de salida:', error);
                         });
+                    } else if (room.status === 'cancelled') {
+                        stopOnlinePresenceListener(true);
+                        if (onlineListenerRef.current) {
+                            firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                            if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) firebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                            onlineListenerRef.current = null;
+                        }
+                        setRoomCode('');
+                        setOnlineRoomData(null);
+                        setGameMode('ONLINE');
+                        setGameState('ONLINE_LOBBY');
+                        setOnlineStatus('El anfitrión canceló esta sala.');
                     } else if (room.status === 'player_left') {
                         setWinnerPlayer(normalizedWinner);
                         setDisconnectedPlayer(normalizedDisconnectedPlayer);
@@ -1461,10 +1552,8 @@
                         setOnlineStatus('La sala contiene datos de MIT inválidos. No se cargarán esas unidades; vuelve al lobby y crea una sala nueva.');
                     }
 
-                    if (room.guestUid && room.status === 'waiting' && localPlayerNum === 1) {
-                        window.MITSFirebase.update(roomRef, { status: 'building' }).catch(error => {
-                            console.warn('No se pudo cambiar la sala a construcción:', error);
-                        });
+                    if (room.guestUid && room.status === 'waiting' && room.isPublic === true && localPlayerNum === 1) {
+                        window.MITSFirebase.set(firebase.ref(firebase.db, `publicRooms/${code}`), null).catch(error => console.warn('No se pudo retirar la sala del listado público:', error));
                     }
                 };
                 firebase.onValue(roomRef, handler);
@@ -2820,20 +2909,51 @@
                                     <h2 className="text-3xl font-extrabold text-slate-100 mt-3 font-mono-custom">SALAS DE COMBATE</h2>
                                 </div>
 
-                                <button onClick={createOnlineRoom} disabled={!onlineUser || isCreatingRoom} className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black uppercase tracking-wider disabled:opacity-40">{isCreatingRoom ? 'Creando sala...' : '🏠 Crear sala'}</button>
-
-                                <div className="flex items-center gap-3 text-slate-500 text-xs font-mono-custom"><span className="h-px bg-slate-800 flex-1"></span>O<span className="h-px bg-slate-800 flex-1"></span></div>
-
-                                <div className="space-y-2">
-                                    <input value={roomInput} onChange={e => setRoomInput(e.target.value.toUpperCase())} maxLength={6} placeholder="CÓDIGO DE 6 CARACTERES" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-4 text-center text-xl font-black font-mono-custom tracking-[0.35em] uppercase focus:outline-none focus:border-emerald-400" />
-                                    <button onClick={joinOnlineRoom} disabled={!onlineUser || roomInput.length !== 6 || isJoiningRoom} className="w-full py-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-emerald-400 text-slate-100 font-bold disabled:opacity-40">{isJoiningRoom ? 'Conectando...' : '🔑 Unirse a sala'}</button>
-                                </div>
-
-                                {roomCode && (
-                                    <div className="p-5 rounded-2xl bg-slate-950 border border-emerald-500/30">
-                                        <div className="text-xs text-slate-400 uppercase tracking-widest">Código de sala</div>
-                                        <div className="text-4xl font-black font-mono-custom tracking-[0.25em] text-emerald-400 my-2">{roomCode}</div>
-                                        <button onClick={() => navigator.clipboard?.writeText(roomCode)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm">📋 Copiar código</button>
+                                {roomCode ? (
+                                    <div className="space-y-4 text-left">
+                                        <div className="rounded-2xl border border-emerald-500/30 bg-slate-950 p-5 text-center">
+                                            <div className="text-xs text-emerald-300 uppercase tracking-widest">Sala {onlineRoomData?.isPublic ? 'pública' : 'privada'} · {onlineRoomData?.status === 'waiting' ? 'En espera' : 'Preparando'}</div>
+                                            <h3 className="text-2xl font-black text-white mt-2">{onlineRoomData?.roomName || roomName}</h3>
+                                            <div className="text-4xl font-black font-mono-custom tracking-[0.25em] text-emerald-400 my-3">{roomCode}</div>
+                                            <button onClick={() => navigator.clipboard?.writeText(roomCode)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm">📋 Copiar código</button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <div className="rounded-xl bg-slate-950 border border-slate-800 p-3"><div className="text-xs text-slate-500">ANFITRIÓN</div><div className="font-bold text-white">Jugador 1</div></div>
+                                            <div className="rounded-xl bg-slate-950 border border-slate-800 p-3"><div className="text-xs text-slate-500">JUGADOR 2</div><div className={onlineRoomData?.guestUid ? "font-bold text-emerald-300" : "font-bold text-slate-500"}>{onlineRoomData?.guestUid ? 'Conectado' : 'Esperando...'}</div></div>
+                                        </div>
+                                        {isRoomHost ? (
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <button onClick={startOnlineMatch} disabled={!onlineRoomData?.guestUid || onlineRoomData?.status !== 'waiting'} className="py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black disabled:opacity-40">▶ INICIAR PARTIDA</button>
+                                                <button onClick={cancelOnlineRoom} className="py-3 rounded-xl bg-rose-950 border border-rose-500/40 text-rose-300 font-bold">✕ CANCELAR SALA</button>
+                                            </div>
+                                        ) : <p className="text-center text-sm text-amber-300">Esperando a que el anfitrión inicie la partida…</p>}
+                                    </div>
+                                ) : (
+                                    <div className="space-y-4 text-left">
+                                        <div className="space-y-2">
+                                            <label className="text-xs uppercase tracking-widest text-slate-400">Nombre de la sala</label>
+                                            <input value={roomName} onChange={e => setRoomName(e.target.value.slice(0, 40))} maxLength={40} className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white" placeholder="Sala de combate" />
+                                            <div className="flex gap-2">
+                                                <button onClick={() => setRoomVisibility('public')} className={roomVisibility === 'public' ? "flex-1 py-2 rounded-lg border border-emerald-400 bg-emerald-500/10 text-emerald-300 font-bold" : "flex-1 py-2 rounded-lg border border-slate-700 text-slate-400"}>🌐 Pública</button>
+                                                <button onClick={() => setRoomVisibility('private')} className={roomVisibility === 'private' ? "flex-1 py-2 rounded-lg border border-cyan-400 bg-cyan-500/10 text-cyan-300 font-bold" : "flex-1 py-2 rounded-lg border border-slate-700 text-slate-400"}>🔒 Privada</button>
+                                            </div>
+                                        </div>
+                                        <button onClick={createOnlineRoom} disabled={!onlineUser || isCreatingRoom} className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black uppercase tracking-wider disabled:opacity-40">{isCreatingRoom ? 'Creando sala...' : '🏠 Crear sala'}</button>
+                                        <div className="flex items-center gap-3 text-slate-500 text-xs font-mono-custom"><span className="h-px bg-slate-800 flex-1"></span>UNIRSE CON CÓDIGO<span className="h-px bg-slate-800 flex-1"></span></div>
+                                        <div className="space-y-2">
+                                            <input value={roomInput} onChange={e => setRoomInput(e.target.value.toUpperCase())} maxLength={6} placeholder="CÓDIGO DE 6 CARACTERES" className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-4 text-center text-xl font-black font-mono-custom tracking-[0.35em] uppercase focus:outline-none focus:border-emerald-400" />
+                                            <button onClick={joinOnlineRoom} disabled={!onlineUser || roomInput.length !== 6 || isJoiningRoom} className="w-full py-3 rounded-xl bg-slate-800 border border-slate-700 hover:border-emerald-400 text-slate-100 font-bold disabled:opacity-40">{isJoiningRoom ? 'Conectando...' : '🔑 Unirse a sala'}</button>
+                                        </div>
+                                        <div className="rounded-2xl border border-slate-800 bg-slate-950 p-4 space-y-3">
+                                            <div className="flex justify-between items-center"><h3 className="font-black text-white">🌐 SALAS PÚBLICAS</h3><span className="text-xs text-slate-500">{publicRooms.length} disponibles</span></div>
+                                            {publicRooms.length === 0 ? <p className="text-sm text-slate-500">No hay salas públicas disponibles ahora.</p> : publicRooms.map(room => (
+                                                <div key={room.code} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 p-3">
+                                                    <div className="min-w-0"><div className="font-bold text-white truncate">{room.name}</div><div className="text-xs text-slate-500">1/2 jugadores · Sala pública</div></div>
+                                                    <button onClick={() => { setRoomInput(room.code); setTimeout(() => document.getElementById('join-public-room')?.click(), 0); }} className="px-3 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-sm font-bold">Unirse</button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button id="join-public-room" onClick={joinOnlineRoom} disabled={!onlineUser || isJoiningRoom || roomInput.length !== 6} className="hidden">Unirse</button>
                                     </div>
                                 )}
                                 <p className="text-sm text-slate-400">{onlineStatus || (onlineUser ? 'Firebase conectado.' : 'Conectando con Firebase...')}</p>
