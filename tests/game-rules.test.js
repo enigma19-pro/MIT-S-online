@@ -323,3 +323,20 @@ test('Duelista first counterattack bypasses dice defense and invulnerability', (
     assert.equal(result.shadowNullified, false);
 });
 
+
+test('Adaptabilidad keeps its charges if a dodge already nullified all damage', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
+    assert.equal(result.damage, 0);
+    assert.equal(result.state.adaptabilityCharges, 2);
+});
+
+test('Ultra Impulso consumes Technical defense bonus without allowing its reduction', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 1, unstoppable: true });
+    assert.equal(result.damage, 5);
+    assert.equal(result.state.technicalDefenseBonus, false);
+});
+
