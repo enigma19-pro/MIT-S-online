@@ -907,6 +907,13 @@
 
             const currentAttacker = currentTurnPlayer === 1 ? activeP1Mit : activeP2Mit;
             const currentDefender = currentTurnPlayer === 1 ? activeP2Mit : activeP1Mit;
+            const currentTurnMits = currentTurnPlayer === 1 ? p1Mits : p2Mits;
+            const currentTurnActiveIndex = currentTurnPlayer === 1 ? activeP1Index : activeP2Index;
+            const availableMitIndex = window.MITSGameRules.findAvailableMitIndex(
+                currentTurnMits,
+                currentTurnActiveIndex
+            );
+            const availableMit = availableMitIndex === null ? null : currentTurnMits[availableMitIndex];
 
             const executeRollAnimation = (finalValue, callback) => {
                 const session = gameSessionRef.current;
@@ -1100,13 +1107,14 @@
                     });
                 }
 
-                const defeatedPlayerHasReserve = playerNum === 1
-                    ? activeP1Index < 1
-                    : activeP2Index < 1;
-
+                const defeatedActiveIndex = playerNum === 1 ? activeP1Index : activeP2Index;
+                const reserveIndex = window.MITSGameRules.findAvailableMitIndex(
+                    updatedMits,
+                    defeatedActiveIndex
+                );
                 const defeatResolution = window.MITSGameRules.resolveMitDefeat({
                     defeatedPlayer: playerNum,
-                    hasReserve: defeatedPlayerHasReserve
+                    hasReserve: reserveIndex !== null
                 });
 
                 if (!defeatResolution || defeatResolution.isGameOver) {
@@ -1114,11 +1122,10 @@
                     return;
                 }
 
-                const reserveIndex = 1;
                 const reserveMit = updatedMits[reserveIndex];
                 const entryLog = [...koLog, {
                     type: 'system',
-                    text: `🔄 Entra el 2º MIT de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
+                    text: `🔄 Entra el MIT de reserva de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
                 }];
 
                 scheduleGameTimeout(() => {
@@ -1176,6 +1183,37 @@
                         if (currentTurnPlayerRef.current === 2) triggerAiTurn();
                     }, 800);
                 }
+            };
+
+            const handleSwitchMit = () => {
+                if (gameState !== 'BATTLE' || combatPhase !== 'ATTACK_ROLL' ||
+                    isRolling || isTurnProcessing || availableMitIndex === null) {
+                    return;
+                }
+                if (gameMode === 'ONLINE' &&
+                    currentTurnPlayer !== (isRoomHost ? 1 : 2)) {
+                    return;
+                }
+                // The AI is not a human-controlled side and does not use the manual switch UI.
+                if (gameMode === 'AI' && currentTurnPlayer === 2) return;
+
+                const playerNum = currentTurnPlayer;
+                const switchLog = [...combatLog, {
+                    type: 'system',
+                    text: `🔄 Jugador ${playerNum} cambia ${currentAttacker.name} por ${availableMit.name}. Cede el turno al rival.`
+                }];
+
+                if (playerNum === 1) setActiveP1Index(availableMitIndex);
+                else setActiveP2Index(availableMitIndex);
+                setCombatLog(switchLog);
+                playSound('click');
+
+                const onlineOverrides = playerNum === 1
+                    ? { activeP1Index: availableMitIndex, p1Mits, p2Mits }
+                    : { activeP2Index: availableMitIndex, p1Mits, p2Mits };
+
+                // Switching is a full turn action: the opponent acts next.
+                endTurn(playerNum, switchLog, onlineOverrides);
             };
 
             const triggerAiTurn = () => {
@@ -1827,6 +1865,16 @@
                                                     }`}
                                                 >
                                                     {isRolling ? 'Lanzando Dado...' : (gameMode === 'AI' && currentTurnPlayer === 2) ? 'IA Pensando...' : `🎲 Lanzar Dado de Ataque`}
+                                                </button>
+                                            )}
+
+                                            {combatPhase === 'ATTACK_ROLL' && availableMit && !(gameMode === 'AI' && currentTurnPlayer === 2) && (
+                                                <button
+                                                    disabled={isRolling || isTurnProcessing}
+                                                    onClick={handleSwitchMit}
+                                                    className="w-full mt-3 py-3 rounded-xl font-bold text-sm uppercase tracking-wider transition-all font-mono-custom bg-gradient-to-r from-violet-500 to-indigo-600 text-white shadow-lg shadow-violet-500/20 hover:brightness-110 active:scale-95 disabled:bg-slate-800 disabled:text-slate-500 disabled:border disabled:border-slate-700 disabled:shadow-none disabled:cursor-not-allowed"
+                                                >
+                                                    🔄 Cambiar a {availableMit.name} · Ceder turno
                                                 </button>
                                             )}
 
