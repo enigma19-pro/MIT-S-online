@@ -108,6 +108,7 @@
             berserkerPhase: 1,
             murallaHits: 0,
             murallaQuietTurns: 0,
+            murallaDamagedThisTurn: false,
             destructorBonus: 0,
             counterCooldownTurns: 0,
             counterSequence: null
@@ -229,6 +230,7 @@
         if (actualLoss > 0 && defenderState.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
             nextDefender.murallaHits = Math.min(4, defenderState.murallaHits + 1);
             nextDefender.murallaQuietTurns = 0;
+            nextDefender.murallaDamagedThisTurn = true;
             events.push(`Revestimiento: ${nextDefender.murallaHits}/4 impactos`);
         }
         if (actualLoss === 0 && fullyDodged && defenderState.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
@@ -242,8 +244,10 @@
         const next = { ...state };
         const events = [];
         if (state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
-            if (tookDamage) next.murallaQuietTurns = 0;
-            else {
+            if (tookDamage || state.murallaDamagedThisTurn) {
+                next.murallaQuietTurns = 0;
+                next.murallaDamagedThisTurn = false;
+            } else {
                 next.murallaQuietTurns = Math.max(0, state.murallaQuietTurns) + 1;
                 if (next.murallaQuietTurns >= 3 && state.murallaHits > 0) {
                     next.murallaHits = 0;
@@ -276,7 +280,7 @@
             passiveState: { ...state, berserkerPhase: 2, ultraCharges: 0,
                 shadowInvulnerableTurns: 0, technicalAttackBonus: false,
                 technicalDefenseBonus: false, adaptabilityCharges: 0,
-                murallaHits: 0, murallaQuietTurns: 0, destructorBonus: 0,
+                murallaHits: 0, murallaQuietTurns: 0, murallaDamagedThisTurn: false, destructorBonus: 0,
                 counterCooldownTurns: 0, counterSequence: null }
         };
     }
