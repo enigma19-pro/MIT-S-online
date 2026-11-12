@@ -321,6 +321,13 @@
             // Combat Active State
             const [activeP1Index, setActiveP1Index] = useState(0);
             const [activeP2Index, setActiveP2Index] = useState(0);
+            // Los callbacks de combate pueden ejecutarse después de un render.
+            // Estas refs mantienen el índice activo real y evitan revivir un MIT
+            // usando una lista/índice capturados por un callback viejo.
+            const activeP1IndexRef = useRef(0);
+            const activeP2IndexRef = useRef(0);
+            activeP1IndexRef.current = activeP1Index;
+            activeP2IndexRef.current = activeP2Index;
             const [currentTurnPlayer, setCurrentTurnPlayer] = useState(1);
             const [combatPhase, setCombatPhase] = useState('ATTACK_ROLL'); // ATTACK_ROLL, DEFENSE_ROLL, RESOLVING
             const [isRolling, setIsRolling] = useState(false);
@@ -1227,8 +1234,10 @@
             const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null, defenseRoll = null, passiveDefenseResult = null, attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1) => {
                 const latestP1Mits = p1MitsRef.current;
                 const latestP2Mits = p2MitsRef.current;
-                const latestActiveP1Mit = latestP1Mits[activeP1Index] || activeP1Mit;
-                const latestActiveP2Mit = latestP2Mits[activeP2Index] || activeP2Mit;
+                const currentActiveP1Index = activeP1IndexRef.current;
+                const currentActiveP2Index = activeP2IndexRef.current;
+                const latestActiveP1Mit = latestP1Mits[currentActiveP1Index] || activeP1Mit;
+                const latestActiveP2Mit = latestP2Mits[currentActiveP2Index] || activeP2Mit;
                 let updatedP1 = latestP1Mits;
                 let updatedP2 = latestP2Mits;
                 let defeated = false;
@@ -1244,8 +1253,8 @@
                     const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
                         ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
                         : consequences.defenderState;
-                    updatedP1[activeP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
-                    if (attackerPlayerNum === 2) { updatedP2 = [...latestP2Mits]; updatedP2[activeP2Index] = { ...latestActiveP2Mit, passiveState: consequences.attackerState }; }
+                    updatedP1[currentActiveP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
+                    if (attackerPlayerNum === 2) { updatedP2 = [...latestP2Mits]; updatedP2[currentActiveP2Index] = { ...latestActiveP2Mit, passiveState: consequences.attackerState }; }
                     setP1Mits(updatedP1);
                     defeated = newHp === 0;
                 } else {
@@ -1259,8 +1268,8 @@
                     const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
                         ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
                         : consequences.defenderState;
-                    updatedP2[activeP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
-                    if (attackerPlayerNum === 1) { updatedP1 = [...latestP1Mits]; updatedP1[activeP1Index] = { ...latestActiveP1Mit, passiveState: consequences.attackerState }; }
+                    updatedP2[currentActiveP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
+                    if (attackerPlayerNum === 1) { updatedP1 = [...latestP1Mits]; updatedP1[currentActiveP1Index] = { ...latestActiveP1Mit, passiveState: consequences.attackerState }; }
                     setP2Mits(updatedP2);
                     defeated = newHp === 0;
                 }
@@ -1311,7 +1320,7 @@
                 }];
                 setCombatLog(koLog);
 
-                const defeatedActiveIndex = playerNum === 1 ? activeP1Index : activeP2Index;
+                const defeatedActiveIndex = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
                 const defeatedMit = updatedMits[defeatedActiveIndex];
                 const defeatedState = defeatedMit?.passiveState || {};
                 if (defeatedMit?.classData?.id === 'Resistente1' && defeatedState.berserkerPhase !== 2) {
@@ -1390,8 +1399,13 @@
                 }];
 
                 scheduleGameTimeout(() => {
-                    if (playerNum === 1) setActiveP1Index(reserveIndex);
-                    else setActiveP2Index(reserveIndex);
+                    if (playerNum === 1) {
+                        activeP1IndexRef.current = reserveIndex;
+                        setActiveP1Index(reserveIndex);
+                    } else {
+                        activeP2IndexRef.current = reserveIndex;
+                        setActiveP2Index(reserveIndex);
+                    }
                     setCombatLog(entryLog);
 
                     // La regla de turno tras un KO se resuelve en el módulo puro.
@@ -1519,7 +1533,9 @@
             const triggerAiTurn = () => {
                 // La IA solo puede actuar una vez y únicamente durante su turno.
                 if (gameState !== 'BATTLE' || gameMode !== 'AI' || currentTurnPlayerRef.current !== 2 || aiTurnInProgressRef.current) return;
-                const aiMit = activeP2MitRef.current;
+                const latestP2Mits = p2MitsRef.current;
+                const latestActiveP2Index = activeP2IndexRef.current;
+                const aiMit = latestP2Mits[latestActiveP2Index];
                 if (!aiMit || !Array.isArray(aiMit.attackNums)) return;
 
                 aiTurnInProgressRef.current = true;
@@ -1531,8 +1547,8 @@
                     const attackerAtTurnStart = { ...aiMit, passiveState: turnStart.state };
                     const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
                     const isHit = passiveAttack.hit;
-                    const updatedAiMits = [...p2Mits];
-                    updatedAiMits[activeP2Index] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    const updatedAiMits = [...latestP2Mits];
+                    updatedAiMits[latestActiveP2Index] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
                     turnStart.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
                     passiveAttack.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
                     setP2Mits(updatedAiMits);
@@ -1541,7 +1557,9 @@
                         setCurrentRollValue(passiveAttack.roll);
                         const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: aiMit.passiveState?.counterSequence?.phase === 'SECOND' };
                         if (aiMit.passiveState?.counterSequence?.phase === 'FIRST') {
-                            const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...aiMit, passiveState: passiveAttack.state }, defender: activeP1Mit, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
+                            const latestP1Mits = p1MitsRef.current;
+                            const latestActiveP1Mit = latestP1Mits[activeP1IndexRef.current] || {};
+                            const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...aiMit, passiveState: passiveAttack.state }, defender: latestActiveP1Mit, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
                             const counterLog = [...combatLog, { type: 'attack_hit', text: `⚔️ Contraataque 1/2 de ${aiMit.name}: no puedes defenderte.` }];
                             setCombatLog(counterLog);
                             setCombatPhase('RESOLVING');
@@ -2344,7 +2362,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(36)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(37)
                     </footer>
                 </div>
             );
