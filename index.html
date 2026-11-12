@@ -33,8 +33,8 @@
         }
     </script>
     <!-- React & ReactDOM -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
 
     <!-- Firebase -->
     <script type="module">
@@ -66,7 +66,7 @@
         };
     </script>
     <!-- Babel for JSX compilation -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone@7.29.13/babel.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@500;700;800&display=swap');
         
@@ -176,7 +176,11 @@
     </style>
 </head>
 <body class="min-h-screen flex flex-col justify-between">
-    <div id="root"></div>
+    <div id="root">
+        <div class="min-h-screen flex items-center justify-center bg-slate-950 text-slate-300 font-mono text-sm">
+            Cargando MIT'S…
+        </div>
+    </div>
 
     <script src="./game-rules.js"></script>
     <script type="text/babel">
@@ -326,8 +330,6 @@
             // usando una lista/índice capturados por un callback viejo.
             const activeP1IndexRef = useRef(0);
             const activeP2IndexRef = useRef(0);
-            activeP1IndexRef.current = activeP1Index;
-            activeP2IndexRef.current = activeP2Index;
             const [currentTurnPlayer, setCurrentTurnPlayer] = useState(1);
             const [combatPhase, setCombatPhase] = useState('ATTACK_ROLL'); // ATTACK_ROLL, DEFENSE_ROLL, RESOLVING
             const [isRolling, setIsRolling] = useState(false);
@@ -366,8 +368,10 @@
             const aiTurnTimerRef = useRef(null);
 
             const scheduleGameTimeout = (callback, delay) => {
+                const session = gameSessionRef.current;
                 const timer = setTimeout(() => {
                     pendingTimeoutsRef.current.delete(timer);
+                    if (session !== gameSessionRef.current) return;
                     callback();
                 }, delay);
                 pendingTimeoutsRef.current.add(timer);
@@ -388,6 +392,14 @@
                 }
                 isRollingRef.current = false;
             };
+
+            useEffect(() => {
+                activeP1IndexRef.current = activeP1Index;
+            }, [activeP1Index]);
+
+            useEffect(() => {
+                activeP2IndexRef.current = activeP2Index;
+            }, [activeP2Index]);
 
             useEffect(() => {
                 if (logContainerRef.current) {
@@ -640,6 +652,37 @@
                 }
             };
 
+            const sanitizeOnlineMits = value => {
+                if (!Array.isArray(value)) return [];
+                return value.slice(0, 2).map(mit =>
+                    mit && typeof mit === 'object' && !Array.isArray(mit) ? mit : null
+                );
+            };
+
+            const sanitizeOnlineCombatLog = value => {
+                if (!Array.isArray(value)) return [];
+                return value
+                    .filter(log => log && typeof log === 'object' && typeof log.text === 'string')
+                    .slice(-250);
+            };
+
+            const sanitizeOnlineIndex = (value, mits) => {
+                const index = Number(value);
+                if (Number.isInteger(index) && index >= 0 && index < mits.length && mits[index]) return index;
+                const firstValid = mits.findIndex(Boolean);
+                return firstValid >= 0 ? firstValid : 0;
+            };
+
+            const sanitizeOnlineTurnPlayer = value => Number(value) === 2 ? 2 : 1;
+
+            const sanitizeOnlineCombatPhase = value =>
+                ['ATTACK_ROLL', 'DEFENSE_ROLL', 'RESOLVING'].includes(value) ? value : 'ATTACK_ROLL';
+
+            const sanitizeOnlinePlayerNumber = value => {
+                const player = Number(value);
+                return player === 1 || player === 2 ? player : null;
+            };
+
             const subscribeToOnlineRoom = (code, localPlayerNum) => {
                 if (!window.MITSFirebase || !code) return;
                 if (onlineListenerRef.current) {
@@ -710,14 +753,22 @@
                 const handler = snapshot => {
                     const room = snapshot.val();
                     if (!room) return;
+
+                    const previousStatus = currentRoomStatus;
                     currentRoomStatus = room.status || null;
+
+                    if (['gameover', 'player_left'].includes(currentRoomStatus) && previousStatus !== currentRoomStatus) {
+                        gameSessionRef.current += 1;
+                        cancelGameTimers();
+                        isRollingRef.current = false;
+                        setIsRolling(false);
+                        setIsTurnProcessing(false);
+                        aiTurnInProgressRef.current = false;
+                    }
+
                     if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus)) {
                         clearPresenceGraceTimer();
-                        if (currentRoomStatus === 'gameover') {
-                            // A partir de GAMEOVER usamos el onDisconnect de la sala
-                            // ya existente para conservar la lógica del ganador.
-                            stopOnlinePresenceListener();
-                        }
+                        if (currentRoomStatus === 'gameover') stopOnlinePresenceListener();
                     } else if (opponentPresenceKnown && !opponentIsPresent) {
                         schedulePresenceCheck();
                     } else if (!opponentPresenceKnown) {
@@ -725,24 +776,51 @@
                             console.warn('No se pudo consultar la presencia del rival:', error);
                         });
                     }
-                    setP1Mits(room.p1Mits || []);
-                    setP2Mits(room.p2Mits || []);
-                    setBerserkerRebuild(room.berserkerRebuild || null);
-                    setActiveP1Index(room.activeP1Index || 0);
-                    setActiveP2Index(room.activeP2Index || 0);
-                    setCurrentTurnPlayer(room.currentTurnPlayer || 1);
-                    currentTurnPlayerRef.current = room.currentTurnPlayer || 1;
-                    setCombatPhase(room.combatPhase || 'ATTACK_ROLL');
+
+                    const normalizedP1Mits = sanitizeOnlineMits(room.p1Mits);
+                    const normalizedP2Mits = sanitizeOnlineMits(room.p2Mits);
+                    const normalizedActiveP1Index = sanitizeOnlineIndex(room.activeP1Index, normalizedP1Mits);
+                    const normalizedActiveP2Index = sanitizeOnlineIndex(room.activeP2Index, normalizedP2Mits);
+                    const normalizedTurnPlayer = sanitizeOnlineTurnPlayer(room.currentTurnPlayer);
+                    const normalizedCombatPhase = sanitizeOnlineCombatPhase(room.combatPhase);
+                    const normalizedCombatLog = sanitizeOnlineCombatLog(room.combatLog);
+                    const normalizedWinner = sanitizeOnlinePlayerNumber(room.winner);
+                    const normalizedDisconnectedPlayer = sanitizeOnlinePlayerNumber(room.disconnectedPlayer);
+                    const rebuildPlayer = sanitizeOnlinePlayerNumber(room.berserkerRebuild?.playerNum);
+                    const rebuildIndex = Number(room.berserkerRebuild?.index);
+                    const normalizedBerserkerRebuild = rebuildPlayer !== null && Number.isInteger(rebuildIndex) && rebuildIndex >= 0 && rebuildIndex <= 1
+                        ? { playerNum: rebuildPlayer, index: rebuildIndex }
+                        : null;
+
+                    activeP1IndexRef.current = normalizedActiveP1Index;
+                    activeP2IndexRef.current = normalizedActiveP2Index;
+                    setP1Mits(normalizedP1Mits);
+                    setP2Mits(normalizedP2Mits);
+                    setBerserkerRebuild(normalizedBerserkerRebuild);
+                    setActiveP1Index(normalizedActiveP1Index);
+                    setActiveP2Index(normalizedActiveP2Index);
+                    setCurrentTurnPlayer(normalizedTurnPlayer);
+                    currentTurnPlayerRef.current = normalizedTurnPlayer;
+                    setCombatPhase(normalizedCombatPhase);
+
                     if (!isRollingRef.current) {
-                        const syncedRoll = Number(room.currentRollValue) || 1;
-                        setCurrentRollValue(syncedRoll);
-                        lastRollValueRef.current = syncedRoll;
+                        const syncedRoll = Number(room.currentRollValue);
+                        const safeRoll = Number.isFinite(syncedRoll) ? Math.min(6, Math.max(1, syncedRoll)) : 1;
+                        setCurrentRollValue(safeRoll);
+                        lastRollValueRef.current = safeRoll;
                     }
-                    setAttackResult(room.attackResult || null);
-                    setCombatLog(room.combatLog || []);
+
+                    if (room.attackResult && typeof room.attackResult === 'object' && !Array.isArray(room.attackResult)) {
+                        setAttackResult(room.attackResult);
+                    } else {
+                        setAttackResult(null);
+                    }
+                    setCombatLog(normalizedCombatLog);
+
                     if (room.floatingEffect?.id && room.floatingEffect.id !== lastFloatingEffectIdRef.current) {
                         displayFloatingEffect(room.floatingEffect);
                     }
+
                     if (room.status === 'waiting') {
                         setGameState('ONLINE_LOBBY');
                         setOnlineStatus('Esperando al Jugador 2...');
@@ -751,37 +829,42 @@
                         if (room.guestUid && room.hostUid) setOnlineStatus('Ambos jugadores conectados.');
                     } else if (room.status === 'berserker_build') {
                         setGameState('BATTLE');
-                        const buildKey = room.berserkerRebuild ? `${room.berserkerRebuild.playerNum}:${room.berserkerRebuild.index}` : null;
+                        const buildKey = normalizedBerserkerRebuild
+                            ? normalizedBerserkerRebuild.playerNum + ':' + normalizedBerserkerRebuild.index
+                            : null;
                         if (buildKey !== berserkerBuildKeyRef.current) {
                             berserkerBuildKeyRef.current = buildKey;
-                            setBuilderPlayer(room.berserkerRebuild?.playerNum || 1);
+                            setBuilderPlayer(normalizedBerserkerRebuild?.playerNum || 1);
                             setSelectedClass({ ...MIT_CLASSES.find(c => c.id === 'Resistente1'), name: 'Berserker · Fase 2', hp: 3, d: 1, a: 5 });
                             setCurrentDNums([]);
                             setCurrentANums([]);
                         }
-                        setOnlineStatus(room.berserkerRebuild?.playerNum === localPlayerNum ? 'Asigna 1 cara de ataque y 5 de esquive para la segunda fase.' : 'El Berserker rival está reconstruyendo su segunda fase.');
+                        setOnlineStatus(normalizedBerserkerRebuild?.playerNum === localPlayerNum
+                            ? 'Asigna 1 cara de ataque y 5 de esquive para la segunda fase.'
+                            : 'El Berserker rival está reconstruyendo su segunda fase.');
                     } else if (room.status === 'battle') {
                         berserkerBuildKeyRef.current = null;
                         setBerserkerRebuild(null);
                         setGameState('BATTLE');
                         setIsTurnProcessing(false);
                         if (!isRollingRef.current) setIsRolling(false);
-                        setOnlineStatus((room.currentTurnPlayer === localPlayerNum) ? 'Es tu turno.' : 'Turno del rival.');
+                        setOnlineStatus(normalizedTurnPlayer === localPlayerNum ? 'Es tu turno.' : 'Turno del rival.');
                     } else if (room.status === 'gameover') {
-                        setWinnerPlayer(room.winner || null);
+                        setWinnerPlayer(normalizedWinner);
+                        setBerserkerRebuild(null);
                         setGameState('GAMEOVER');
-                        // Mantiene preparada la notificación si cualquiera cierra la
-                        // página después de terminar la partida. No modifica winner.
                         registerOnlineDisconnect(code, localPlayerNum).catch(error => {
                             console.warn('No se pudo preparar la notificación de salida:', error);
                         });
                     } else if (room.status === 'player_left') {
-                        setWinnerPlayer(room.winner || null);
-                        setDisconnectedPlayer(room.disconnectedPlayer || null);
+                        setWinnerPlayer(normalizedWinner);
+                        setDisconnectedPlayer(normalizedDisconnectedPlayer);
+                        setBerserkerRebuild(null);
                         setGameState('GAMEOVER');
                         setIsTurnProcessing(false);
-                        setOnlineStatus(`El Jugador ${room.disconnectedPlayer || '?'} salió de la partida.`);
+                        setOnlineStatus('El Jugador ' + (normalizedDisconnectedPlayer || '?') + ' salió de la partida.');
                     }
+
                     if (room.guestUid && room.status === 'waiting' && localPlayerNum === 1) {
                         window.MITSFirebase.update(roomRef, { status: 'building' });
                     }
@@ -1010,6 +1093,8 @@
                 setGameState('BATTLE');
                 setP1Mits(p1);
                 setP2Mits(p2);
+                activeP1IndexRef.current = 0;
+                activeP2IndexRef.current = 0;
                 setActiveP1Index(0);
                 setActiveP2Index(0);
                 currentTurnPlayerRef.current = 1;
@@ -1517,8 +1602,13 @@
                     text: `🔄 Jugador ${playerNum} cambia ${currentAttacker.name} por ${availableMit.name}. Cede el turno al rival.`
                 }];
 
-                if (playerNum === 1) setActiveP1Index(availableMitIndex);
-                else setActiveP2Index(availableMitIndex);
+                if (playerNum === 1) {
+                    activeP1IndexRef.current = availableMitIndex;
+                    setActiveP1Index(availableMitIndex);
+                } else {
+                    activeP2IndexRef.current = availableMitIndex;
+                    setActiveP2Index(availableMitIndex);
+                }
                 setCombatLog(switchLog);
                 playSound('click');
 
@@ -1657,6 +1747,8 @@
                 setBuilderPlayer(1);
                 setP1Mits([]);
                 setP2Mits([]);
+                activeP1IndexRef.current = 0;
+                activeP2IndexRef.current = 0;
                 setActiveP1Index(0);
                 setActiveP2Index(0);
                 setCurrentTurnPlayer(1);
@@ -1714,6 +1806,8 @@
                 setSelectedClass(MIT_CLASSES[2]);
                 setCurrentDNums([]);
                 setCurrentANums([]);
+                activeP1IndexRef.current = 0;
+                activeP2IndexRef.current = 0;
                 setActiveP1Index(0);
                 setActiveP2Index(0);
                 setCurrentTurnPlayer(1);
@@ -2362,7 +2456,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(37)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(38)
                     </footer>
                 </div>
             );
