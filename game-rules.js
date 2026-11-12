@@ -177,9 +177,9 @@
         let fullyDodged = !isUltra && (shadow || (base.isEvadeNumber && damage === 0));
         if (shadow) events.push('Sombra anuló el ataque');
         if (isUltra) events.push('Ultra Impulso ignoró defensas y estados de evasión');
-        if (!isUltra && !shadow && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
+        if (!shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
             const vulnerability = state.murallaHits === 0 ? 2 : state.murallaHits === 1 ? 1 : 0;
-            const reduction = Math.min(3, Math.max(0, state.murallaHits - 1));
+            const reduction = isUltra ? 0 : Math.min(3, Math.max(0, state.murallaHits - 1));
             damage = Math.max(0, damage + vulnerability - reduction);
         }
         if (!isUltra && !shadow && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
@@ -187,8 +187,8 @@
             next.adaptabilityCharges = 0;
             events.push('Adaptabilidad consumió 2 cargas y redujo 2 de daño');
         }
-        if (!isUltra && !shadow && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus && damage > 0) {
-            damage = Math.max(1, damage - 1);
+        if (!isUltra && !shadow && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus) {
+            if (damage > 0) damage = Math.max(1, damage - 1);
             next.technicalDefenseBonus = false;
             events.push('Técnico consumió Defensa +1');
         }
@@ -206,7 +206,8 @@
         return {
             damage, fullyDodged, isEvadeNumber: base.isEvadeNumber,
             state: next, events, triggersCounter,
-            shadowNullified: shadow
+            shadowNullified: shadow,
+            attackerState: attackState
         };
     }
 
