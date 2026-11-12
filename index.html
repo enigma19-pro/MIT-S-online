@@ -1158,6 +1158,7 @@
                 const damage = Number.isFinite(rawDamage)
                     ? Math.min(1000, Math.max(0, Math.floor(rawDamage)))
                     : 0;
+                if (value.success && damage <= 0) return null;
                 const roll = Number.isInteger(rawRoll) && rawRoll >= 1 && rawRoll <= 6 ? rawRoll : 1;
                 const classId = attacker?.classData?.id;
                 const passiveInput = value.attackerPassiveState && typeof value.attackerPassiveState === 'object'
@@ -1723,6 +1724,9 @@
 
             const activeP1Mit = normalizeMitForRender(p1Mits[activeP1Index]);
             const activeP2Mit = normalizeMitForRender(p2Mits[activeP2Index]);
+            const currentActionPlayer = combatPhase === 'DEFENSE_ROLL'
+                ? (currentTurnPlayer === 1 ? 2 : 1)
+                : currentTurnPlayer;
 
             const currentAttacker = currentTurnPlayer === 1 ? activeP1Mit : activeP2Mit;
             const currentDefender = currentTurnPlayer === 1 ? activeP2Mit : activeP1Mit;
@@ -1841,8 +1845,25 @@
                 if (isRolling || isTurnProcessing || (combatPhase !== 'DEFENSE_ROLL' && !overrideAttackData)) return;
                 if (gameMode === 'ONLINE' && !overrideAttackData && currentTurnPlayer === (isRoomHost ? 1 : 2)) return;
 
-                setIsTurnProcessing(true);
                 const atkData = overrideAttackData || attackResult;
+                const incomingDamage = Number(atkData?.damage);
+                if (
+                    !atkData ||
+                    atkData.success !== true ||
+                    !Number.isFinite(incomingDamage) ||
+                    incomingDamage <= 0
+                ) {
+                    setIsTurnProcessing(false);
+                    setAttackResult(null);
+                    setCombatPhase('ATTACK_ROLL');
+                    if (gameMode === 'ONLINE') {
+                        syncOnline({ attackResult: null, combatPhase: 'ATTACK_ROLL' });
+                        setOnlineStatus('Se descartó un resultado de ataque inválido. Se reanudó el turno.');
+                    }
+                    return;
+                }
+
+                setIsTurnProcessing(true);
                 const defenderPlayerNum = currentTurnPlayer === 1 ? 2 : 1;
                 const roll = Math.floor(Math.random() * 6) + 1;
 
@@ -2928,7 +2949,7 @@
                                         <div className="battle-players grid grid-cols-1 md:grid-cols-2 gap-4 relative">
                                     {/* PLAYER 1 CARD */}
                                     <div className={`battle-player-card glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
-                                        currentTurnPlayer === 1 && gameState === 'BATTLE' ? 'border-cyan-400 shadow-xl shadow-cyan-500/10' : 'border-slate-800 opacity-85'
+                                        currentActionPlayer === 1 && gameState === 'BATTLE' ? 'border-cyan-400 shadow-xl shadow-cyan-500/10' : 'border-slate-800 opacity-85'
                                     }`}>
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
@@ -2988,7 +3009,7 @@
 
                                     {/* PLAYER 2 CARD */}
                                     <div className={`battle-player-card glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
-                                        currentTurnPlayer === 2 && gameState === 'BATTLE' ? 'border-purple-400 shadow-xl shadow-purple-500/10' : 'border-slate-800 opacity-85'
+                                        currentActionPlayer === 2 && gameState === 'BATTLE' ? 'border-purple-400 shadow-xl shadow-purple-500/10' : 'border-slate-800 opacity-85'
                                     }`}>
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
@@ -3054,7 +3075,7 @@
                                     <div className="battle-controls glass-panel rounded-3xl p-5 border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center">
                                         <div className="text-xs font-mono-custom text-slate-400 flex items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                                            TURNO ACTUAL: <strong className="text-cyan-300 uppercase">JUGADOR {currentTurnPlayer} ({currentTurnPlayer === 1 ? activeP1Mit.name : activeP2Mit.name})</strong>
+                                            {combatPhase === 'DEFENSE_ROLL' ? 'DEFENSA PENDIENTE:' : 'TURNO ACTUAL:'} <strong className="text-cyan-300 uppercase">JUGADOR {currentActionPlayer} ({currentActionPlayer === 1 ? activeP1Mit.name : activeP2Mit.name})</strong>
                                         </div>
 
                                         <div className="py-2">
@@ -3099,7 +3120,7 @@
 
                                             {combatPhase === 'DEFENSE_ROLL' && (
                                                 <button
-                                                    disabled={isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 1)}
+                                                    disabled={isRolling || isTurnProcessing || !attackResult?.success || (gameMode === 'AI' && currentTurnPlayer === 1)}
                                                     onClick={() => handleDefenseRoll()}
                                                     className={`w-full py-4 rounded-2xl font-black text-base uppercase tracking-wider transition-all font-mono-custom ${
                                                         isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 1)
