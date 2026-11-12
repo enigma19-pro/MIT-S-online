@@ -1127,13 +1127,13 @@
                         }
                         const newLog = [...combatLog, {
                             type: 'attack_hit',
-                            text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → ¡Ataque Exitoso! El rival debe defender.`
+                            text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${passiveAttack.roll}] → ¡Ataque Exitoso! El rival debe defender.`
                         }];
                         setAttackResult(atkData);
                         setCombatPhase('DEFENSE_ROLL');
                         setIsTurnProcessing(false);
                         setCombatLog(newLog);
-                        if (gameMode === 'ONLINE') syncOnline({ currentRollValue: roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
+                        if (gameMode === 'ONLINE') syncOnline({ currentRollValue: passiveAttack.roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
                         publishFloatingEffect({
                             player: currentTurnPlayer,
                             text: '¡ACERTÓ!',
@@ -1267,6 +1267,9 @@
                     setCombatLog(logOverride);
                     publishFloatingEffect({ player: defenderPlayerNum, text: '¡CONTRAATAQUE!', type: 'hit' });
                 }
+
+                setP1Mits(updatedP1);
+                setP2Mits(updatedP2);
 
                 if (gameMode === 'ONLINE') {
                     const nextLog = logOverride || combatLog;
@@ -1540,7 +1543,7 @@
                         setIsTurnProcessing(false);
                         setCombatLog(prev => [...prev, {
                             type: 'attack_hit',
-                            text: `🎯 Jugador 2 (IA) sacó [${roll}] → ¡Ataque Exitoso! Lanza tu dado de esquive.`
+                            text: `🎯 Jugador 2 (IA) sacó [${passiveAttack.roll}] → ¡Ataque Exitoso! Lanza tu dado de esquive.`
                         }]);
                         publishFloatingEffect({
                             player: 2,
