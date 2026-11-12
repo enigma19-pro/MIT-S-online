@@ -1040,7 +1040,7 @@
                 const id = mit?.classData?.id;
                 const items = [];
                 if (id === 'Agil1') items.push(`Ultra Impulso: ${state.ultraCharges}/3`);
-                if (id === 'Agil2') { if (state.shadowInvulnerableTurns > 0) items.push(`Sombra: invulnerable (${state.shadowInvulnerableTurns} turno)`); if (state.shadowCooldownTurns > 0) items.push(`Sombra: enfriamiento (${state.shadowCooldownTurns})`); }
+                if (id === 'Agil2') { if (state.shadowInvulnerableTurns > 0) items.push(`Sombra: invulnerable (1 turno rival)`); if (state.shadowCooldownTurns > 0) items.push(`Sombra: enfriamiento (${state.shadowCooldownTurns})`); }
                 if (id === 'Normal1') { if (state.technicalAttackBonus) items.push('Ataque +1 guardado'); if (state.technicalDefenseBonus) items.push('Defensa +1 guardada'); }
                 if (id === 'Normal2') items.push(`Adaptabilidad: ${state.adaptabilityCharges}/2`);
                 if (id === 'Resistente1') items.push(state.berserkerPhase === 2 ? 'Último Instinto: FASE 2 · 3 HP' : 'Último Instinto: fase 1');
