@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const {
     isSuccessfulAttack,
     resolveDefense,
+    findAvailableMitIndex,
     resolveMitDefeat
 } = require('../game-rules.js');
 
@@ -109,4 +110,26 @@ test('invalid defeated player numbers do not produce a turn transition', () => {
     assert.equal(resolveMitDefeat({ defeatedPlayer: 1 }), null);
     assert.equal(resolveMitDefeat({ defeatedPlayer: true, hasReserve: true }), null);
     assert.equal(resolveMitDefeat({ defeatedPlayer: null, hasReserve: true }), null);
+});
+
+test('a living reserve MIT can be selected regardless of its slot', () => {
+    const mits = [
+        { currentHp: 0 },
+        { currentHp: 12 }
+    ];
+    assert.equal(findAvailableMitIndex(mits, 0), 1);
+    assert.equal(findAvailableMitIndex(mits, 1), null);
+});
+
+test('a defeated reserve MIT is never selectable', () => {
+    assert.equal(
+        findAvailableMitIndex([{ currentHp: 10 }, { currentHp: 0 }], 0),
+        null
+    );
+});
+
+test('reserve lookup rejects invalid lists and active indices', () => {
+    assert.equal(findAvailableMitIndex(null, 0), null);
+    assert.equal(findAvailableMitIndex([{ currentHp: 5 }], 2), null);
+    assert.equal(findAvailableMitIndex([{ currentHp: 5 }], -1), null);
 });
