@@ -552,6 +552,11 @@
             Dano2: 'Contraataque: si recibes un golpe que te hace 0 o 1 de daño, activas una secuencia de dos ataques: el primero no puede defenderse, el segundo sí. Después el rival recupera el turno. Tiene 1 turno de enfriamiento.'
         };
 
+        const MAX_COMBAT_LOG_ENTRIES = 250;
+        const trimCombatLog = entries => Array.isArray(entries)
+            ? entries.slice(-MAX_COMBAT_LOG_ENTRIES)
+            : [];
+
         // Generate AI MIT
         const generateAiMit = (mitIndex) => {
             const randomClass = MIT_CLASSES[Math.floor(Math.random() * MIT_CLASSES.length)];
@@ -681,7 +686,12 @@
             const [currentRollValue, setCurrentRollValue] = useState(1);
             const lastRollValueRef = useRef(1);
             const [attackResult, setAttackResult] = useState(null);
-            const [combatLog, setCombatLog] = useState([]);
+            const [combatLog, setCombatLogRaw] = useState([]);
+            // Todas las rutas de UI mantienen la bitácora acotada, incluidas las
+            // actualizaciones funcionales que llegan desde animaciones y timers.
+            const setCombatLog = nextValue => setCombatLogRaw(previous =>
+                trimCombatLog(typeof nextValue === 'function' ? nextValue(previous) : nextValue)
+            );
             const [floatingEffect, setFloatingEffect] = useState(null);
             const floatingEffectTimerRef = useRef(null);
             const lastFloatingEffectIdRef = useRef(null);
@@ -1450,7 +1460,11 @@
 
             const syncOnline = async (changes) => {
                 if (gameMode !== 'ONLINE' || !roomCode) return;
-                try { await window.MITSFirebase.update(onlineRoomRef(), changes); }
+                const safeChanges = { ...changes };
+                if (Object.prototype.hasOwnProperty.call(safeChanges, 'combatLog')) {
+                    safeChanges.combatLog = trimCombatLog(safeChanges.combatLog);
+                }
+                try { await window.MITSFirebase.update(onlineRoomRef(), safeChanges); }
                 catch (error) { console.error('Firebase sync:', error); setOnlineStatus('Error de sincronización.'); }
             };
 
