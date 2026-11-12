@@ -1118,7 +1118,7 @@
                     const hpLost = Math.max(0, activeP1Mit.currentHp - newHp);
                     const defenderWithState = { ...activeP1Mit, passiveState: passiveDefenseResult?.state || activeP1Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
-                    const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: attackerMit, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
+                    const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
                     updatedP1[activeP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: consequences.defenderState };
                     if (attackerPlayerNum === 2) { updatedP2 = [...p2Mits]; updatedP2[activeP2Index] = { ...activeP2Mit, passiveState: consequences.attackerState }; }
                     setP1Mits(updatedP1);
@@ -1129,7 +1129,7 @@
                     const hpLost = Math.max(0, activeP2Mit.currentHp - newHp);
                     const defenderWithState = { ...activeP2Mit, passiveState: passiveDefenseResult?.state || activeP2Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
-                    const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: attackerMit, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
+                    const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
                     updatedP2[activeP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: consequences.defenderState };
                     if (attackerPlayerNum === 1) { updatedP1 = [...p1Mits]; updatedP1[activeP1Index] = { ...activeP1Mit, passiveState: consequences.attackerState }; }
                     setP2Mits(updatedP2);
