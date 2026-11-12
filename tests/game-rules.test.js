@@ -200,19 +200,19 @@ test('Technical normalizes legacy boolean bonuses and clamps invalid stacks', ()
     assert.equal(result.technicalDefenseBonus, 3);
 });
 
-test('Technical keeps its accumulated attack bonus after applying it', () => {
+test('Technical consumes its accumulated attack bonus after applying it', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [4], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: 3 } };
     const result = resolvePassiveAttack({ attacker: mit, roll: 4 });
     assert.equal(result.damage, 7);
-    assert.equal(result.state.technicalAttackBonus, 3);
+    assert.equal(result.state.technicalAttackBonus, 0);
 });
 
-test('Technical keeps its defense stack after reducing damage without dropping below one', () => {
+test('Technical consumes its defense stack after reducing damage without dropping below one', () => {
     const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: 3 } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 2 });
     assert.equal(result.damage, 2);
-    assert.equal(result.state.technicalDefenseBonus, 3);
+    assert.equal(result.state.technicalDefenseBonus, 0);
 });
 
 
@@ -695,12 +695,12 @@ test('Ultra Impulso still respects Versatil damage protection', () => {
     assert.equal(result.state.adaptabilityCharges, 0);
 });
 
-test('Ultra Impulso still applies Technical defense without consuming it', () => {
+test('Ultra Impulso still applies Technical defense and consumes it', () => {
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 1, unstoppable: true });
     assert.equal(result.damage, 4);
-    assert.equal(result.state.technicalDefenseBonus, 1);
+    assert.equal(result.state.technicalDefenseBonus, 0);
 });
 
 
