@@ -311,6 +311,7 @@
             const [currentDNums, setCurrentDNums] = useState([]);
             const [currentANums, setCurrentANums] = useState([]);
             const [berserkerRebuild, setBerserkerRebuild] = useState(null);
+            const berserkerBuildKeyRef = useRef(null);
             const isSubmittingMitRef = useRef(false);
 
             // Combat Active State
@@ -739,12 +740,17 @@
                         if (room.guestUid && room.hostUid) setOnlineStatus('Ambos jugadores conectados.');
                     } else if (room.status === 'berserker_build') {
                         setGameState('BUILD');
-                        setBuilderPlayer(room.berserkerRebuild?.playerNum || 1);
-                        setSelectedClass({ ...MIT_CLASSES.find(c => c.id === 'Resistente1'), name: 'Berserker · Fase 2', hp: 3, d: 1, a: 5 });
-                        setCurrentDNums([]);
-                        setCurrentANums([]);
+                        const buildKey = room.berserkerRebuild ? `${room.berserkerRebuild.playerNum}:${room.berserkerRebuild.index}` : null;
+                        if (buildKey !== berserkerBuildKeyRef.current) {
+                            berserkerBuildKeyRef.current = buildKey;
+                            setBuilderPlayer(room.berserkerRebuild?.playerNum || 1);
+                            setSelectedClass({ ...MIT_CLASSES.find(c => c.id === 'Resistente1'), name: 'Berserker · Fase 2', hp: 3, d: 1, a: 5 });
+                            setCurrentDNums([]);
+                            setCurrentANums([]);
+                        }
                         setOnlineStatus(room.berserkerRebuild?.playerNum === localPlayerNum ? 'Asigna 1 cara de ataque y 5 de esquive para la segunda fase.' : 'El Berserker rival está reconstruyendo su segunda fase.');
                     } else if (room.status === 'battle') {
+                        berserkerBuildKeyRef.current = null;
                         setBerserkerRebuild(null);
                         setGameState('BATTLE');
                         setIsTurnProcessing(false);
@@ -897,6 +903,7 @@
                             if (berserkerRebuild.playerNum === 1) setP2Mits(opponentList); else setP1Mits(opponentList);
                         }
                         setBerserkerRebuild(null);
+                        berserkerBuildKeyRef.current = null;
                         setSelectedClass(MIT_CLASSES[2]);
                         setCurrentDNums([]);
                         setCurrentANums([]);
@@ -1330,6 +1337,7 @@
                     } else {
                         if (playerNum === 1) setP1Mits(updatedMits); else setP2Mits(updatedMits);
                         setBerserkerRebuild(rebuild);
+                        berserkerBuildKeyRef.current = `${playerNum}:${defeatedActiveIndex}`;
                         setBuilderPlayer(playerNum);
                         setSelectedClass({ ...MIT_CLASSES.find(c => c.id === 'Resistente1'), name: 'Berserker · Fase 2', hp: 3, d: 1, a: 5 });
                         setCurrentDNums([]);
@@ -1628,6 +1636,7 @@
                 setDisconnectedPlayer(null);
                 setWinnerPlayer(null);
                 setBerserkerRebuild(null);
+                berserkerBuildKeyRef.current = null;
                 setIsRoomHost(false);
                 setBuilderPlayer(1);
                 setP1Mits([]);
@@ -1681,6 +1690,7 @@
                 setDisconnectedPlayer(null);
                 setWinnerPlayer(null);
                 setBerserkerRebuild(null);
+                berserkerBuildKeyRef.current = null;
                 setGameMode('AI');
                 setP1Mits([]);
                 setP2Mits([]);
