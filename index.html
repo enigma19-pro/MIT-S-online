@@ -275,7 +275,8 @@
                 maxHp: randomClass.hp,
                 currentHp: randomClass.hp,
                 attackNums,
-                evadeNums
+                evadeNums,
+                passiveState: window.MITSGameRules.createPassiveState(randomClass.id)
             };
         };
 
@@ -827,7 +828,8 @@
                         maxHp: selectedClass.hp,
                         currentHp: selectedClass.hp,
                         attackNums: [...currentDNums],
-                        evadeNums: [...currentANums]
+                        evadeNums: [...currentANums],
+                        passiveState: window.MITSGameRules.createPassiveState(selectedClass.id)
                     };
 
                     if (gameMode === 'ONLINE') {
@@ -931,6 +933,21 @@
             };
 
             // --- COMBAT LOGIC ---
+            const passiveIndicators = (mit) => {
+                const state = { ...window.MITSGameRules.createPassiveState(mit?.classData?.id), ...(mit?.passiveState || {}) };
+                const id = mit?.classData?.id;
+                const items = [];
+                if (id === 'Agil1') items.push(`Ultra Impulso: ${state.ultraCharges}/3`);
+                if (id === 'Agil2') { if (state.shadowInvulnerableTurns > 0) items.push(`Sombra: invulnerable (${state.shadowInvulnerableTurns} turno)`); if (state.shadowCooldownTurns > 0) items.push(`Sombra: enfriamiento (${state.shadowCooldownTurns})`); }
+                if (id === 'Normal1') { if (state.technicalAttackBonus) items.push('Ataque +1 guardado'); if (state.technicalDefenseBonus) items.push('Defensa +1 guardada'); }
+                if (id === 'Normal2') items.push(`Adaptabilidad: ${state.adaptabilityCharges}/2`);
+                if (id === 'Resistente1') items.push(state.berserkerPhase === 2 ? 'Último Instinto: FASE 2 · 3 HP' : 'Último Instinto: fase 1');
+                if (id === 'Resistente2') { const v = state.murallaHits === 0 ? '+2 daño' : state.murallaHits === 1 ? '+1 daño' : 'sin vulnerabilidad'; const r = Math.min(3, Math.max(0, state.murallaHits - 1)); items.push(`Revestimiento: ${state.murallaHits}/4 · ${v} · reducción ${r}`); }
+                if (id === 'Dano1') items.push(`Enfurecimiento: daño +${state.destructorBonus}`);
+                if (id === 'Dano2') items.push(state.counterCooldownTurns > 0 ? `Contraataque: enfriamiento ${state.counterCooldownTurns}` : 'Contraataque: listo');
+                return items;
+            };
+
             const activeP1Mit = p1Mits[activeP1Index] || {};
             const activeP2Mit = p2Mits[activeP2Index] || {};
             activeP2MitRef.current = activeP2Mit;
@@ -982,10 +999,16 @@
                 setIsTurnProcessing(true);
                 const roll = Math.floor(Math.random() * 6) + 1;
                 executeRollAnimation(roll, () => {
-                    const isHit = window.MITSGameRules.isSuccessfulAttack(currentAttacker.attackNums, roll);
+                    const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: currentAttacker, roll });
+                    const isHit = passiveAttack.hit;
+                    const updatedAttackerMits = [...currentTurnMits];
+                    updatedAttackerMits[currentTurnActiveIndex] = { ...currentAttacker, passiveState: passiveAttack.state };
+                    if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
+                    if (gameMode === 'ONLINE') syncOnline(currentTurnPlayer === 1 ? { p1Mits: updatedAttackerMits } : { p2Mits: updatedAttackerMits });
                     if (isHit) {
                         playSound('hit');
-                        const atkData = { success: true, damage: roll, roll };
+                        setCurrentRollValue(passiveAttack.roll);
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state };
                         const newLog = [...combatLog, {
                             type: 'attack_hit',
                             text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → ¡Ataque Exitoso! El rival debe defender.`
@@ -1011,7 +1034,7 @@
                             type: 'attack_miss',
                             text: `❌ Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → Ataque Fallado. Pasa el turno al rival.`
                         }];
-                        setAttackResult({ success: false, damage: 0, roll });
+                        setAttackResult({ success: false, damage: 0, roll: passiveAttack.roll });
                         setCombatPhase('RESOLVING');
                         setCombatLog(newLog);
                         if (gameMode === 'ONLINE') syncOnline({ currentRollValue: roll, attackResult: { success: false, damage: 0, roll }, combatPhase: 'RESOLVING', combatLog: newLog });
@@ -1039,11 +1062,14 @@
                 executeRollAnimation(roll, () => {
                     // Resolver el esquive con valores normalizados y una única fórmula.
                     // Solo un número que esté explícitamente en evadeNums puede reducir daño.
-                    const { isEvadeNumber, finalDamageTaken } = window.MITSGameRules.resolveDefense({
+                    const defenseResult = window.MITSGameRules.resolvePassiveDefense({
+                        attacker: { ...currentAttacker, passiveState: atkData?.attackerPassiveState || currentAttacker.passiveState },
+                        defender: currentDefender,
                         attackDamage: atkData?.damage,
                         defenseRoll: roll,
-                        evadeNums: currentDefender.evadeNums
+                        unstoppable: atkData?.unstoppable === true
                     });
+                    const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
 
                     let defenseLogEntry;
                     if (isEvadeNumber) {
@@ -1073,7 +1099,7 @@
                         });
                     }
 
-                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll);
+                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll, defenseResult, currentTurnPlayer);
                 });
             };
 
@@ -1081,7 +1107,7 @@
                 handleDefenseRoll(atkData);
             };
 
-            const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null, defenseRoll = null) => {
+            const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null, defenseRoll = null, passiveDefenseResult = null, attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1) => {
                 let updatedP1 = p1Mits;
                 let updatedP2 = p2Mits;
                 let defeated = false;
@@ -1089,13 +1115,23 @@
                 if (defenderPlayerNum === 1) {
                     const newHp = Math.max(0, activeP1Mit.currentHp - damage);
                     updatedP1 = [...p1Mits];
-                    updatedP1[activeP1Index] = { ...activeP1Mit, currentHp: newHp };
+                    const hpLost = Math.max(0, activeP1Mit.currentHp - newHp);
+                    const defenderWithState = { ...activeP1Mit, passiveState: passiveDefenseResult?.state || activeP1Mit.passiveState };
+                    const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
+                    const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: attackerMit, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
+                    updatedP1[activeP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: consequences.defenderState };
+                    if (attackerPlayerNum === 2) { updatedP2 = [...p2Mits]; updatedP2[activeP2Index] = { ...activeP2Mit, passiveState: consequences.attackerState }; }
                     setP1Mits(updatedP1);
                     defeated = newHp === 0;
                 } else {
                     const newHp = Math.max(0, activeP2Mit.currentHp - damage);
                     updatedP2 = [...p2Mits];
-                    updatedP2[activeP2Index] = { ...activeP2Mit, currentHp: newHp };
+                    const hpLost = Math.max(0, activeP2Mit.currentHp - newHp);
+                    const defenderWithState = { ...activeP2Mit, passiveState: passiveDefenseResult?.state || activeP2Mit.passiveState };
+                    const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
+                    const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: attackerMit, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
+                    updatedP2[activeP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: consequences.defenderState };
+                    if (attackerPlayerNum === 1) { updatedP1 = [...p1Mits]; updatedP1[activeP1Index] = { ...activeP1Mit, passiveState: consequences.attackerState }; }
                     setP2Mits(updatedP2);
                     defeated = newHp === 0;
                 }
@@ -1262,10 +1298,15 @@
                 const roll = Math.floor(Math.random() * 6) + 1;
                 
                 executeRollAnimation(roll, () => {
-                    const isHit = window.MITSGameRules.isSuccessfulAttack(aiMit.attackNums, roll);
+                    const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: aiMit, roll });
+                    const isHit = passiveAttack.hit;
+                    const updatedAiMits = [...p2Mits];
+                    updatedAiMits[activeP2Index] = { ...aiMit, passiveState: passiveAttack.state };
+                    setP2Mits(updatedAiMits);
                     if (isHit) {
                         playSound('hit');
-                        const atkData = { success: true, damage: roll, roll };
+                        setCurrentRollValue(passiveAttack.roll);
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state };
                         setAttackResult(atkData);
                         setCombatPhase('DEFENSE_ROLL');
                         setIsTurnProcessing(false);
@@ -1281,7 +1322,7 @@
                         // El bloqueo se libera al terminar la resolución de este turno.
                     } else {
                         playSound('fail');
-                        setAttackResult({ success: false, damage: 0, roll });
+                        setAttackResult({ success: false, damage: 0, roll: passiveAttack.roll });
                         setCombatPhase('RESOLVING');
                         setCombatLog(prev => [...prev, {
                             type: 'attack_miss',
