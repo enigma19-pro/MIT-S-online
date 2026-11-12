@@ -466,7 +466,7 @@
 
     <script src="./game-rules.js"></script>
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useLayoutEffect } = React;
 
         // Sound Synthesis Utility (Web Audio API)
         let sharedAudioContext = null;
@@ -651,9 +651,7 @@
             const [p2Mits, setP2Mits] = useState([]);
             const p1MitsRef = useRef(p1Mits);
             const p2MitsRef = useRef(p2Mits);
-            p1MitsRef.current = p1Mits;
-            p2MitsRef.current = p2Mits;
-
+ 
             // Builder Selection
             const [selectedClass, setSelectedClass] = useState(MIT_CLASSES[2]);
             const [showClassGuide, setShowClassGuide] = useState(false);
@@ -705,8 +703,6 @@
             const aiTurnInProgressRef = useRef(false);
             // Referencias para que los temporizadores nunca usen un turno/MIT obsoleto.
             const currentTurnPlayerRef = useRef(currentTurnPlayer);
-            currentTurnPlayerRef.current = currentTurnPlayer;
-            const activeP2MitRef = useRef(null);
             const aiTurnTimerRef = useRef(null);
 
             const scheduleGameTimeout = (callback, delay) => {
@@ -735,13 +731,16 @@
                 isRollingRef.current = false;
             };
 
-            useEffect(() => {
+            // Mantiene las referencias sincronizadas después del commit y antes
+            // de que el navegador procese la siguiente interacción del usuario.
+            // Evita escribir refs durante un render que React podría descartar.
+            useLayoutEffect(() => {
+                p1MitsRef.current = p1Mits;
+                p2MitsRef.current = p2Mits;
                 activeP1IndexRef.current = activeP1Index;
-            }, [activeP1Index]);
-
-            useEffect(() => {
                 activeP2IndexRef.current = activeP2Index;
-            }, [activeP2Index]);
+                currentTurnPlayerRef.current = currentTurnPlayer;
+            }, [p1Mits, p2Mits, activeP1Index, activeP2Index, currentTurnPlayer]);
 
             useEffect(() => {
                 if (logContainerRef.current) {
@@ -753,12 +752,41 @@
 
             useEffect(() => {
                 if (!window.MITSFirebase) return;
+                let active = true;
                 window.MITSFirebase.ready
-                    .then(user => setOnlineUser(user))
+                    .then(user => { if (active) setOnlineUser(user); })
                     .catch(error => {
                         console.error('Firebase Auth:', error);
-                        setOnlineStatus('No se pudo conectar con Firebase.');
+                        if (active) setOnlineStatus('No se pudo conectar con Firebase.');
                     });
+                return () => { active = false; };
+            }, []);
+
+            // Limpieza final al desmontar la aplicación: evita timers y listeners
+            // huérfanos si se navega, se recarga o React elimina el árbol.
+            useEffect(() => () => {
+                gameSessionRef.current += 1;
+                cancelGameTimers();
+                if (floatingEffectTimerRef.current !== null) {
+                    clearTimeout(floatingEffectTimerRef.current);
+                    floatingEffectTimerRef.current = null;
+                }
+                if (presenceGraceTimerRef.current !== null) {
+                    clearTimeout(presenceGraceTimerRef.current);
+                    presenceGraceTimerRef.current = null;
+                }
+                const firebase = window.MITSFirebase;
+                if (firebase && onlineListenerRef.current) {
+                    firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
+                        firebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                    }
+                    onlineListenerRef.current = null;
+                }
+                if (firebase && onlinePresenceRef.current) {
+                    firebase.off(onlinePresenceRef.current.connectedRef, 'value', onlinePresenceRef.current.connectedHandler);
+                    onlinePresenceRef.current = null;
+                }
             }, []);
 
             const onlineRoomRef = (code = roomCode) => {
@@ -1265,7 +1293,14 @@
                 }
             };
 
-            const isBuildValid = currentDNums.length === selectedClass.d && currentANums.length === selectedClass.a;
+            const isBuildValid = (
+                currentDNums.length === selectedClass.d &&
+                currentANums.length === selectedClass.a &&
+                [...currentDNums, ...currentANums].every(face =>
+                    Number.isInteger(face) && face >= 1 && face <= 6
+                ) &&
+                new Set([...currentDNums, ...currentANums]).size === currentDNums.length + currentANums.length
+            );
 
             const handleConfirmMit = async () => {
                 if (!isBuildValid || isSubmittingMitRef.current) return;
@@ -1466,7 +1501,7 @@
 
             // --- COMBAT LOGIC ---
             const passiveIndicators = (mit) => {
-                const state = { ...window.MITSGameRules.createPassiveState(mit?.classData?.id), ...(mit?.passiveState || {}) };
+                const state = window.MITSGameRules.normalizePassiveState(mit);
                 const id = mit?.classData?.id;
                 const items = [];
                 if (id === 'Agil1') items.push(`Ultra Impulso: ${state.ultraCharges}/3`);
@@ -1513,7 +1548,6 @@
 
             const activeP1Mit = normalizeMitForRender(p1Mits[activeP1Index]);
             const activeP2Mit = normalizeMitForRender(p2Mits[activeP2Index]);
-            activeP2MitRef.current = activeP2Mit;
 
             const currentAttacker = currentTurnPlayer === 1 ? activeP1Mit : activeP2Mit;
             const currentDefender = currentTurnPlayer === 1 ? activeP2Mit : activeP1Mit;
@@ -1697,8 +1731,13 @@
                 let updatedP2 = latestP2Mits;
                 let defeated = false;
 
+                const parsedDamage = Number(damage);
+                const safeDamage = Number.isFinite(parsedDamage)
+                    ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(parsedDamage)))
+                    : 0;
+
                 if (defenderPlayerNum === 1) {
-                    const newHp = Math.max(0, latestActiveP1Mit.currentHp - damage);
+                    const newHp = Math.max(0, latestActiveP1Mit.currentHp - safeDamage);
                     updatedP1 = [...latestP1Mits];
                     const hpLost = Math.max(0, latestActiveP1Mit.currentHp - newHp);
                     const defenderWithState = { ...latestActiveP1Mit, passiveState: passiveDefenseResult?.state || latestActiveP1Mit.passiveState };
@@ -1713,7 +1752,7 @@
                     setP1Mits(updatedP1);
                     defeated = newHp === 0;
                 } else {
-                    const newHp = Math.max(0, latestActiveP2Mit.currentHp - damage);
+                    const newHp = Math.max(0, latestActiveP2Mit.currentHp - safeDamage);
                     updatedP2 = [...latestP2Mits];
                     const hpLost = Math.max(0, latestActiveP2Mit.currentHp - newHp);
                     const defenderWithState = { ...latestActiveP2Mit, passiveState: passiveDefenseResult?.state || latestActiveP2Mit.passiveState };
@@ -2103,6 +2142,12 @@
             };
 
             const gameOver = async (winnerPlayerNum, logOverride = null) => {
+                gameSessionRef.current += 1;
+                cancelGameTimers();
+                isRollingRef.current = false;
+                setIsRolling(false);
+                setIsTurnProcessing(false);
+                aiTurnInProgressRef.current = false;
                 setWinnerPlayer(winnerPlayerNum);
                 setGameState('GAMEOVER');
                 setIsTurnProcessing(false);
@@ -2919,7 +2964,7 @@
 
                     {/* FOOTER */}
                     <footer className="app-footer text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(49)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(50)
                     </footer>
                 </div>
             );
