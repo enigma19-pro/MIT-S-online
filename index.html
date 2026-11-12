@@ -1194,7 +1194,7 @@
                     const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
 
                     let defenseLogEntry;
-                    if (isEvadeNumber) {
+                    if (isEvadeNumber || defenseResult.shadowNullified) {
                         playSound('dodge');
 
                         defenseLogEntry = {
