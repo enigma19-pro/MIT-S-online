@@ -1329,12 +1329,15 @@
                     const normalizedActiveP1Index = sanitizeOnlineIndex(room.activeP1Index, normalizedP1Mits);
                     const normalizedActiveP2Index = sanitizeOnlineIndex(room.activeP2Index, normalizedP2Mits);
                     const normalizedTurnPlayer = sanitizeOnlineTurnPlayer(room.currentTurnPlayer);
-                    const normalizedCombatPhase = sanitizeOnlineCombatPhase(room.combatPhase);
+                    let normalizedCombatPhase = sanitizeOnlineCombatPhase(room.combatPhase);
                     const normalizedCombatLog = sanitizeOnlineCombatLog(room.combatLog);
                     const currentAttackerMit = normalizedTurnPlayer === 1
                         ? normalizedP1Mits[normalizedActiveP1Index]
                         : normalizedP2Mits[normalizedActiveP2Index];
                     const normalizedAttackResult = sanitizeOnlineAttackResult(room.attackResult, currentAttackerMit);
+                    if (normalizedCombatPhase === 'DEFENSE_ROLL' && normalizedAttackResult?.success !== true) {
+                        normalizedCombatPhase = 'ATTACK_ROLL';
+                    }
                     const normalizedFloatingEffect = sanitizeOnlineFloatingEffect(room.floatingEffect);
                     const normalizedWinner = sanitizeOnlinePlayerNumber(room.winner);
                     const normalizedDisconnectedPlayer = sanitizeOnlinePlayerNumber(room.disconnectedPlayer);
@@ -1778,7 +1781,8 @@
 
             // Attack Roll
             const handleAttackRoll = () => {
-                if (isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL') return;
+                if (isRollingRef.current || isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL') return;
+                if (currentTurnPlayerRef.current !== currentTurnPlayer) return;
                 if (gameMode === 'ONLINE' && currentTurnPlayer !== (isRoomHost ? 1 : 2)) return;
 
                 setIsTurnProcessing(true);
@@ -1851,7 +1855,8 @@
 
             // Defense Roll
             const handleDefenseRoll = (overrideAttackData = null) => {
-                if (isRolling || isTurnProcessing || (combatPhase !== 'DEFENSE_ROLL' && !overrideAttackData)) return;
+                if (isRollingRef.current || isRolling || isTurnProcessing || (combatPhase !== 'DEFENSE_ROLL' && !overrideAttackData)) return;
+                if (currentTurnPlayerRef.current !== currentTurnPlayer) return;
                 if (gameMode === 'ONLINE' && !overrideAttackData && currentTurnPlayer === (isRoomHost ? 1 : 2)) return;
 
                 const atkData = overrideAttackData || attackResult;
@@ -2242,7 +2247,9 @@
 
             const handleSwitchMit = () => {
                 if (gameState !== 'BATTLE' || combatPhase !== 'ATTACK_ROLL' ||
-                    isRolling || isTurnProcessing || availableMitIndex === null || currentAttacker.passiveState?.counterSequence) {
+                    isRollingRef.current || isRolling || isTurnProcessing ||
+                    currentTurnPlayerRef.current !== currentTurnPlayer ||
+                    availableMitIndex === null || currentAttacker.passiveState?.counterSequence) {
                     return;
                 }
                 if (gameMode === 'ONLINE' &&
@@ -3177,7 +3184,7 @@
 
                     {/* FOOTER */}
                     <footer className="app-footer text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(50)
+                        MIT’S Engine — Manual Oficial v1.0
                     </footer>
                 </div>
             );
