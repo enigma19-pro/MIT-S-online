@@ -217,8 +217,22 @@
             evadeNums: isUltra || shadow || forceHit ? [] : defender?.evadeNums
         });
         const rawAttackDamage = Math.max(0, Number(attackDamage) || 0);
-        let damage = isUltra ? rawAttackDamage : (shadow ? 0 : base.finalDamageTaken);
+        const berserkerPhaseTwoDodge = !isUltra && !shadow && !forceHit
+            && state.passiveClassId === PASSIVE_CLASS_IDS.BERSERKER
+            && state.berserkerPhase === 2
+            && base.isEvadeNumber
+            && rawAttackDamage > 0;
+        let damage = isUltra
+            ? rawAttackDamage
+            : shadow
+                ? 0
+                : berserkerPhaseTwoDodge
+                    ? 0
+                    : base.finalDamageTaken;
         let next = { ...state };
+        if (berserkerPhaseTwoDodge) {
+            events.push('Berserker Fase 2: esquive perfecto');
+        }
         // Ultra Impulso only charges from a real, complete die-based dodge:
         // the defender must actually roll an assigned A face and reduce a
         // positive incoming hit to zero. Invulnerability is not a dodge.
