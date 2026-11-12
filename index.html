@@ -1011,7 +1011,7 @@
                     if (isHit) {
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
-                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state };
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
                         const newLog = [...combatLog, {
                             type: 'attack_hit',
                             text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → ¡Ataque Exitoso! El rival debe defender.`
@@ -1070,7 +1070,8 @@
                         defender: currentDefender,
                         attackDamage: atkData?.damage,
                         defenseRoll: roll,
-                        unstoppable: atkData?.unstoppable === true
+                        unstoppable: atkData?.unstoppable === true,
+                        allowCounterTrigger: atkData?.counterChain !== true
                     });
                     const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
 
@@ -1122,7 +1123,10 @@
                     const defenderWithState = { ...activeP1Mit, passiveState: passiveDefenseResult?.state || activeP1Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
-                    updatedP1[activeP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: consequences.defenderState };
+                    const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
+                        ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
+                        : consequences.defenderState;
+                    updatedP1[activeP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
                     if (attackerPlayerNum === 2) { updatedP2 = [...p2Mits]; updatedP2[activeP2Index] = { ...activeP2Mit, passiveState: consequences.attackerState }; }
                     setP1Mits(updatedP1);
                     defeated = newHp === 0;
@@ -1133,10 +1137,22 @@
                     const defenderWithState = { ...activeP2Mit, passiveState: passiveDefenseResult?.state || activeP2Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
-                    updatedP2[activeP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: consequences.defenderState };
+                    const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
+                        ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
+                        : consequences.defenderState;
+                    updatedP2[activeP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
                     if (attackerPlayerNum === 1) { updatedP1 = [...p1Mits]; updatedP1[activeP1Index] = { ...activeP1Mit, passiveState: consequences.attackerState }; }
                     setP2Mits(updatedP2);
                     defeated = newHp === 0;
+                }
+
+                if (passiveDefenseResult?.triggersCounter && !defeated) {
+                    logOverride = [...(Array.isArray(logOverride) ? logOverride : combatLog), {
+                        type: 'system',
+                        text: '⚔️ ¡CONTRAATAQUE! Duelista atacará dos veces: el primer golpe no se puede defender y el rival pierde su siguiente ataque.'
+                    }];
+                    setCombatLog(logOverride);
+                    publishFloatingEffect({ player: defenderPlayerNum, text: '¡CONTRAATAQUE!', type: 'hit' });
                 }
 
                 if (gameMode === 'ONLINE') {
@@ -1311,7 +1327,7 @@
                     if (isHit) {
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
-                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state };
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: aiMit.passiveState?.counterSequence?.phase === 'SECOND' };
                         setAttackResult(atkData);
                         setCombatPhase('DEFENSE_ROLL');
                         setIsTurnProcessing(false);
