@@ -239,3 +239,51 @@ test('Duelista counter triggers only when it receives zero or one damage', () =>
     assert.equal(resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 1 }).triggersCounter, false);
 });
 
+
+test('Technical attack bonus is consumed even when the attack misses', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [1], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: true } };
+    const result = resolvePassiveAttack({ attacker: mit, roll: 6 });
+    assert.equal(result.hit, false);
+    assert.equal(result.state.technicalAttackBonus, false);
+});
+
+test('Technical defense bonus is consumed after defense and cannot reduce damage below one', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 1, defenseRoll: 1 });
+    assert.equal(result.damage, 1);
+    assert.equal(result.state.technicalDefenseBonus, false);
+});
+
+test('Ultra Impulso still applies Muralla vulnerability but ignores its reduction', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 4 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 1, unstoppable: true });
+    assert.equal(result.damage, 6);
+});
+
+test('Sombra duration and cooldown tick on the correct players turns', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 2, shadowCooldownTurns: 1 } };
+    let state = advancePassiveTurn(mit, { opponentTurnEnded: true }).state;
+    assert.equal(state.shadowInvulnerableTurns, 1);
+    assert.equal(state.shadowCooldownTurns, 1);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
+    assert.equal(state.shadowInvulnerableTurns, 1);
+    assert.equal(state.shadowCooldownTurns, 0);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
+    assert.equal(state.shadowInvulnerableTurns, 0);
+});
+
+test('Duelista counter cooldown expires after one opponent turn', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.DUELISTA }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.DUELISTA), counterCooldownTurns: 1 } };
+    assert.equal(advancePassiveTurn(mit, { ownTurnEnded: true }).state.counterCooldownTurns, 1);
+    assert.equal(advancePassiveTurn(mit, { opponentTurnEnded: true }).state.counterCooldownTurns, 0);
+});
+
+test('Muralla does not add vulnerability to a fully dodged zero-damage attack', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
+    assert.equal(result.damage, 0);
+});
+
