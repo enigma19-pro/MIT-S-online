@@ -999,30 +999,46 @@
                     const roomRef = onlineRoomRef(code);
                     if (!roomRef) throw new Error('No se pudo abrir la referencia de la sala.');
 
-                    // El invitado puede leer salas sin ocupar; después intenta reservar el único lugar disponible.
+                    // Las salas sin invitado no se pueden leer públicamente. Un jugador
+                    // desconocido intenta reservar directamente; solo el dueño de la sala
+                    // puede aceptar esa escritura mientras el estado siga en WAITING.
                     joinStep = 'lectura de la sala';
-                    const initialSnapshot = await window.MITSFirebase.get(roomRef);
-                    if (!initialSnapshot.exists()) {
-                        setOnlineStatus('No existe esa sala. Revisa el código.');
-                        return;
+                    let initialRoom = null;
+                    try {
+                        const initialSnapshot = await window.MITSFirebase.get(roomRef);
+                        if (!initialSnapshot.exists()) {
+                            setOnlineStatus('No existe esa sala. Revisa el código.');
+                            return;
+                        }
+                        initialRoom = initialSnapshot.val() || {};
+                    } catch (readError) {
+                        const readCode = String(readError?.code || '').toUpperCase();
+                        const readMessage = String(readError?.message || '');
+                        const permissionDenied = readCode.includes('PERMISSION_DENIED') ||
+                            readCode.includes('PERMISSION-DENIED') ||
+                            /permission denied/i.test(readMessage);
+                        if (!permissionDenied) throw readError;
+                        // PERMISSION_DENIED es esperado para una sala WAITING sin invitado.
+                        // La reserva atómica de abajo decide si existe y sigue disponible.
                     }
 
-                    const initialRoom = initialSnapshot.val() || {};
-                    if (!initialRoom.hostUid) {
-                        setOnlineStatus('La sala está dañada: no tiene anfitrión. Crea otra.');
-                        return;
-                    }
-                    if (initialRoom.hostUid === user.uid) {
-                        setOnlineStatus('No puedes unirte a tu propia sala desde el mismo jugador.');
-                        return;
-                    }
-                    if (initialRoom.guestUid && initialRoom.guestUid !== user.uid) {
-                        setOnlineStatus('La sala ya está llena.');
-                        return;
-                    }
-                    if (!['waiting', 'building'].includes(initialRoom.status)) {
-                        setOnlineStatus('La sala no admite jugadores. Estado actual: ' + String(initialRoom.status || 'SIN ESTADO') + '. Crea otra.');
-                        return;
+                    if (initialRoom) {
+                        if (!initialRoom.hostUid) {
+                            setOnlineStatus('La sala está dañada: no tiene anfitrión. Crea otra.');
+                            return;
+                        }
+                        if (initialRoom.hostUid === user.uid) {
+                            setOnlineStatus('No puedes unirte a tu propia sala desde el mismo jugador.');
+                            return;
+                        }
+                        if (initialRoom.guestUid && initialRoom.guestUid !== user.uid) {
+                            setOnlineStatus('La sala ya está llena.');
+                            return;
+                        }
+                        if (!['waiting', 'building'].includes(initialRoom.status)) {
+                            setOnlineStatus('La sala no admite jugadores. Estado actual: ' + String(initialRoom.status || 'SIN ESTADO') + '. Crea otra.');
+                            return;
+                        }
                     }
 
                     // Reserva atómica mediante update. Las reglas de RTDB solo permiten esta
@@ -1075,7 +1091,7 @@
                         /permission denied/i.test(errorMessage);
 
                     if (permissionDenied && joinStep === 'reserva del lugar') {
-                        setOnlineStatus('Firebase rechazó la reserva. Puede que otro jugador haya ocupado la sala o que las reglas de /rooms/$roomId no estén publicadas correctamente.');
+                        setOnlineStatus('No se pudo reservar: el código no existe, la sala está ocupada o ya no admite jugadores. Si el código es correcto, revisa que las reglas de Firebase estén publicadas.');
                     } else if (permissionDenied) {
                         setOnlineStatus('Firebase denegó el acceso durante ' + joinStep + '. Revisa las reglas de lectura de /rooms/$roomId.');
                     } else {
