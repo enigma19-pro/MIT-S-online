@@ -867,6 +867,8 @@
                                 if (opponents[opponentIndex]) {
                                     const opponentState = { ...window.MITSGameRules.createPassiveState(opponents[opponentIndex].classData?.id), ...(opponents[opponentIndex].passiveState || {}) };
                                     opponentState.shadowInvulnerableTurns = 0;
+                                    opponentState.shadowCooldownTurns = 0;
+                                    opponentState.counterCooldownTurns = 0;
                                     opponentState.technicalAttackBonus = false;
                                     opponentState.technicalDefenseBonus = false;
                                     opponentState.counterSequence = null;
@@ -908,6 +910,8 @@
                                 const opponent = opponentList[opponentIndex];
                                 const state = { ...window.MITSGameRules.createPassiveState(opponent.classData?.id), ...(opponent.passiveState || {}) };
                                 state.shadowInvulnerableTurns = 0;
+                                state.shadowCooldownTurns = 0;
+                                state.counterCooldownTurns = 0;
                                 state.technicalAttackBonus = false;
                                 state.technicalDefenseBonus = false;
                                 state.counterSequence = null;
@@ -1903,6 +1907,7 @@
                                                     <button
                                                         key={c.id}
                                                         onClick={() => handleSelectClass(c)}
+                                                        disabled={!!berserkerRebuild}
                                                         className={`p-3 rounded-xl text-left border transition ${
                                                             isSelected 
                                                             ? 'bg-cyan-950/40 border-cyan-400 text-slate-100 shadow-md shadow-cyan-500/10' 
