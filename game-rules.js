@@ -183,7 +183,7 @@
             const reduction = isUltra ? 0 : Math.min(3, Math.max(0, state.murallaHits - 1));
             damage = Math.max(0, damage + vulnerability - reduction);
         }
-        if (!isUltra && !shadow && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
+        if (!isUltra && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
             damage = Math.max(0, damage - 2);
             next.adaptabilityCharges = 0;
             events.push('Adaptabilidad consumió 2 cargas y redujo 2 de daño');
