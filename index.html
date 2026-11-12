@@ -400,26 +400,53 @@
             }
         }
 
-        /* Prueba de combate: interfaz retro inspirada en RPG portátiles clásicos. */
-        .combat-test-screen { background:radial-gradient(ellipse at 50% 30%,#263c54 0%,#101b2b 58%,#080d16 100%); }
-        .combat-test-frame { width:min(100%,1100px); image-rendering:pixelated; border:4px solid #c6d0d8; box-shadow:0 0 0 4px #273748,0 24px 80px rgba(0,0,0,.55); background:#dce5df; color:#17212c; }
-        .combat-test-stage { min-height:clamp(330px,55vh,560px); position:relative; overflow:hidden; background:linear-gradient(180deg,#d7e4d7 0%,#b9d0c3 53%,#8da99b 100%); }
-        .combat-test-stage::before { content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 31px,rgba(38,65,58,.045) 32px 33px),linear-gradient(155deg,transparent 0 57%,rgba(61,91,79,.12) 57.2% 57.8%,transparent 58%); }
-        .combat-test-platform { position:absolute;border-radius:50%;background:radial-gradient(ellipse,rgba(73,105,83,.28),rgba(73,105,83,.08) 62%,transparent 70%);border-bottom:5px solid rgba(71,99,80,.16); }
-        .combat-test-orb { position:absolute;width:clamp(76px,12vw,118px);aspect-ratio:1;border-radius:50%;border:5px solid #263746;background:linear-gradient(180deg,#f7f8f5 0 47%,#263746 48% 53%,#e24d4d 54% 100%);box-shadow:inset -9px -8px 0 rgba(0,0,0,.12),inset 7px 7px 0 rgba(255,255,255,.35),0 12px 0 rgba(31,48,54,.15),0 18px 22px rgba(0,0,0,.2);z-index:2; }
-        .combat-test-orb::before { content:"";position:absolute;left:50%;top:50%;width:27%;aspect-ratio:1;transform:translate(-50%,-50%);border:5px solid #263746;border-radius:50%;background:#edf2ed;box-shadow:0 0 0 3px rgba(255,255,255,.55); }
-        .combat-test-orb.enemy { top:26%;right:17%;transform:rotate(-13deg); }
-        .combat-test-orb.player { bottom:13%;left:17%;transform:rotate(12deg); }
-        .combat-test-status { position:absolute;z-index:4;width:min(46%,310px);background:#f7f8ef;border:3px solid #344858;box-shadow:4px 4px 0 rgba(37,53,63,.18);padding:10px 12px;font-family:'Courier New',monospace; }
-        .combat-test-status.enemy { top:7%;left:5%; }
-        .combat-test-status.player { right:5%;bottom:5%; }
-        .combat-test-hp { height:10px;background:#aebbb5;border:2px solid #344858;padding:1px; }
-        .combat-test-hp > span { display:block;height:100%;width:100%;background:#65a86b; }
-        .combat-test-dialog { background:#f8f9f2;border-top:4px solid #344858;color:#17212c;font-family:'Courier New',monospace; }
-        .combat-test-action { min-height:48px;border:3px solid #526675;background:#e8eee8;box-shadow:inset -3px -3px 0 rgba(39,57,67,.12);font-family:'Courier New',monospace;font-weight:900;letter-spacing:.04em; }
-        .combat-test-action:active { transform:translateY(2px);box-shadow:none; }
-        @media(max-width:520px){.combat-test-status{padding:7px 8px;font-size:10px}.combat-test-status.enemy{top:5%;left:3%}.combat-test-status.player{right:3%;bottom:3%}.combat-test-stage{min-height:390px}.combat-test-orb.enemy{right:12%;top:31%}.combat-test-orb.player{left:12%;bottom:17%}}
-        
+        /* Prueba de combate: usa el lenguaje visual principal de MIT'S Online. */
+        .combat-test-screen { background:rgba(2,6,23,.94); backdrop-filter:blur(14px); }
+        .combat-test-shell { width:min(100%,1180px); }
+        .combat-test-arena {
+            min-height:clamp(360px,55vh,570px); position:relative; overflow:hidden; isolation:isolate;
+            background:
+                radial-gradient(ellipse at 50% 48%,rgba(34,211,238,.12),transparent 45%),
+                radial-gradient(ellipse at 15% 15%,rgba(16,185,129,.12),transparent 38%),
+                linear-gradient(145deg,#0f172a,#111c31 55%,#0b1324);
+        }
+        .combat-test-arena::before { content:"";position:absolute;inset:0;opacity:.2;background-image:linear-gradient(rgba(148,163,184,.12) 1px,transparent 1px),linear-gradient(90deg,rgba(148,163,184,.12) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(to bottom,black,transparent 92%); }
+        .combat-test-arena::after { content:"";position:absolute;left:8%;right:8%;bottom:12%;height:1px;background:linear-gradient(90deg,transparent,rgba(34,211,238,.35),rgba(16,185,129,.35),transparent);box-shadow:0 0 35px rgba(34,211,238,.2); }
+        .combat-test-core-wrap { position:absolute;z-index:2;width:clamp(108px,17vw,172px);aspect-ratio:1;display:grid;place-items:center; }
+        .combat-test-core-wrap.enemy { top:23%;right:18%; }
+        .combat-test-core-wrap.player { bottom:12%;left:18%; }
+        .combat-test-core {
+            width:68%;aspect-ratio:1;position:relative;display:grid;place-items:center;
+            clip-path:polygon(50% 0%,88% 22%,100% 66%,69% 100%,27% 91%,0% 51%,17% 12%);
+            background:linear-gradient(145deg,rgba(103,232,249,.95),rgba(8,145,178,.48) 48%,rgba(15,23,42,.95));
+            filter:drop-shadow(0 0 18px rgba(34,211,238,.45));
+        }
+        .combat-test-core::before { content:"";position:absolute;inset:13%;clip-path:inherit;border:2px solid rgba(224,242,254,.7);background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.9),rgba(34,211,238,.38) 24%,rgba(8,47,73,.92) 72%); }
+        .combat-test-core::after { content:"";position:absolute;width:17%;aspect-ratio:1;border-radius:50%;background:#e0f2fe;box-shadow:0 0 9px 4px rgba(103,232,249,.7),0 0 30px 10px rgba(34,211,238,.35); }
+        .combat-test-core-wrap.enemy .combat-test-core { transform:rotate(18deg);background:linear-gradient(145deg,#fda4af,rgba(225,29,72,.65) 48%,#1e293b);filter:drop-shadow(0 0 18px rgba(244,63,94,.4)); }
+        .combat-test-core-wrap.enemy .combat-test-core::before { background:radial-gradient(circle at 38% 32%,rgba(255,255,255,.9),rgba(251,113,133,.38) 24%,rgba(76,5,25,.92) 72%); }
+        .combat-test-core-wrap.enemy .combat-test-core::after { background:#ffe4e6;box-shadow:0 0 9px 4px rgba(251,113,133,.7),0 0 30px 10px rgba(244,63,94,.35); }
+        .combat-test-core-ring { position:absolute;inset:0;border:1px solid rgba(103,232,249,.22);border-radius:30%;transform:rotate(45deg) scale(.9);box-shadow:0 0 24px rgba(34,211,238,.08),inset 0 0 20px rgba(34,211,238,.06); }
+        .combat-test-core-wrap.enemy .combat-test-core-ring { border-color:rgba(251,113,133,.24); }
+        .combat-test-status { position:absolute;z-index:4;width:min(45%,330px);padding:12px 14px;border:1px solid rgba(148,163,184,.25);border-radius:16px;background:rgba(15,23,42,.88);backdrop-filter:blur(10px);box-shadow:0 14px 34px rgba(0,0,0,.22); }
+        .combat-test-status.enemy { top:6%;left:4%; }
+        .combat-test-status.player { right:4%;bottom:5%; }
+        .combat-test-hp { height:8px;overflow:hidden;border-radius:99px;background:#1e293b;border:1px solid rgba(148,163,184,.25); }
+        .combat-test-hp > span { display:block;width:100%;height:100%;border-radius:99px;background:linear-gradient(90deg,#10b981,#67e8f9);box-shadow:0 0 10px rgba(16,185,129,.35); }
+        .combat-test-status.enemy .combat-test-hp > span { background:linear-gradient(90deg,#e11d48,#fb7185); }
+        .combat-test-dialog { background:rgba(15,23,42,.96); }
+        .combat-test-action { min-height:54px;border:1px solid rgba(148,163,184,.2);background:rgba(30,41,59,.72);color:#e2e8f0;font-weight:800;letter-spacing:.06em;transition:background .18s,border-color .18s,transform .18s; }
+        .combat-test-action:hover { background:rgba(8,145,178,.16);border-color:rgba(34,211,238,.55);transform:translateY(-1px); }
+        .combat-test-action.is-selected { background:rgba(8,145,178,.2);border-color:rgba(34,211,238,.7);color:#a5f3fc; }
+        @media(max-width:520px) {
+            .combat-test-arena { min-height:410px; }
+            .combat-test-status { width:48%;padding:9px 10px; }
+            .combat-test-status.enemy { top:5%;left:3%; }
+            .combat-test-status.player { right:3%;bottom:4%; }
+            .combat-test-core-wrap.enemy { top:30%;right:9%; }
+            .combat-test-core-wrap.player { bottom:18%;left:9%; }
+        }
+
         /* Arena sandbox: presentación, terreno y personaje. */
         .movement-test-screen { overscroll-behavior:none; touch-action:none; user-select:none; -webkit-user-select:none; }
         .movement-test-shell { max-width:1600px; }
@@ -3268,41 +3295,40 @@
                         )}
                         {showCombatTest && (
                             <div className="combat-test-screen fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto p-3 md:p-6">
-                                <div className="w-full max-w-6xl flex flex-col gap-3">
-                                    <header className="flex items-center justify-between gap-3 text-slate-100">
-                                        <div>
-                                            <div className="text-[10px] font-mono-custom font-black tracking-[.28em] text-cyan-300">LINK SIMULATION · BATTLE UI</div>
-                                            <h2 className="text-xl md:text-2xl font-black font-mono-custom">PRUEBA DE COMBATE</h2>
+                                <div className="combat-test-shell mx-auto flex flex-col gap-3 md:gap-4">
+                                    <header className="glass-panel flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 px-4 py-3 md:px-5">
+                                        <div className="min-w-0">
+                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · SIMULACIÓN</div>
+                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">PRUEBA DE COMBATE</h2>
                                         </div>
-                                        <button onClick={() => { setShowCombatTest(false); playSound('click'); }} className="px-4 py-2 rounded-lg border border-slate-500/60 bg-slate-900/80 text-sm font-bold hover:bg-rose-950">Salir ✕</button>
+                                        <button onClick={() => { setShowCombatTest(false); playSound('click'); }} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">Salir ✕</button>
                                     </header>
 
-                                    <div className="combat-test-frame mx-auto w-full">
-                                        <div className="combat-test-stage">
-                                            <div className="combat-test-platform" style={{width:'42%',height:'17%',top:'25%',right:'5%'}} />
-                                            <div className="combat-test-platform" style={{width:'48%',height:'19%',bottom:'8%',left:'3%'}} />
+                                    <section className="overflow-hidden rounded-2xl border border-cyan-500/20 shadow-2xl shadow-black/30">
+                                        <div className="combat-test-arena">
+                                            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[1] text-[8px] md:text-[9px] font-mono-custom tracking-[.3em] text-slate-500">CAMPO DE ENFRENTAMIENTO · LINK ACTIVO</div>
                                             <div className="combat-test-status enemy">
-                                                <div className="flex items-center justify-between gap-2 font-black text-sm"><span>OPONENTE</span><span>Lv. ??</span></div>
-                                                <div className="mt-2 flex items-center gap-2 text-[10px] font-bold"><span>HP</span><div className="combat-test-hp flex-1"><span /></div></div>
+                                                <div className="flex items-center justify-between gap-2 text-[10px] md:text-xs font-mono-custom font-black text-slate-200"><span>UNIDAD RIVAL</span><span className="text-rose-300">100%</span></div>
+                                                <div className="mt-2 flex items-center gap-2"><span className="text-[9px] font-bold text-slate-500">HP</span><div className="combat-test-hp flex-1"><span /></div></div>
                                             </div>
-                                            <div className="combat-test-orb enemy" aria-label="MIT rival" />
-                                            <div className="combat-test-orb player" aria-label="Tu MIT" />
+                                            <div className="combat-test-core-wrap enemy" aria-label="Representación visual del MIT rival"><div className="combat-test-core-ring" /><div className="combat-test-core" /></div>
+                                            <div className="combat-test-core-wrap player" aria-label="Representación visual de tu MIT"><div className="combat-test-core-ring" /><div className="combat-test-core" /></div>
                                             <div className="combat-test-status player">
-                                                <div className="flex items-center justify-between gap-2 font-black text-sm"><span>TU MIT</span><span>Lv. ??</span></div>
-                                                <div className="mt-2 flex items-center gap-2 text-[10px] font-bold"><span>HP</span><div className="combat-test-hp flex-1"><span /></div></div>
-                                                <div className="mt-1 text-right text-[10px] font-bold">20 / 20</div>
+                                                <div className="flex items-center justify-between gap-2 text-[10px] md:text-xs font-mono-custom font-black text-slate-200"><span>UNIDAD PROPIA</span><span className="text-emerald-300">100%</span></div>
+                                                <div className="mt-2 flex items-center gap-2"><span className="text-[9px] font-bold text-slate-500">HP</span><div className="combat-test-hp flex-1"><span /></div></div>
+                                                <div className="mt-1 text-right text-[9px] font-mono-custom text-slate-400">20 / 20</div>
                                             </div>
                                         </div>
-                                        <div className="combat-test-dialog grid grid-cols-1 md:grid-cols-[1fr_1.1fr] gap-3 p-3 md:p-4">
-                                            <div className="flex items-center min-h-[74px] px-2 text-sm md:text-base font-bold leading-relaxed" aria-live="polite">{combatTestMessage}</div>
+                                        <div className="combat-test-dialog grid grid-cols-1 md:grid-cols-[1fr_1.05fr] gap-3 p-3 md:p-4 border-t border-cyan-500/20">
+                                            <div className="flex items-center min-h-[76px] px-2 text-xs md:text-sm font-semibold leading-relaxed text-slate-200" aria-live="polite">{combatTestMessage}</div>
                                             <div className="grid grid-cols-2 gap-2">
                                                 {['ATACAR','DEFENDER','HABILIDAD','MÓDULOS'].map(action => (
-                                                    <button key={action} onClick={() => { setCombatTestAction(action); setCombatTestMessage(action === 'ATACAR' ? '¡Tu MIT ejecutó un ataque!' : action === 'DEFENDER' ? 'Tu MIT adoptó una postura defensiva.' : action === 'HABILIDAD' ? 'No hay habilidades configuradas en esta prueba.' : 'No hay módulos equipados en esta prueba.'); playSound('click'); }} className={'combat-test-action rounded-md text-xs md:text-sm ' + (combatTestAction === action ? 'bg-cyan-200 border-cyan-700' : 'hover:bg-cyan-100')}>{action}</button>
+                                                    <button key={action} onClick={() => { setCombatTestAction(action); setCombatTestMessage(action === 'ATACAR' ? 'La unidad propia ejecutó un ataque de prueba.' : action === 'DEFENDER' ? 'La unidad propia adoptó una postura defensiva.' : action === 'HABILIDAD' ? 'No hay habilidades configuradas en esta vista previa.' : 'No hay módulos equipados en esta vista previa.'); playSound('click'); }} className={'combat-test-action rounded-xl text-[10px] md:text-xs ' + (combatTestAction === action ? 'is-selected' : '')}>{action}</button>
                                                 ))}
                                             </div>
                                         </div>
-                                    </div>
-                                    <p className="text-center text-[10px] md:text-xs text-slate-400 font-mono-custom">VISTA CONCEPTUAL · LOS MIT SE REPRESENTAN COMO ESFERAS SIN IDENTIDAD NI NOMBRE</p>
+                                    </section>
+                                    <p className="text-center text-[9px] md:text-[10px] font-mono-custom tracking-wider text-slate-500">VISTA PREVIA VISUAL · UNIDADES REPRESENTADAS POR NÚCLEOS ABSTRACTOS</p>
                                 </div>
                             </div>
                         )}
