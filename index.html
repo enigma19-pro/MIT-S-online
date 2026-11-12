@@ -771,78 +771,210 @@
             const onlinePresenceRef = useRef(null);
             const presenceGraceTimerRef = useRef(null);
             const [soundEnabled, setSoundEnabled] = useState(true);
-            // Sandbox de movimiento: totalmente aislada del combate/base del juego.
+            // Sandbox de movimiento: estado independiente del combate y de Firebase.
             const [showMovementTest, setShowMovementTest] = useState(false);
-            const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 50 });
+            const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
+            const [testPlayerFacing, setTestPlayerFacing] = useState(0);
+            const [testIsMoving, setTestIsMoving] = useState(false);
+            const [testIsSprinting, setTestIsSprinting] = useState(false);
             const [testJoystickKnob, setTestJoystickKnob] = useState({ x: 0, y: 0 });
+            const testTerrainRef = useRef(null);
             const testJoystickRef = useRef(null);
+            const testJoystickVectorRef = useRef({ x: 0, y: 0 });
+            const testJoystickPointerRef = useRef(null);
+            const testSprintRef = useRef(false);
+            const testSprintingRef = useRef(false);
             const testKeysRef = useRef({});
             const testAnimationRef = useRef(null);
+            const testPlayerPositionRef = useRef({ x: 50, y: 52 });
+            const testMovingRef = useRef(false);
+            const testFacingRef = useRef(0);
 
-            useEffect(() => {
-                if (!showMovementTest) return;
-                const keys = testKeysRef.current;
-                const onKeyDown = (event) => {
-                    const key = event.key.toLowerCase();
-                    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
-                        event.preventDefault();
-                        keys[key] = true;
-                    }
-                };
-                const onKeyUp = (event) => { keys[event.key.toLowerCase()] = false; };
-                window.addEventListener('keydown', onKeyDown);
-                window.addEventListener('keyup', onKeyUp);
+            const resetTestJoystick = () => {
+                testJoystickPointerRef.current = null;
+                testJoystickVectorRef.current = { x: 0, y: 0 };
+                setTestJoystickKnob({ x: 0, y: 0 });
+            };
 
-                let last = performance.now();
-                const loop = (now) => {
-                    const dt = Math.min((now - last) / 1000, 0.05);
-                    last = now;
-                    let dx = 0;
-                    let dy = 0;
-                    if (keys.w || keys.arrowup) dy -= 1;
-                    if (keys.s || keys.arrowdown) dy += 1;
-                    if (keys.a || keys.arrowleft) dx -= 1;
-                    if (keys.d || keys.arrowright) dx += 1;
-                    if (dx || dy) {
-                        const length = Math.hypot(dx, dy) || 1;
-                        dx /= length;
-                        dy /= length;
-                        setTestPlayerPos(prev => ({
-                            x: Math.max(7, Math.min(93, prev.x + dx * 30 * dt)),
-                            y: Math.max(9, Math.min(91, prev.y + dy * 30 * dt))
-                        }));
-                    }
-                    testAnimationRef.current = requestAnimationFrame(loop);
-                };
-                testAnimationRef.current = requestAnimationFrame(loop);
-                return () => {
-                    window.removeEventListener('keydown', onKeyDown);
-                    window.removeEventListener('keyup', onKeyUp);
-                    if (testAnimationRef.current) cancelAnimationFrame(testAnimationRef.current);
-                };
-            }, [showMovementTest]);
-
-            const moveTestPlayer = (clientX, clientY) => {
+            const updateTestJoystick = (clientX, clientY) => {
                 const pad = testJoystickRef.current;
                 if (!pad) return;
                 const rect = pad.getBoundingClientRect();
-                const max = rect.width * 0.31;
+                const max = Math.max(1, Math.min(rect.width, rect.height) * 0.31);
                 let dx = clientX - (rect.left + rect.width / 2);
                 let dy = clientY - (rect.top + rect.height / 2);
-                const distance = Math.hypot(dx, dy) || 1;
+                const distance = Math.hypot(dx, dy);
                 if (distance > max) {
                     dx = dx / distance * max;
                     dy = dy / distance * max;
                 }
                 setTestJoystickKnob({ x: dx, y: dy });
-                const nx = dx / max;
-                const ny = dy / max;
-                setTestPlayerPos(prev => ({
-                    x: Math.max(7, Math.min(93, prev.x + nx * 1.35)),
-                    y: Math.max(9, Math.min(91, prev.y + ny * 1.35))
-                }));
+                const magnitude = Math.hypot(dx, dy) / max;
+                const deadZone = 0.075;
+                if (magnitude <= deadZone) {
+                    testJoystickVectorRef.current = { x: 0, y: 0 };
+                } else {
+                    const strength = Math.min(1, (magnitude - deadZone) / (1 - deadZone));
+                    testJoystickVectorRef.current = {
+                        x: dx / max / magnitude * strength,
+                        y: dy / max / magnitude * strength
+                    };
+                }
             };
-            const resetTestJoystick = () => setTestJoystickKnob({ x: 0, y: 0 });
+
+            const finishTestJoystickPointer = (event) => {
+                if (event && testJoystickPointerRef.current !== event.pointerId) return;
+                const pointerId = testJoystickPointerRef.current;
+                resetTestJoystick();
+                if (event && pointerId !== null && event.currentTarget.hasPointerCapture?.(pointerId)) {
+                    try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
+                }
+            };
+
+            useEffect(() => {
+                if (!showMovementTest) {
+                    testKeysRef.current = {};
+                    testSprintRef.current = false;
+                    testSprintingRef.current = false;
+                    testJoystickVectorRef.current = { x: 0, y: 0 };
+                    testJoystickPointerRef.current = null;
+                    testMovingRef.current = false;
+                    return;
+                }
+
+                const keys = testKeysRef.current;
+                const movementKeys = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
+                const onKeyDown = (event) => {
+                    const key = event.key.toLowerCase();
+                    if (movementKeys.has(key)) {
+                        event.preventDefault();
+                        keys[key] = true;
+                    }
+                    if (key === 'shift') keys.shift = true;
+                };
+                const onKeyUp = (event) => { keys[event.key.toLowerCase()] = false; };
+                const clearInput = () => {
+                    Object.keys(keys).forEach(key => { keys[key] = false; });
+                    testSprintRef.current = false;
+                    testSprintingRef.current = false;
+                    setTestIsSprinting(false);
+                    resetTestJoystick();
+                };
+                const onVisibilityChange = () => {
+                    if (document.visibilityState !== 'visible') clearInput();
+                };
+
+                window.addEventListener('keydown', onKeyDown, { passive: false });
+                window.addEventListener('keyup', onKeyUp);
+                window.addEventListener('blur', clearInput);
+                document.addEventListener('visibilitychange', onVisibilityChange);
+
+                let lastFrame = performance.now();
+                const frame = (now) => {
+                    const dt = Math.min(Math.max((now - lastFrame) / 1000, 0), 0.05);
+                    lastFrame = now;
+
+                    let dx = testJoystickVectorRef.current.x;
+                    let dy = testJoystickVectorRef.current.y;
+                    if (keys.w || keys.arrowup) dy -= 1;
+                    if (keys.s || keys.arrowdown) dy += 1;
+                    if (keys.a || keys.arrowleft) dx -= 1;
+                    if (keys.d || keys.arrowright) dx += 1;
+
+                    const magnitude = Math.hypot(dx, dy);
+                    const hasInput = magnitude > 0.001;
+                    const terrain = testTerrainRef.current;
+                    const rect = terrain ? terrain.getBoundingClientRect() : null;
+
+                    if (hasInput && rect && rect.width > 0 && rect.height > 0) {
+                        dx /= Math.max(1, magnitude);
+                        dy /= Math.max(1, magnitude);
+                        const sprinting = Boolean(keys.shift || testSprintRef.current);
+                        const speed = sprinting ? 410 : 270;
+                        const current = testPlayerPositionRef.current;
+                        const stepX = dx * speed * dt / rect.width * 100;
+                        const stepY = dy * speed * dt / rect.height * 100;
+                        const edgeX = Math.min(7, 30 / rect.width * 100);
+                        const edgeY = Math.min(9, 36 / rect.height * 100);
+                        const playerRadius = 19;
+
+                        const collides = (x, y) => MOVEMENT_TEST_OBSTACLES.some(obstacle => {
+                            const ox = (x - obstacle.x) * rect.width / 100;
+                            const oy = (y - obstacle.y) * rect.height / 100;
+                            const minDistance = obstacle.radius + playerRadius;
+                            return ox * ox + oy * oy < minDistance * minDistance;
+                        });
+
+                        let nextX = Math.max(edgeX, Math.min(100 - edgeX, current.x + stepX));
+                        let nextY = Math.max(edgeY, Math.min(100 - edgeY, current.y + stepY));
+                        // Colisión por ejes: el jugador puede rozar y bordear los objetos.
+                        if (collides(nextX, current.y)) nextX = current.x;
+                        if (collides(nextX, nextY)) nextY = current.y;
+
+                        const moved = Math.abs(nextX - current.x) + Math.abs(nextY - current.y) > 0.0001;
+                        if (moved) {
+                            const next = { x: nextX, y: nextY };
+                            testPlayerPositionRef.current = next;
+                            setTestPlayerPos(next);
+                        }
+
+                        const angle = Math.atan2(dy, dx) * 180 / Math.PI + 90;
+                        if (Math.abs(angle - testFacingRef.current) > 1.5) {
+                            testFacingRef.current = angle;
+                            setTestPlayerFacing(angle);
+                        }
+                        if (moved !== testMovingRef.current) {
+                            testMovingRef.current = moved;
+                            setTestIsMoving(moved);
+                        }
+                        if (sprinting !== testSprintingRef.current) {
+                            testSprintingRef.current = sprinting;
+                            setTestIsSprinting(sprinting);
+                        }
+                    } else {
+                        if (testMovingRef.current) {
+                            testMovingRef.current = false;
+                            setTestIsMoving(false);
+                        }
+                        if (testSprintingRef.current) {
+                            testSprintingRef.current = false;
+                            setTestIsSprinting(false);
+                        }
+                    }
+                    testAnimationRef.current = requestAnimationFrame(frame);
+                };
+
+                testAnimationRef.current = requestAnimationFrame(frame);
+                return () => {
+                    window.removeEventListener('keydown', onKeyDown);
+                    window.removeEventListener('keyup', onKeyUp);
+                    window.removeEventListener('blur', clearInput);
+                    document.removeEventListener('visibilitychange', onVisibilityChange);
+                    if (testAnimationRef.current) cancelAnimationFrame(testAnimationRef.current);
+                    testAnimationRef.current = null;
+                    clearInput();
+                };
+            }, [showMovementTest]);
+
+            const startTestSprint = (event) => {
+                event.preventDefault();
+                testSprintRef.current = true;
+                testSprintingRef.current = true;
+                setTestIsSprinting(true);
+                try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
+            };
+            const stopTestSprint = (event) => {
+                testSprintRef.current = false;
+                if (!testKeysRef.current.shift) {
+                    testSprintingRef.current = false;
+                    setTestIsSprinting(false);
+                }
+                if (event?.currentTarget?.hasPointerCapture?.(event.pointerId)) {
+                    try { event.currentTarget.releasePointerCapture(event.pointerId); } catch (_) {}
+                }
+            };
+
+
 
             useEffect(() => {
                 if (gameState !== 'ONLINE_LOBBY' || !onlineUser || !window.MITSFirebase) return;
