@@ -259,6 +259,17 @@
             { id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2, desc: 'Contraataque: si recibe 0 o 1 de daño, encadena dos ataques.' }
         ];
 
+        const MIT_PASSIVE_DETAILS = {
+            Agil1: 'Ultra Impulso: cada esquive completo carga 1 punto. Al llegar a 3, tu siguiente ataque acierta automáticamente, elige una de tus caras D y gana +1 daño. No puede esquivarse ni bloquearse; atraviesa la defensa especial del Berserker.',
+            Agil2: 'Sombra: al esquivar completamente un ataque, obtienes invulnerabilidad durante el siguiente turno del rival. Tiene 1 turno de enfriamiento.',
+            Normal1: 'Útil: al comenzar cada turno de ataque tienes 50% de probabilidad de guardar Ataque +1 o Defensa +1. Puedes conservar ambos bonos; el de ataque se consume al atacar y el de defensa al recibir un ataque.',
+            Normal2: 'Adaptabilidad: cada vez que pierdes al menos 1 HP, acumulas 1 carga. Con 2 cargas, el siguiente golpe que te haga daño se reduce en 2 y consume ambas cargas.',
+            Resistente1: 'Último Instinto: al perder su primera vida, Berserker vuelve con 3 HP y reconstruye su dado con 1 cara D y 5 caras A. En Fase 2, acertar cualquier cara A anula por completo el daño, sin importar el valor de esa cara ni el daño del ataque. Ultra Impulso ignora esta defensa.',
+            Resistente2: 'Revestimiento: cada impacto que te quite HP fortalece tu armadura. El primer impacto tiene una vulnerabilidad inicial; después acumulas reducción hasta un máximo de 3 puntos. Si pasas 3 turnos sin recibir daño, pierdes el progreso.',
+            Dano1: 'Enfurecimiento: tus ataques acertados comienzan haciendo 1 de daño. Cada ataque que quite al menos 1 HP aumenta permanentemente el daño de tus siguientes ataques en +1 durante esa vida.',
+            Dano2: 'Contraataque: si recibes un golpe que te hace 0 o 1 de daño, activas una secuencia de dos ataques: el primero no puede defenderse, el segundo sí. Después el rival recupera el turno. Tiene 1 turno de enfriamiento.'
+        };
+
         // Generate AI MIT
         const generateAiMit = (mitIndex) => {
             const randomClass = MIT_CLASSES[Math.floor(Math.random() * MIT_CLASSES.length)];
@@ -363,6 +374,8 @@
 
             // Builder Selection
             const [selectedClass, setSelectedClass] = useState(MIT_CLASSES[2]);
+            const [showClassGuide, setShowClassGuide] = useState(false);
+            const [guideClassId, setGuideClassId] = useState(MIT_CLASSES[0].id);
             const [currentDNums, setCurrentDNums] = useState([]);
             const [currentANums, setCurrentANums] = useState([]);
             const [berserkerRebuild, setBerserkerRebuild] = useState(null);
@@ -2150,6 +2163,13 @@
                                     </button>
                                 </div>
 
+                                <button
+                                    onClick={() => { setShowClassGuide(true); setGuideClassId(MIT_CLASSES[0].id); playSound('click'); }}
+                                    className="w-full py-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 font-bold hover:bg-amber-500/20 transition"
+                                >
+                                    📖 Manual de clases: estadísticas y habilidades
+                                </button>
+
                                 <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-left text-xs space-y-2 text-slate-300">
                                     <div className="font-bold text-cyan-400 flex items-center gap-1">
                                         ℹ️ REGLAS OFICIALES
@@ -2162,6 +2182,52 @@
                                         <li>Si fallas el ataque, <strong>pasa el turno inmediatamente</strong>.</li>
                                     </ul>
                                 </div>
+
+                                {showClassGuide && (() => {
+                                    const guideClass = MIT_CLASSES.find(c => c.id === guideClassId) || MIT_CLASSES[0];
+                                    return (
+                                        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-3 md:p-6" role="dialog" aria-modal="true" aria-labelledby="class-guide-title">
+                                            <div className="w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-2xl border border-cyan-500/30 bg-slate-950 shadow-2xl flex flex-col">
+                                                <div className="flex items-center justify-between gap-3 p-4 md:p-5 border-b border-slate-800">
+                                                    <div className="text-left">
+                                                        <h3 id="class-guide-title" className="text-xl md:text-2xl font-black text-cyan-300 font-mono-custom">MANUAL DE CLASES</h3>
+                                                        <p className="text-xs text-slate-400 mt-1">Estadísticas base y habilidades pasivas de los 8 MITs</p>
+                                                    </div>
+                                                    <button onClick={() => setShowClassGuide(false)} className="shrink-0 rounded-lg px-3 py-2 bg-slate-800 hover:bg-rose-900/60 text-slate-200 font-bold" aria-label="Cerrar manual">✕ Cerrar</button>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] min-h-0 flex-1">
+                                                    <div className="grid grid-cols-2 md:grid-cols-1 gap-2 p-3 md:p-4 overflow-y-auto border-b md:border-b-0 md:border-r border-slate-800">
+                                                        {MIT_CLASSES.map(c => (
+                                                            <button key={c.id} onClick={() => setGuideClassId(c.id)} className={`text-left rounded-xl border p-3 transition ${guideClassId === c.id ? 'border-cyan-400 bg-cyan-950/50 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-600'}`}>
+                                                                <div className="font-bold text-sm">{c.name}</div>
+                                                                <div className="mt-1 text-[11px] font-mono-custom"><span className="text-rose-300">{c.hp} HP</span> · <span className="text-amber-300">D {c.d}</span> · <span className="text-cyan-300">A {c.a}</span></div>
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                    <div className="p-5 md:p-8 overflow-y-auto text-left">
+                                                        <div className="flex flex-wrap items-start justify-between gap-3">
+                                                            <div>
+                                                                <div className="text-xs uppercase tracking-[0.2em] text-cyan-400 font-bold">Clase MIT</div>
+                                                                <h4 className="text-3xl font-black text-white mt-1">{guideClass.name}</h4>
+                                                            </div>
+                                                            <span className="text-xs rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-slate-400">{guideClass.id}</span>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-3 mt-6">
+                                                            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-4"><div className="text-xs text-rose-300 font-bold">VIDA</div><div className="text-3xl font-black text-white mt-1">{guideClass.hp}<span className="text-sm text-slate-500 ml-1">HP</span></div></div>
+                                                            <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"><div className="text-xs text-amber-300 font-bold">DAÑO</div><div className="text-3xl font-black text-white mt-1">{guideClass.d}<span className="text-sm text-slate-500 ml-1">D</span></div><div className="text-[10px] text-slate-500 mt-1">Caras de acierto</div></div>
+                                                            <div className="rounded-xl border border-cyan-500/20 bg-cyan-500/5 p-4"><div className="text-xs text-cyan-300 font-bold">ESQUIVE</div><div className="text-3xl font-black text-white mt-1">{guideClass.a}<span className="text-sm text-slate-500 ml-1">A</span></div><div className="text-[10px] text-slate-500 mt-1">Caras de defensa</div></div>
+                                                        </div>
+                                                        <div className="mt-6 rounded-2xl border border-purple-500/25 bg-purple-500/5 p-5">
+                                                            <div className="text-xs uppercase tracking-widest text-purple-300 font-bold">✦ Habilidad pasiva</div>
+                                                            <p className="text-sm md:text-base leading-relaxed text-slate-200 mt-3">{MIT_PASSIVE_DETAILS[guideClass.id] || guideClass.desc}</p>
+                                                        </div>
+                                                        <p className="mt-5 text-xs text-slate-500">D = cantidad de caras asignadas para acertar. A = cantidad de caras asignadas para esquivar. Los valores exactos del dado se eligen al construir el MIT.</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         )}
 
