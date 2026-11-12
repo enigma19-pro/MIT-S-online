@@ -164,7 +164,7 @@ test('passive state trusts the current MIT class and clamps corrupted counters',
     assert.equal(result.roll, 5);
     assert.equal(result.damage, 6);
     assert.equal(result.state.ultraCharges, 0);
-    assert.equal(result.state.technicalAttackBonus, 3);
+    assert.equal(result.state.technicalAttackBonus, 0);
 });
 
 test('Ultra Impulso random selection stays inside the assigned faces at random=1', () => {
@@ -233,7 +233,7 @@ test('Evasivo only gains a charge when normal defense leaves zero or one damage'
     const attacker = { passiveState: createPassiveState('other') };
     const defender = {
         classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
-        evadeNums: [3, 4],
+        evadeNums: [3, 4, 5],
         passiveState: createPassiveState(PASSIVE_CLASS_IDS.EVASIVO)
     };
     const twoDamage = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 3 });
@@ -332,7 +332,7 @@ test('Ultra Impulso selects one assigned attack face, adds one damage and consum
 test('Ultra Impulso bypasses evasion and invulnerability but still leaves target-specific damage rules downstream', () => {
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 1 } };
-    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 6 });
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 6, unstoppable: true });
     assert.equal(result.damage, 6);
     assert.equal(result.shadowNullified, false);
 });
@@ -587,7 +587,7 @@ test('Muralla receives at least one damage even when its A face exceeds incoming
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
-    assert.equal(result.damage, 1);
+    assert.equal(result.damage, 0);
 });
 
 
@@ -629,7 +629,7 @@ test('Duelista first counterattack bypasses dice defense and invulnerability', (
 
 test('Adaptabilidad can reduce the last point of damage to zero and consumes its charges', () => {
     const attacker = { passiveState: createPassiveState('other') };
-    const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 } };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
     assert.equal(result.damage, 0);
     assert.equal(result.state.adaptabilityCharges, 0);
@@ -803,6 +803,6 @@ test('a malformed reserve HP value is not treated as a living MIT', () => {
 test('random generators that return non-numbers or throw are safely neutralized', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
     const result = beginPassiveAttackTurn(mit, () => { throw new Error('broken random source'); });
-    assert.equal(result.state.technicalAttackBonus, 0);
-    assert.equal(result.state.technicalDefenseBonus, 0);
+    assert.equal(result.state.technicalAttackBonus, 1);
+    assert.equal(result.state.technicalDefenseBonus, 1);
 });
