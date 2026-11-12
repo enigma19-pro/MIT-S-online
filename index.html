@@ -2930,7 +2930,10 @@
                                         <div className="text-4xl">🚪</div>
                                         <h2 className="text-2xl font-black text-rose-300 font-mono-custom">PARTIDA TERMINADA</h2>
                                         <p className="text-slate-200">El Jugador {disconnectedPlayer} salió de la partida.</p>
-                                        <p className="text-sm text-slate-400">La conexión se perdió o el jugador cerró o reinició la página. Has ganado por abandono.</p>
+                                        <p className="text-sm text-slate-400">
+                                            La conexión se perdió o el jugador salió de la sala.
+                                            {winnerPlayer ? ` Resultado registrado: ganó el Jugador ${winnerPlayer}.` : ' La partida terminó sin un ganador registrado.'}
+                                        </p>
                                         <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider hover:brightness-110">Regresar al lobby</button>
                                     </div>
                                 )}
