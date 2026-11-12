@@ -1697,7 +1697,7 @@
                 if (id === 'Normal1') { if (state.technicalAttackBonus) items.push('Ataque +1 guardado'); if (state.technicalDefenseBonus) items.push('Defensa +1 guardada'); }
                 if (id === 'Normal2') items.push(`Adaptabilidad: ${state.adaptabilityCharges}/2`);
                 if (id === 'Resistente1') items.push(state.berserkerPhase === 2 ? 'Último Instinto: FASE 2 · 3 HP' : 'Último Instinto: fase 1');
-                if (id === 'Resistente2') { const v = state.murallaHits === 0 ? '+2 daño' : state.murallaHits === 1 ? '+1 daño' : 'sin vulnerabilidad'; const r = Math.min(3, Math.max(0, state.murallaHits - 1)); items.push(`Revestimiento: ${state.murallaHits}/4 · ${v} · reducción ${r}`); }
+                if (id === 'Resistente2') { const v = state.murallaHits === 0 ? '+1 recibido' : 'sin vulnerabilidad'; const r = Math.min(3, Math.max(0, state.murallaHits - 1)); items.push(`Revestimiento: ${state.murallaHits}/4 · ${v} · reducción ${r}`); }
                 if (id === 'Dano1') items.push(`Enfurecimiento: daño +${state.destructorBonus}`);
                 if (id === 'Dano2') items.push(state.counterSequence?.phase === 'FIRST' ? 'Contraataque: 1/2' : state.counterSequence?.phase === 'SECOND' ? 'Contraataque: 2/2' : state.counterCooldownTurns > 0 ? `Contraataque: enfriamiento ${state.counterCooldownTurns}` : 'Contraataque: listo');
                 return items;
