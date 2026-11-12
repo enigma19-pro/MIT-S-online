@@ -423,11 +423,20 @@ test('Muralla progresses only after HP loss and reaches three points of reductio
     assert.equal(result.defenderState.murallaQuietTurns, 0);
 });
 
-test('Muralla loses progression after three quiet turns', () => {
+test('Muralla loses progression after three opponent attack turns, not own turns', () => {
     let mit = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 3 } };
-    mit = { ...mit, passiveState: advancePassiveTurn(mit).state };
-    mit = { ...mit, passiveState: advancePassiveTurn(mit).state };
-    mit = { ...mit, passiveState: advancePassiveTurn(mit).state };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
+    assert.equal(mit.passiveState.murallaHits, 3);
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { opponentTurnEnded: true }).state };
+    assert.equal(mit.passiveState.murallaHits, 3);
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { opponentTurnEnded: true }).state };
+    assert.equal(mit.passiveState.murallaHits, 3);
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { opponentTurnEnded: true }).state };
+    assert.equal(mit.passiveState.murallaHits, 3);
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
+    mit = { ...mit, passiveState: advancePassiveTurn(mit, { opponentTurnEnded: true }).state };
     assert.equal(mit.passiveState.murallaHits, 0);
 });
 
@@ -594,13 +603,13 @@ test('Muralla receives at least one damage even when its A face exceeds incoming
 test('Muralla does not count the turn in which it was damaged toward its decay', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
     const consequence = applyPassiveDamageConsequences({ attacker: {}, defender: mit, hpLost: 1 });
-    const afterDamageTurn = advancePassiveTurn({ ...mit, passiveState: consequence.defenderState }).state;
+    const afterDamageTurn = advancePassiveTurn({ ...mit, passiveState: consequence.defenderState }, { opponentTurnEnded: true }).state;
     assert.equal(afterDamageTurn.murallaQuietTurns, 0);
     assert.equal(afterDamageTurn.murallaDamagedThisTurn, false);
     let state = afterDamageTurn;
-    for (let i = 0; i < 2; i++) state = advancePassiveTurn({ ...mit, passiveState: state }).state;
+    for (let i = 0; i < 2; i++) state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
     assert.equal(state.murallaHits, 1);
-    state = advancePassiveTurn({ ...mit, passiveState: state }).state;
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
     assert.equal(state.murallaHits, 0);
 });
 
