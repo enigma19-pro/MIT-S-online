@@ -52,7 +52,7 @@
 
         return {
             isEvadeNumber,
-            finalDamageTaken: isEvadeNumber ? Math.max(0, damage - roll) : damage
+            finalDamageTaken: isEvadeNumber && damage > 0 ? Math.max(1, damage - roll) : damage
         };
     }
 
@@ -216,9 +216,10 @@
         }
         if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus > 0) {
             const bonus = next.technicalAttackBonus;
-            if (hit) damage += bonus;
-            next.technicalAttackBonus = 0;
-            events.push(hit ? `Técnico consumió Ataque +${bonus}` : `Técnico perdió Ataque +${bonus} tras fallar`);
+            if (hit) {
+                damage += bonus;
+                events.push(`Técnico aplicó Ataque +${bonus}`);
+            }
         }
         if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
             const bonus = safeCounter(state.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
@@ -258,8 +259,11 @@
         // Ultra Impulso only charges from a real, complete die-based dodge:
         // the defender must actually roll an assigned A face and reduce a
         // positive incoming hit to zero. Invulnerability is not a dodge.
-        let fullyDodged = !isUltra && !shadow && base.isEvadeNumber &&
-            rawAttackDamage > 0 && damage === 0;
+        // Una cara A exitosa reduce el daño, pero nunca lo anula por completo.
+        // La anulación total pertenece exclusivamente al Berserker en Fase 2.
+        const successfulEvade = !isUltra && !shadow && !forceHit &&
+            base.isEvadeNumber && rawAttackDamage > 0;
+        const fullyDodged = berserkerPhaseTwoDodge;
         if (shadow) events.push('Sombra anuló el ataque');
         if (isUltra) events.push('Ultra Impulso ignoró defensas y estados de evasión');
         if (!forceHit && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
@@ -276,15 +280,18 @@
         }
         if (!forceHit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus > 0) {
             const bonus = next.technicalDefenseBonus;
-            if (!isUltra && !shadow && damage > 0) damage = Math.max(1, damage - bonus);
-            next.technicalDefenseBonus = 0;
-            events.push(isUltra ? `Técnico consumió Defensa +${bonus} (ignorada por Ultra Impulso)` : `Técnico consumió Defensa +${bonus}`);
+            if (!isUltra && !shadow && damage > 0) {
+                damage = Math.max(1, damage - bonus);
+                events.push(`Técnico aplicó Defensa +${bonus}`);
+            } else if (isUltra) {
+                events.push(`Técnico conserva Defensa +${bonus} (ignorada por Ultra Impulso)`);
+            }
         }
-        if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
+        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
             next.ultraCharges = Math.min(3, Math.max(0, Number(state.ultraCharges) || 0) + 1);
             events.push(`Ultra Impulso: ${next.ultraCharges}/3 cargas`);
         }
-        if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowCooldownTurns <= 0) {
+        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowCooldownTurns <= 0) {
             next.shadowInvulnerableTurns = 2;
             next.shadowCooldownTurns = 1;
             events.push('Sombra activada: invulnerable durante el próximo turno rival');
