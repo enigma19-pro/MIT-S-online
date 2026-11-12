@@ -296,7 +296,7 @@
             }
 
             componentDidCatch(error, info) {
-                console.error('MIT\\'S render error:', error, info);
+                console.error("MIT'S render error:", error, info);
             }
 
             render() {
@@ -1482,16 +1482,23 @@
 
                 const refIndex = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
                 const stateIndex = playerNum === 1 ? activeP1Index : activeP2Index;
+                const refIsDefeated = Number.isInteger(refIndex) && refIndex >= 0 && refIndex < updatedMits.length
+                    && Number(updatedMits[refIndex]?.currentHp) <= 0;
+                const stateIsDefeated = Number.isInteger(stateIndex) && stateIndex >= 0 && stateIndex < updatedMits.length
+                    && Number(updatedMits[stateIndex]?.currentHp) <= 0;
                 const fallbackIndex = updatedMits.findIndex(mit =>
                     mit?.classData?.id === 'Resistente1' && Number(mit.currentHp) <= 0
                 );
-                const defeatedActiveIndex = Number.isInteger(refIndex) && refIndex >= 0 && refIndex < updatedMits.length
+                const defeatedActiveIndex = refIsDefeated
                     ? refIndex
-                    : Number.isInteger(stateIndex) && stateIndex >= 0 && stateIndex < updatedMits.length
+                    : stateIsDefeated
                         ? stateIndex
                         : fallbackIndex >= 0 ? fallbackIndex : 0;
                 const defeatedMit = updatedMits[defeatedActiveIndex];
-                const defeatedState = window.MITSGameRules.createPassiveState(defeatedMit?.classData?.id);
+                const defeatedState = {
+                    ...(defeatedMit?.passiveState || {}),
+                    berserkerPhase: Number(defeatedMit?.passiveState?.berserkerPhase) === 2 ? 2 : 1
+                };
                 if (defeatedMit?.classData?.id === 'Resistente1' && defeatedState.berserkerPhase !== 2) {
                     const rebuild = { playerNum, index: defeatedActiveIndex };
                     const rebuildLog = [...koLog, {
