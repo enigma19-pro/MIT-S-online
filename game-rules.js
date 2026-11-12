@@ -51,6 +51,21 @@
         };
     }
 
+    function findAvailableMitIndex(mits, activeIndex) {
+        if (!Array.isArray(mits) || !Number.isInteger(activeIndex) ||
+            activeIndex < 0 || activeIndex >= mits.length) {
+            return null;
+        }
+
+        const availableIndex = mits.findIndex((mit, index) => {
+            if (index === activeIndex || !mit || typeof mit !== 'object') return false;
+            const hp = Number(mit.currentHp);
+            return Number.isFinite(hp) && hp > 0;
+        });
+
+        return availableIndex === -1 ? null : availableIndex;
+    }
+
     function resolveMitDefeat({ defeatedPlayer, hasReserve } = {}) {
         const player = (
             typeof defeatedPlayer === 'number' ||
@@ -77,6 +92,7 @@
     return Object.freeze({
         isSuccessfulAttack,
         resolveDefense,
+        findAvailableMitIndex,
         resolveMitDefeat
     });
 }));
