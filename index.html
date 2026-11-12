@@ -1939,8 +1939,12 @@
                         setOnlineStatus('La sala contiene datos de MIT inválidos. No se cargarán esas unidades; vuelve al lobby y crea una sala nueva.');
                     }
 
-                    if (room.guestUid && room.status === 'waiting' && room.isPublic === true && localPlayerNum === 1) {
-                        window.MITSFirebase.set(firebase.ref(firebase.db, `publicRooms/${code}`), null).catch(error => console.warn('No se pudo retirar la sala del listado público:', error));
+                    // El anfitrión es responsable de retirar el anuncio público cuando
+                    // la sala se cancela o la partida termina, incluso si quedó un anuncio antiguo.
+                    if (localPlayerNum === 1 && room.isPublic === true &&
+                        (room.guestUid || ['gameover', 'player_left', 'cancelled'].includes(room.status))) {
+                        window.MITSFirebase.set(firebase.ref(firebase.db, `publicRooms/${code}`), null)
+                            .catch(error => console.warn('No se pudo retirar la sala del listado público:', error));
                     }
                 };
                 firebase.onValue(roomRef, handler);
@@ -2970,6 +2974,38 @@
                 gameSessionRef.current += 1;
                 cancelGameTimers();
                 isSubmittingMitRef.current = false;
+
+                // Publica el cierre antes de salir. Sin esto, al reiniciar desde una sala
+                // de espera no había transición de estado y el rival quedaba atrapado.
+                if (leavingOnlineGame) {
+                    try {
+                        const user = onlineUser || await firebase.ready;
+                        const roomRef = firebase.ref(firebase.db, `rooms/${previousRoomCode}`);
+                        const tx = await firebase.runTransaction(roomRef, current => {
+                            if (!current || !['waiting', 'building', 'battle', 'berserker_build'].includes(current.status)) return;
+                            const isHost = current.hostUid === user.uid;
+                            if (!isHost && current.guestUid !== user.uid) return;
+                            if (current.status === 'waiting') {
+                                return { ...current, status: 'cancelled' };
+                            }
+                            const playerNum = isHost ? 1 : 2;
+                            const opponentNum = playerNum === 1 ? 2 : 1;
+                            return {
+                                ...current,
+                                status: 'player_left',
+                                disconnectedPlayer: playerNum,
+                                ...(current.status === 'battle' || current.status === 'berserker_build'
+                                    ? { winner: opponentNum }
+                                    : {})
+                            };
+                        });
+                        if (tx.committed && isRoomHost && onlineRoomData?.isPublic) {
+                            await firebase.set(firebase.ref(firebase.db, `publicRooms/${previousRoomCode}`), null);
+                        }
+                    } catch (error) {
+                        console.warn('No se pudo notificar la salida de la sala:', error);
+                    }
+                }
 
                 // Desuscribe primero al jugador que reinicia: player_left es para el rival.
                 if (leavingOnlineGame && onlineListenerRef.current) {
