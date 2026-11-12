@@ -256,7 +256,9 @@
         if (shadow) events.push('Sombra anuló el ataque');
         if (isUltra) events.push('Ultra Impulso ignoró defensas y estados de evasión');
         if (!forceHit && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
-            const vulnerability = state.murallaHits === 0 ? 2 : state.murallaHits === 1 ? 1 : 0;
+            // La primera recepción añade +1; la segunda queda neutra.
+            // Desde el tercer impacto se resta 1 por escalón, hasta un máximo de 3.
+            const vulnerability = state.murallaHits === 0 ? 1 : 0;
             const reduction = isUltra ? 0 : Math.min(3, Math.max(0, state.murallaHits - 1));
             damage = Math.max(0, damage + vulnerability - reduction);
         }
