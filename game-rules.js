@@ -173,9 +173,14 @@
             defenseRoll,
             evadeNums: isUltra || shadow || forceHit ? [] : defender?.evadeNums
         });
-        let damage = isUltra ? Math.max(0, Number(attackDamage) || 0) : (shadow ? 0 : base.finalDamageTaken);
+        const rawAttackDamage = Math.max(0, Number(attackDamage) || 0);
+        let damage = isUltra ? rawAttackDamage : (shadow ? 0 : base.finalDamageTaken);
         let next = { ...state };
-        let fullyDodged = !isUltra && (shadow || (base.isEvadeNumber && damage === 0));
+        // Ultra Impulso only charges from a real, complete die-based dodge:
+        // the defender must actually roll an assigned A face and reduce a
+        // positive incoming hit to zero. Invulnerability is not a dodge.
+        let fullyDodged = !isUltra && !shadow && base.isEvadeNumber &&
+            rawAttackDamage > 0 && damage === 0;
         if (shadow) events.push('Sombra anuló el ataque');
         if (isUltra) events.push('Ultra Impulso ignoró defensas y estados de evasión');
         if (!shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
@@ -194,7 +199,7 @@
             events.push(isUltra ? 'Técnico consumió Defensa +1 (ignorada por Ultra Impulso)' : 'Técnico consumió Defensa +1');
         }
         if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
-            next.ultraCharges = Math.min(3, state.ultraCharges + 1);
+            next.ultraCharges = Math.min(3, Math.max(0, Number(state.ultraCharges) || 0) + 1);
             events.push(`Ultra Impulso: ${next.ultraCharges}/3 cargas`);
         }
         if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowCooldownTurns <= 0) {
