@@ -125,12 +125,12 @@
             align-items: flex-start;
         }
         .mits-modal-panel {
-            width: 96vw !important;
-            max-width: 1600px !important;
+            width: min(96vw, 1500px) !important;
+            max-width: none !important;
+            height: min(86vh, 980px);
             max-height: 92vh;
             margin: auto;
-            overflow-x: hidden !important;
-            overflow-y: auto !important;
+            overflow: hidden !important;
             flex: 0 0 auto;
         }
         /* At high Windows display scaling/browser zoom, a desktop can report a
@@ -166,6 +166,32 @@
                 min-height: 0;
             }
             .mits-class-guide-details {
+                overflow-y: auto;
+            }
+        }
+        /* Desktop input devices keep a permanent side-by-side guide layout,
+           even when Windows display scaling makes the CSS viewport look narrow. */
+        @media (hover: hover) and (pointer: fine) {
+            .mits-modal-panel {
+                width: min(96vw, 1500px) !important;
+                height: min(86vh, 980px);
+            }
+            .mits-class-guide-grid {
+                display: grid;
+                grid-template-columns: minmax(230px, 300px) minmax(0, 1fr);
+                grid-template-rows: minmax(0, 1fr);
+                height: 100%;
+                min-height: 0;
+            }
+            .mits-class-guide-list {
+                display: flex;
+                flex-direction: column;
+                max-height: none;
+                min-height: 0;
+                overflow-y: auto;
+            }
+            .mits-class-guide-details {
+                min-height: 0;
                 overflow-y: auto;
             }
         }
@@ -2692,7 +2718,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(43)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(44)
                     </footer>
                 </div>
             );
