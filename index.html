@@ -743,7 +743,7 @@
                         setGameState('BUILD');
                         if (room.guestUid && room.hostUid) setOnlineStatus('Ambos jugadores conectados.');
                     } else if (room.status === 'berserker_build') {
-                        setGameState('BUILD');
+                        setGameState('BATTLE');
                         const buildKey = room.berserkerRebuild ? `${room.berserkerRebuild.playerNum}:${room.berserkerRebuild.index}` : null;
                         if (buildKey !== berserkerBuildKeyRef.current) {
                             berserkerBuildKeyRef.current = buildKey;
@@ -1786,6 +1786,13 @@
                             <div className="fixed inset-0 z-[80] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
                                 <div className="w-full max-w-2xl glass-panel rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-500/20 p-6 md:p-8">
                                     <div className="text-center space-y-2 mb-6">
+                                        {gameMode === 'ONLINE' && berserkerRebuild.playerNum !== localPlayerNum && (
+                                            <div className="fixed inset-0 z-[90] flex items-center justify-center pointer-events-none">
+                                                <div className="text-red-500 text-5xl md:text-7xl font-black uppercase tracking-widest font-mono-custom drop-shadow-[0_0_25px_rgba(239,68,68,0.9)]">
+                                                    una vez más..
+                                                </div>
+                                            </div>
+                                        )}
                                         <div className="text-5xl">🔥</div>
                                         <div className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">ÚLTIMO INSTINTO</div>
                                         <h2 className="text-3xl md:text-4xl font-black text-white font-mono-custom">¡BERSERKER, FASE 2!</h2>
@@ -2337,7 +2344,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(35)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(36)
                     </footer>
                 </div>
             );
