@@ -527,12 +527,12 @@ test('Duelista first counterattack bypasses dice defense and invulnerability', (
 });
 
 
-test('Adaptabilidad can still reduce damage to zero without consuming charges when no damage remains', () => {
+test('Adaptabilidad can reduce the last point of damage to zero and consumes its charges', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
     assert.equal(result.damage, 0);
-    assert.equal(result.state.adaptabilityCharges, 2);
+    assert.equal(result.state.adaptabilityCharges, 0);
 });
 
 test('Ultra Impulso ignores Technical defense bonus without consuming it', () => {
