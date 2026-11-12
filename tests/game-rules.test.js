@@ -558,7 +558,7 @@ test('Technical defense bonus persists and may reduce a one-point hit to zero', 
     assert.equal(result.state.technicalDefenseBonus, 1);
 });
 
-test('Ultra Impulso still applies Muralla vulnerability but ignores its reduction', () => {
+test('Ultra Impulso respects Muralla vulnerability and reduction', () => {
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 4 } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 1, unstoppable: true });
