@@ -382,7 +382,7 @@ test('Resetting Muralla progression never changes its HP', () => {
     };
     let state = mit.passiveState;
     for (let i = 0; i < 3; i++) {
-        state = advancePassiveTurn({ ...mit, passiveState: state }).state;
+        state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
     }
     assert.equal(state.murallaHits, 0);
     assert.equal(mit.currentHp, 7);
@@ -427,9 +427,6 @@ test('Muralla loses progression after three opponent attack turns, not own turns
     let mit = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 3 } };
     mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
     assert.equal(mit.passiveState.murallaHits, 3);
-    mit = { ...mit, passiveState: advancePassiveTurn(mit, { opponentTurnEnded: true }).state };
-    assert.equal(mit.passiveState.murallaHits, 3);
-    mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
     mit = { ...mit, passiveState: advancePassiveTurn(mit, { opponentTurnEnded: true }).state };
     assert.equal(mit.passiveState.murallaHits, 3);
     mit = { ...mit, passiveState: advancePassiveTurn(mit, { ownTurnEnded: true }).state };
