@@ -842,6 +842,98 @@
                         passiveState: window.MITSGameRules.createPassiveState(selectedClass.id)
                     };
 
+                    if (berserkerRebuild) {
+                        const phaseTwoLog = [...combatLog, { type: 'system', text: '🔥 Berserker completó su transformación. Comienza su segunda fase con 3 HP.' }];
+                        if (gameMode === 'ONLINE') {
+                            const expectedPlayer = isRoomHost ? 1 : 2;
+                            if (expectedPlayer !== berserkerRebuild.playerNum) {
+                                setOnlineStatus('Esperando a que el dueño del Berserker asigne su dado.');
+                                return;
+                            }
+                            const user = onlineUser || await window.MITSFirebase.ready;
+                            const roomRef = onlineRoomRef();
+                            const tx = await window.MITSFirebase.runTransaction(roomRef, room => {
+                                if (!room || room.status !== 'berserker_build' ||
+                                    room.berserkerRebuild?.playerNum !== expectedPlayer) return;
+                                const playerKey = expectedPlayer === 1 ? 'p1Mits' : 'p2Mits';
+                                const opponentKey = expectedPlayer === 1 ? 'p2Mits' : 'p1Mits';
+                                const updated = Array.isArray(room[playerKey]) ? [...room[playerKey]] : [];
+                                const original = updated[berserkerRebuild.index];
+                                const transformed = window.MITSGameRules.activateBerserkerSecondPhase(original, currentDNums, currentANums);
+                                if (!transformed) return;
+                                updated[berserkerRebuild.index] = transformed;
+                                const opponents = Array.isArray(room[opponentKey]) ? [...room[opponentKey]] : [];
+                                const opponentIndex = expectedPlayer === 1 ? (room.activeP2Index || 0) : (room.activeP1Index || 0);
+                                if (opponents[opponentIndex]) {
+                                    const opponentState = { ...window.MITSGameRules.createPassiveState(opponents[opponentIndex].classData?.id), ...(opponents[opponentIndex].passiveState || {}) };
+                                    opponentState.shadowInvulnerableTurns = 0;
+                                    opponentState.technicalAttackBonus = false;
+                                    opponentState.technicalDefenseBonus = false;
+                                    opponentState.counterSequence = null;
+                                    opponents[opponentIndex] = { ...opponents[opponentIndex], passiveState: opponentState };
+                                }
+                                return {
+                                    ...room,
+                                    [playerKey]: updated,
+                                    [opponentKey]: opponents,
+                                    status: 'battle',
+                                    berserkerRebuild: null,
+                                    currentTurnPlayer: expectedPlayer,
+                                    combatPhase: 'ATTACK_ROLL',
+                                    attackResult: null,
+                                    combatLog: phaseTwoLog
+                                };
+                            });
+                            if (!tx.committed) {
+                                setOnlineStatus('No se pudo completar la transformación. Vuelve a intentarlo.');
+                                return;
+                            }
+                            const room = tx.snapshot?.val?.();
+                            if (room) {
+                                setP1Mits(room.p1Mits || []);
+                                setP2Mits(room.p2Mits || []);
+                            }
+                        } else {
+                            const list = berserkerRebuild.playerNum === 1 ? [...p1Mits] : [...p2Mits];
+                            const transformed = window.MITSGameRules.activateBerserkerSecondPhase(list[berserkerRebuild.index], currentDNums, currentANums);
+                            if (!transformed) {
+                                setOnlineStatus('La distribución del dado no es válida.');
+                                return;
+                            }
+                            list[berserkerRebuild.index] = transformed;
+                            if (berserkerRebuild.playerNum === 1) setP1Mits(list); else setP2Mits(list);
+                            const opponentList = berserkerRebuild.playerNum === 1 ? [...p2Mits] : [...p1Mits];
+                            const opponentIndex = berserkerRebuild.playerNum === 1 ? activeP2Index : activeP1Index;
+                            if (opponentList[opponentIndex]) {
+                                const opponent = opponentList[opponentIndex];
+                                const state = { ...window.MITSGameRules.createPassiveState(opponent.classData?.id), ...(opponent.passiveState || {}) };
+                                state.shadowInvulnerableTurns = 0;
+                                state.technicalAttackBonus = false;
+                                state.technicalDefenseBonus = false;
+                                state.counterSequence = null;
+                                opponentList[opponentIndex] = { ...opponent, passiveState: state };
+                                if (berserkerRebuild.playerNum === 1) setP2Mits(opponentList); else setP1Mits(opponentList);
+                            }
+                        }
+                        setBerserkerRebuild(null);
+                        setSelectedClass(MIT_CLASSES[2]);
+                        setCurrentDNums([]);
+                        setCurrentANums([]);
+                        setGameState('BATTLE');
+                        setCombatPhase('ATTACK_ROLL');
+                        setAttackResult(null);
+                        setCurrentTurnPlayer(berserkerRebuild.playerNum);
+                        currentTurnPlayerRef.current = berserkerRebuild.playerNum;
+                        setCombatLog(phaseTwoLog);
+                        setIsTurnProcessing(false);
+                        if (gameMode !== 'ONLINE') {
+                            if (gameMode === 'AI' && berserkerRebuild.playerNum === 2) {
+                                scheduleGameTimeout(() => triggerAiTurn(), 800);
+                            }
+                        }
+                        return;
+                    }
+
                     if (gameMode === 'ONLINE') {
                         const user = onlineUser || await window.MITSFirebase.ready;
                         const roomRef = onlineRoomRef();
