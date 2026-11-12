@@ -1022,18 +1022,127 @@
                 }
             };
 
+            const sanitizeOnlineDieFaces = value => {
+                if (!Array.isArray(value)) return [];
+                const faces = [];
+                value.forEach(face => {
+                    if (typeof face !== 'number' && typeof face !== 'string') return;
+                    if (typeof face === 'string' && face.trim() === '') return;
+                    const number = Number(face);
+                    if (Number.isInteger(number) && number >= 1 && number <= 6 && !faces.includes(number)) {
+                        faces.push(number);
+                    }
+                });
+                return faces;
+            };
+
+            // Firebase es una frontera no confiable: se reconstruye cada MIT con
+            // estadísticas oficiales y solo se aceptan caras de dado válidas.
+            const sanitizeOnlineMit = value => {
+                if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+                const classId = typeof value.classData?.id === 'string' ? value.classData.id : null;
+                const baseClass = MIT_CLASSES.find(candidate => candidate.id === classId);
+                if (!baseClass) return null;
+
+                const isBerserkerPhaseTwo =
+                    classId === 'Resistente1' && value.passiveState?.berserkerPhase === 2;
+                const classData = isBerserkerPhaseTwo
+                    ? { ...baseClass, hp: 3, d: 1, a: 5 }
+                    : baseClass;
+                const attackNums = sanitizeOnlineDieFaces(value.attackNums);
+                const evadeNums = sanitizeOnlineDieFaces(value.evadeNums);
+                const assignedFaces = [...attackNums, ...evadeNums];
+
+                if (
+                    attackNums.length !== classData.d ||
+                    evadeNums.length !== classData.a ||
+                    new Set(assignedFaces).size !== assignedFaces.length
+                ) return null;
+
+                const maxHp = classData.hp;
+                const incomingHp = Number(value.currentHp);
+                const currentHp = Number.isFinite(incomingHp)
+                    ? Math.min(maxHp, Math.max(0, Math.floor(incomingHp)))
+                    : maxHp;
+                const rawName = typeof value.name === 'string' ? value.name.trim() : '';
+                const rawId = typeof value.id === 'string' ? value.id.trim() : '';
+                const passiveState = MITSGameRules.normalizePassiveState({
+                    classData,
+                    passiveState: value.passiveState
+                });
+
+                if (!isBerserkerPhaseTwo) passiveState.berserkerPhase = 1;
+
+                return {
+                    id: rawId.slice(0, 80) || `online_${classId}`,
+                    name: rawName.slice(0, 80) || `MIT ${baseClass.name}`,
+                    classData,
+                    maxHp,
+                    currentHp,
+                    attackNums,
+                    evadeNums,
+                    passiveState
+                };
+            };
+
             const sanitizeOnlineMits = value => {
                 if (!Array.isArray(value)) return [];
-                return value.slice(0, 2).map(mit =>
-                    mit && typeof mit === 'object' && !Array.isArray(mit) ? mit : null
-                );
+                return value.slice(0, 2).map(sanitizeOnlineMit);
             };
 
             const sanitizeOnlineCombatLog = value => {
                 if (!Array.isArray(value)) return [];
                 return value
-                    .filter(log => log && typeof log === 'object' && typeof log.text === 'string')
-                    .slice(-250);
+                    .filter(log => log && typeof log === 'object' && !Array.isArray(log) && typeof log.text === 'string')
+                    .slice(-250)
+                    .map(log => ({
+                        type: ['attack_hit', 'attack_miss', 'defense_success', 'defense_fail', 'ko', 'victory', 'system'].includes(log.type)
+                            ? log.type
+                            : 'system',
+                        text: log.text.slice(0, 500)
+                    }));
+            };
+
+            const sanitizeOnlineAttackResult = (value, attacker) => {
+                if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+                if (typeof value.success !== 'boolean') return null;
+                const rawDamage = Number(value.damage);
+                const rawRoll = Number(value.roll);
+                const damage = Number.isFinite(rawDamage)
+                    ? Math.min(1000, Math.max(0, Math.floor(rawDamage)))
+                    : 0;
+                const roll = Number.isInteger(rawRoll) && rawRoll >= 1 && rawRoll <= 6 ? rawRoll : 1;
+                const classId = attacker?.classData?.id;
+                const passiveInput = value.attackerPassiveState && typeof value.attackerPassiveState === 'object'
+                    ? value.attackerPassiveState
+                    : attacker?.passiveState;
+
+                return {
+                    success: value.success,
+                    damage: value.success ? damage : 0,
+                    roll,
+                    unstoppable: value.unstoppable === true && classId === 'Agil1',
+                    counterChain: value.counterChain === true && classId === 'Dano2',
+                    attackerPassiveState: MITSGameRules.normalizePassiveState({
+                        ...(attacker || {}),
+                        passiveState: passiveInput
+                    })
+                };
+            };
+
+            const sanitizeOnlineFloatingEffect = value => {
+                if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+                const player = sanitizeOnlinePlayerNumber(value.player);
+                if (player === null || typeof value.id !== 'string' || typeof value.text !== 'string') return null;
+                const type = ['hit', 'damage', 'dodge', 'miss'].includes(value.type) ? value.type : 'hit';
+                const createdAt = Number(value.createdAt);
+                return {
+                    id: value.id.slice(0, 100),
+                    player,
+                    text: value.text.slice(0, 160),
+                    type,
+                    createdAt: Number.isFinite(createdAt) ? createdAt : Date.now()
+                };
             };
 
             const sanitizeOnlineIndex = (value, mits) => {
