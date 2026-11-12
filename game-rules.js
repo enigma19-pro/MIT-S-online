@@ -166,7 +166,7 @@
         const state = passiveState(defender);
         const events = [];
         const isUltra = unstoppable || (attackState.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && attackState.ultraCharges >= 3);
-        const shadow = state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowInvulnerableTurns > 0 && !isUltra;
+        const shadow = state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowInvulnerableTurns > 0 && !isUltra && !forceHit;
         const base = resolveDefense({
             attackDamage,
             defenseRoll,
