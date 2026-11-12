@@ -999,10 +999,13 @@
                 setIsTurnProcessing(true);
                 const roll = Math.floor(Math.random() * 6) + 1;
                 executeRollAnimation(roll, () => {
-                    const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: currentAttacker, roll });
+                    const turnStart = window.MITSGameRules.beginPassiveAttackTurn(currentAttacker);
+                    const attackerAtTurnStart = { ...currentAttacker, passiveState: turnStart.state };
+                    const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
                     const isHit = passiveAttack.hit;
                     const updatedAttackerMits = [...currentTurnMits];
-                    updatedAttackerMits[currentTurnActiveIndex] = { ...currentAttacker, passiveState: passiveAttack.state };
+                    updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    turnStart.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
                     if (gameMode === 'ONLINE') syncOnline(currentTurnPlayer === 1 ? { p1Mits: updatedAttackerMits } : { p2Mits: updatedAttackerMits });
                     if (isHit) {
@@ -1298,10 +1301,13 @@
                 const roll = Math.floor(Math.random() * 6) + 1;
                 
                 executeRollAnimation(roll, () => {
-                    const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: aiMit, roll });
+                    const turnStart = window.MITSGameRules.beginPassiveAttackTurn(aiMit);
+                    const attackerAtTurnStart = { ...aiMit, passiveState: turnStart.state };
+                    const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
                     const isHit = passiveAttack.hit;
                     const updatedAiMits = [...p2Mits];
-                    updatedAiMits[activeP2Index] = { ...aiMit, passiveState: passiveAttack.state };
+                    updatedAiMits[activeP2Index] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    turnStart.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
                     setP2Mits(updatedAiMits);
                     if (isHit) {
                         playSound('hit');
