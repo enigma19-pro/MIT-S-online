@@ -985,9 +985,11 @@
                     }
                     if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
                     if (roomVisibility === 'public') {
-                        await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`), {
+                        const publicRoomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`);
+                        await window.MITSFirebase.set(publicRoomRef, {
                             hostUid: user.uid, name: (roomName.trim() || 'Sala de combate').slice(0, 40), createdAt: Date.now()
                         });
+                        await window.MITSFirebase.onDisconnect(publicRoomRef).remove();
                     }
                     setOnlineRoomData({ hostUid: user.uid, guestUid: null, roomName: (roomName.trim() || 'Sala de combate').slice(0, 40), isPublic: roomVisibility === 'public', status: 'waiting' });
                     setRoomCode(code);
@@ -1043,7 +1045,7 @@
                         setOnlineStatus('La sala ya no se puede cancelar.');
                         return;
                     }
-                    await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
+                    if (onlineRoomData?.isPublic) await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
                     await stopOnlinePresenceListener(true);
                     if (onlineListenerRef.current) {
                         window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
