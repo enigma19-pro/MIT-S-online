@@ -1056,7 +1056,10 @@
                     const confirmedRoom = confirmedSnapshot.exists() ? (confirmedSnapshot.val() || {}) : {};
                     if (
                         !confirmedSnapshot.exists() ||
-                        confirmedRoom.hostUid !== initialRoom.hostUid ||
+                        typeof confirmedRoom.hostUid !== 'string' ||
+                        !confirmedRoom.hostUid ||
+                        confirmedRoom.hostUid === user.uid ||
+                        (initialRoom && confirmedRoom.hostUid !== initialRoom.hostUid) ||
                         confirmedRoom.guestUid !== user.uid ||
                         confirmedRoom.status !== 'building'
                     ) {
