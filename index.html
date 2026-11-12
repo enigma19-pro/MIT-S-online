@@ -1111,7 +1111,7 @@
                 if (
                     (typeof value.currentHp !== 'number' && typeof value.currentHp !== 'string') ||
                     (typeof value.currentHp === 'string' && value.currentHp.trim() === '') ||
-                    !Number.isFinite(incomingHp)
+                    !Number.isSafeInteger(incomingHp)
                 ) return null;
                 const currentHp = Math.min(maxHp, Math.max(0, Math.floor(incomingHp)));
                 const rawName = typeof value.name === 'string' ? value.name.trim() : '';
@@ -1942,8 +1942,8 @@
                 let defeated = false;
 
                 const parsedDamage = Number(damage);
-                const safeDamage = Number.isFinite(parsedDamage)
-                    ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, Math.floor(parsedDamage)))
+                const safeDamage = Number.isSafeInteger(parsedDamage)
+                    ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, parsedDamage))
                     : 0;
 
                 if (defenderPlayerNum === 1) {
