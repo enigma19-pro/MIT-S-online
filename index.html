@@ -1108,6 +1108,7 @@
                     const updatedAttackerMits = [...currentTurnMits];
                     updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
                     turnStart.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
+                    passiveAttack.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
                     if (gameMode === 'ONLINE') syncOnline(currentTurnPlayer === 1 ? { p1Mits: updatedAttackerMits } : { p2Mits: updatedAttackerMits });
                     if (isHit) {
@@ -1236,6 +1237,7 @@
                     const defenderWithState = { ...activeP1Mit, passiveState: passiveDefenseResult?.state || activeP1Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
+                    consequences.events.forEach(event => publishFloatingEffect({ player: event.startsWith('Enfurecimiento') ? attackerPlayerNum : defenderPlayerNum, text: event, type: 'hit' }));
                     const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
                         ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
                         : consequences.defenderState;
@@ -1250,6 +1252,7 @@
                     const defenderWithState = { ...activeP2Mit, passiveState: passiveDefenseResult?.state || activeP2Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
+                    consequences.events.forEach(event => publishFloatingEffect({ player: event.startsWith('Enfurecimiento') ? attackerPlayerNum : defenderPlayerNum, text: event, type: 'hit' }));
                     const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
                         ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
                         : consequences.defenderState;
@@ -1259,6 +1262,7 @@
                     defeated = newHp === 0;
                 }
 
+                passiveDefenseResult?.events?.forEach(event => publishFloatingEffect({ player: defenderPlayerNum, text: event, type: 'hit' }));
                 if (passiveDefenseResult?.triggersCounter && !defeated) {
                     logOverride = [...(Array.isArray(logOverride) ? logOverride : combatLog), {
                         type: 'system',
@@ -1522,6 +1526,7 @@
                     const updatedAiMits = [...p2Mits];
                     updatedAiMits[activeP2Index] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
                     turnStart.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
+                    passiveAttack.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
                     setP2Mits(updatedAiMits);
                     if (isHit) {
                         playSound('hit');
