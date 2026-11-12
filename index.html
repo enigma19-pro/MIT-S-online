@@ -1145,7 +1145,7 @@
                         confirmedRoom.hostUid === user.uid ||
                         (initialRoom && confirmedRoom.hostUid !== initialRoom.hostUid) ||
                         confirmedRoom.guestUid !== user.uid ||
-                        confirmedRoom.status !== 'waiting'
+                        !['waiting', 'building'].includes(confirmedRoom.status)
                     ) {
                         console.warn('La sala no confirmó la reserva del invitado:', {
                             roomCode: code,
