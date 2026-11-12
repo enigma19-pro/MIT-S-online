@@ -1130,10 +1130,6 @@
                         guestUid: user.uid
                     });
 
-                    if (fromPublicDirectory || initialRoom?.isPublic === true) {
-                        window.MITSFirebase.update(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`), { guestUid: user.uid }).catch(error => console.warn('No se pudo actualizar el listado público:', error));
-                    }
-
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al lobby.
                     joinStep = 'verificación de la reserva';
                     const confirmedSnapshot = await window.MITSFirebase.get(roomRef);
