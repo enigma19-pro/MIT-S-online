@@ -150,10 +150,10 @@
             next.ultraCharges = 0;
             events.push('Ultra Impulso activado');
         }
-        if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus) {
-            damage += 1;
+        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus) {
+            if (hit) damage += 1;
             next.technicalAttackBonus = false;
-            events.push('Técnico consumió Ataque +1');
+            events.push(hit ? 'Técnico consumió Ataque +1' : 'Técnico perdió Ataque +1 tras fallar');
         }
         if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
             damage = 1 + Math.max(0, Number(state.destructorBonus) || 0);
