@@ -126,11 +126,11 @@
     function safeRandom(random) {
         let value;
         try {
-            value = typeof random === 'function' ? random() : 0;
+            value = typeof random === 'function' ? random() : 0.5;
         } catch (error) {
-            return 0;
+            return 0.5;
         }
-        if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+        if (typeof value !== 'number' || !Number.isFinite(value)) return 0.5;
         return Math.min(1 - Number.EPSILON, Math.max(0, value));
     }
 
