@@ -242,14 +242,14 @@
 
         // --- CLASSES DEFINITIONS ---
         const MIT_CLASSES = [
-            { id: 'Agil1', name: 'Ágil 1', hp: 10, d: 2, a: 4, desc: 'Gran agilidad, muy frágil.' },
-            { id: 'Agil2', name: 'Ágil 2', hp: 15, d: 2, a: 3, desc: 'Agilidad moderada, alta evasión.' },
-            { id: 'Normal1', name: 'Normal 1', hp: 15, d: 2, a: 2, desc: 'Equilibrado táctico base.' },
-            { id: 'Normal2', name: 'Normal 2', hp: 20, d: 2, a: 1, desc: 'Tanque moderado de bajo esquive.' },
-            { id: 'Resistente1', name: 'Resistente 1', hp: 25, d: 3, a: 1, desc: 'Alta resistencia y buen ataque.' },
-            { id: 'Resistente2', name: 'Resistente 2', hp: 30, d: 2, a: 1, desc: 'Máxima vitalidad, difícil de batir.' },
-            { id: 'Dano1', name: 'Daño 1', hp: 20, d: 4, a: 1, desc: 'Fuerza brutal, cobertura ofensiva de 4.' },
-            { id: 'Dano2', name: 'Daño 2', hp: 20, d: 3, a: 2, desc: 'Ofensivo balanceado con evasión.' }
+            { id: 'Agil1', name: 'Evasivo', hp: 10, d: 2, a: 4, desc: 'Gran agilidad, muy frágil.' },
+            { id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3, desc: 'Agilidad moderada, alta evasión.' },
+            { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Equilibrado táctico base.' },
+            { id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1, desc: 'Tanque moderado de bajo esquive.' },
+            { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Alta resistencia y buen ataque.' },
+            { id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1, desc: 'Máxima vitalidad, difícil de batir.' },
+            { id: 'Dano1', name: 'Destructor', hp: 15, d: 4, a: 1, desc: 'Fuerza brutal, cobertura ofensiva de 4.' },
+            { id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2, desc: 'Ofensivo balanceado con evasión.' }
         ];
 
         // Generate AI MIT
@@ -651,12 +651,12 @@
                                 // La transacción evita que ambos clientes sobrescriban
                                 // al mismo tiempo quién abandonó la partida.
                                 await firebase.runTransaction(roomRef, current => {
-                                    if (!current || current.status !== 'battle') return;
+                                    if (!current || !['building', 'battle'].includes(current.status)) return;
                                     return {
                                         ...current,
                                         status: 'player_left',
                                         disconnectedPlayer: opponentNum,
-                                        winner: localPlayerNum
+                                        ...(current.status === 'battle' ? { winner: localPlayerNum } : {})
                                     };
                                 });
                             }
