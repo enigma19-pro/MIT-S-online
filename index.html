@@ -2931,8 +2931,8 @@
                                             <button onClick={() => navigator.clipboard?.writeText(roomCode)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-200 text-sm">📋 Copiar código</button>
                                         </div>
                                         <div className="grid grid-cols-2 gap-3">
-                                            <div className="rounded-xl bg-slate-950 border border-slate-800 p-3"><div className="text-xs text-slate-500">ANFITRIÓN</div><div className="font-bold text-white">Jugador 1</div></div>
-                                            <div className="rounded-xl bg-slate-950 border border-slate-800 p-3"><div className="text-xs text-slate-500">JUGADOR 2</div><div className={onlineRoomData?.guestUid ? "font-bold text-emerald-300" : "font-bold text-slate-500"}>{onlineRoomData?.guestUid ? 'Conectado' : 'Esperando...'}</div></div>
+                                            <div className="rounded-xl bg-slate-950 border border-slate-800 p-3"><div className="text-xs text-slate-500">ANFITRIÓN</div><div className="font-bold text-white">{onlineRoomData?.player1Name || 'Jugador 1'}</div></div>
+                                            <div className="rounded-xl bg-slate-950 border border-slate-800 p-3"><div className="text-xs text-slate-500">JUGADOR 2</div><div className={onlineRoomData?.guestUid ? "font-bold text-emerald-300" : "font-bold text-slate-500"}>{onlineRoomData?.guestUid ? (onlineRoomData?.player2Name || 'Conectado') : 'Esperando...'}</div></div>
                                         </div>
                                         {isRoomHost ? (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3105,7 +3105,7 @@
                                         <p className="text-slate-200">El Jugador {disconnectedPlayer} salió de la partida.</p>
                                         <p className="text-sm text-slate-400">
                                             La conexión se perdió o el jugador salió de la sala.
-                                            {winnerPlayer ? ` Resultado registrado: ganó el Jugador ${winnerPlayer}.` : ' La partida terminó sin un ganador registrado.'}
+                                            {winnerPlayer ? ` Resultado registrado: ganó ${getPlayerDisplayName(winnerPlayer)}.` : ' La partida terminó sin un ganador registrado.'}
                                         </p>
                                         <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider hover:brightness-110">Regresar al lobby</button>
                                     </div>
@@ -3122,7 +3122,7 @@
                                                 <span className="inline-block animate-pulse">⭐</span>
                                             </div>
                                             <h2 id="victory-title" className="text-4xl md:text-6xl font-black font-mono-custom text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-100 to-amber-500 drop-shadow-lg">
-                                                ¡GANÓ EL JUGADOR {winnerPlayer || '?'}!
+                                                ¡GANÓ {winnerPlayer ? getPlayerDisplayName(winnerPlayer).toUpperCase() : '…'}!
                                             </h2>
                                             <p className="text-slate-300 text-base md:text-lg">
                                                 {gameMode === 'ONLINE' ? 'La sala ha terminado. La victoria está registrada.' : 'Combate concluido. Buen lanzamiento.'}
@@ -3145,7 +3145,7 @@
                                     }`}>
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
-                                                <span className="text-xs font-bold font-mono-custom text-cyan-400 uppercase tracking-widest block">JUGADOR 1</span>
+                                                <span className="text-xs font-bold font-mono-custom text-cyan-400 uppercase tracking-widest block">{getPlayerDisplayName(1).toUpperCase()}</span>
                                                 <h3 className="text-xl font-black text-slate-100 font-mono-custom">{activeP1Mit.name}</h3>
                                             </div>
                                             <span className="px-2.5 py-1 rounded-lg text-xs font-bold font-mono-custom bg-slate-800 text-slate-300 border border-slate-700">
@@ -3206,7 +3206,7 @@
                                         <div className="flex justify-between items-start mb-3">
                                             <div>
                                                 <span className="text-xs font-bold font-mono-custom text-purple-400 uppercase tracking-widest block">
-                                                    {gameMode === 'AI' ? 'JUGADOR 2 (IA)' : 'JUGADOR 2'}
+                                                    {getPlayerDisplayName(2).toUpperCase()}
                                                 </span>
                                                 <h3 className="text-xl font-black text-slate-100 font-mono-custom">{activeP2Mit.name}</h3>
                                             </div>
