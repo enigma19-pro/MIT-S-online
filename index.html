@@ -1296,7 +1296,8 @@
             const handleMitDefeated = (playerNum, updatedMits, logOverride = null, allMits = null) => {
                 const finalP1Mits = allMits?.p1Mits || (playerNum === 1 ? updatedMits : p1Mits);
                 const finalP2Mits = allMits?.p2Mits || (playerNum === 2 ? updatedMits : p2Mits);
-                if (playerNum === 1) setP1Mits(finalP1Mits); else setP2Mits(finalP2Mits);
+                setP1Mits(finalP1Mits);
+                setP2Mits(finalP2Mits);
                 // Conservamos en una sola secuencia el registro de defensa y el KO.
                 const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
                 const koLog = [...baseLog, {
