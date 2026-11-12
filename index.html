@@ -634,6 +634,9 @@
             // Game State
             const [gameState, setGameState] = useState('MENU'); // MENU, BUILD, BATTLE, GAMEOVER
             const [gameMode, setGameMode] = useState('AI'); // 'AI' | 'LOCAL' | 'ONLINE'
+            // Nombre temporal: se conserva mientras esta página permanezca abierta.
+            const [playerName, setPlayerName] = useState('');
+            const [nameDraft, setNameDraft] = useState('');
             const [onlineUser, setOnlineUser] = useState(null);
             const [roomCode, setRoomCode] = useState('');
             const [roomInput, setRoomInput] = useState('');
@@ -782,6 +785,15 @@
             }, [combatLog]);
 
             const playSound = (type) => playSynthSound(type, soundEnabled);
+
+            const getPlayerDisplayName = playerNum => {
+                if (gameMode === 'ONLINE') {
+                    const roomName = playerNum === 1 ? onlineRoomData?.player1Name : onlineRoomData?.player2Name;
+                    return typeof roomName === 'string' && roomName.trim() ? roomName.trim().slice(0, 24) : `Jugador ${playerNum}`;
+                }
+                if (playerNum === 1) return playerName || 'Jugador 1';
+                return gameMode === 'AI' ? 'IA' : 'Jugador 2';
+            };
 
             useEffect(() => {
                 if (!window.MITSFirebase) return;
@@ -972,7 +984,7 @@
                         const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
                             if (current !== null) return;
                             return {
-                                hostUid: user.uid, guestUid: null, status: 'waiting',
+                                hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '', status: 'waiting',
                                 roomName: (roomName.trim() || 'Sala de combate').slice(0, 40),
                                 isPublic: roomVisibility === 'public', createdAt: Date.now(),
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
@@ -1127,7 +1139,8 @@
                     // Si dos invitados compiten, Firebase acepta uno y rechaza el otro.
                     joinStep = 'reserva del lugar';
                     await window.MITSFirebase.update(roomRef, {
-                        guestUid: user.uid
+                        guestUid: user.uid,
+                        player2Name: playerName
                     });
 
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al lobby.
@@ -2509,7 +2522,7 @@
                 const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
                 const victoryLog = [...baseLog, {
                     type: 'victory',
-                    text: `🏆 ¡FIN DE LA PARTIDA! Jugador ${winnerPlayerNum} ha ganado.`
+                    text: `🏆 ¡FIN DE LA PARTIDA! ${getPlayerDisplayName(winnerPlayerNum)} ha ganado.`
                 }];
                 setCombatLog(victoryLog);
                 if (gameMode === 'ONLINE') {
@@ -2670,6 +2683,21 @@
 
             return (
                 <div className="app-shell min-h-screen flex flex-col justify-between p-3 md:p-6 w-full">
+                    {!playerName && (
+                        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/95 backdrop-blur-md p-5">
+                            <form onSubmit={event => {
+                                event.preventDefault();
+                                const cleanName = nameDraft.trim().replace(/\\s+/g, ' ').slice(0, 24);
+                                if (cleanName) setPlayerName(cleanName);
+                            }} className="w-full max-w-md glass-panel rounded-3xl border border-cyan-400/30 p-7 md:p-9 text-center space-y-5 shadow-2xl">
+                                <div className="text-5xl">🎲</div>
+                                <h2 className="text-2xl md:text-3xl font-black text-white font-mono-custom">BIENVENIDO A MIT’S</h2>
+                                <p className="text-slate-300">Introduce un nombre para identificarte en las salas y en la pantalla de victoria.</p>
+                                <input autoFocus autoComplete="nickname" value={nameDraft} onChange={event => setNameDraft(event.target.value.slice(0, 24))} maxLength={24} placeholder="Tu nombre" aria-label="Introduce un nombre" className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-4 text-white text-center text-lg font-bold outline-none" />
+                                <button type="submit" disabled={!nameDraft.trim()} className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-400 to-blue-600 text-slate-950 font-black uppercase tracking-wider disabled:opacity-40">Entrar al juego</button>
+                            </form>
+                        </div>
+                    )}
                     {/* TOP HEADER */}
                     <header className="app-header glass-panel rounded-2xl p-4 mb-4 flex flex-wrap justify-between items-center border-b border-cyan-500/20">
                         <div className="flex items-center gap-3">
