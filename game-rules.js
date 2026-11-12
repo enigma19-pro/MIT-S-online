@@ -279,7 +279,10 @@
             next.shadowCooldownTurns = 1;
             events.push('Sombra activada: invulnerable durante el próximo turno rival');
         }
-        const triggersCounter = allowCounterTrigger && state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
+        // Ultra Impulso no puede activar una defensa de contraataque:
+        // el primer golpe del Duelista tampoco puede encadenar otra secuencia.
+        const triggersCounter = allowCounterTrigger && !isUltra && !forceHit &&
+            state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
             !state.counterSequence && state.counterCooldownTurns <= 0 && damage <= 1;
         return {
             damage, fullyDodged, isEvadeNumber: base.isEvadeNumber,
