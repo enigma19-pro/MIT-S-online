@@ -1483,7 +1483,7 @@
 
             const handleSwitchMit = () => {
                 if (gameState !== 'BATTLE' || combatPhase !== 'ATTACK_ROLL' ||
-                    isRolling || isTurnProcessing || availableMitIndex === null) {
+                    isRolling || isTurnProcessing || availableMitIndex === null || currentAttacker.passiveState?.counterSequence) {
                     return;
                 }
                 if (gameMode === 'ONLINE' &&
@@ -2195,7 +2195,7 @@
                                                 </button>
                                             )}
 
-                                            {combatPhase === 'ATTACK_ROLL' && availableMit && !(gameMode === 'AI' && currentTurnPlayer === 2) && (
+                                            {combatPhase === 'ATTACK_ROLL' && availableMit && !currentAttacker.passiveState?.counterSequence && !(gameMode === 'AI' && currentTurnPlayer === 2) && (
                                                 <button
                                                     disabled={isRolling || isTurnProcessing}
                                                     onClick={handleSwitchMit}
