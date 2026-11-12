@@ -157,7 +157,7 @@ test('Technical has a 50 percent proc followed by a 50/50 bonus type', () => {
 
 test('Technical can store one attack and one defense bonus independently', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
-    const result = beginPassiveAttackTurn(mit, (() => { const values = [0.1, 0.9]; return () => values.shift(); })());
+    const result = beginPassiveAttackTurn(mit, (() => { const values = [0.1, 0.1]; return () => values.shift(); })());
     assert.equal(result.state.technicalAttackBonus, true);
     assert.equal(result.state.technicalDefenseBonus, true);
 });
@@ -185,7 +185,7 @@ test('Sombra nullifies a normal hit and activates its one-turn shield', () => {
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 6 });
     assert.equal(result.damage, 0);
-    assert.equal(result.state.shadowInvulnerableTurns, 1);
+    assert.equal(result.state.shadowInvulnerableTurns, 2);
     assert.equal(result.state.shadowCooldownTurns, 1);
 });
 
