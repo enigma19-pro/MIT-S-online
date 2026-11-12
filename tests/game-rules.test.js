@@ -595,3 +595,20 @@ test('non-finite incoming damage is clamped instead of reaching HP resolution', 
         { isEvadeNumber: true, finalDamageTaken: 0 }
     );
 });
+
+
+test('Ultra Impulso bypasses Duelista counter-trigger defenses even for a one-point hit', () => {
+    const attacker = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        passiveState: createPassiveState(PASSIVE_CLASS_IDS.EVASIVO)
+    };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.DUELISTA },
+        passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA)
+    };
+    const result = resolvePassiveDefense({
+        attacker, defender, attackDamage: 1, defenseRoll: 1, unstoppable: true
+    });
+    assert.equal(result.damage, 1);
+    assert.equal(result.triggersCounter, false);
+});
