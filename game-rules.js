@@ -115,17 +115,58 @@
         };
     }
 
+    function safeRandom(random) {
+        const value = Number(typeof random === 'function' ? random() : 0);
+        if (!Number.isFinite(value)) return 0;
+        return Math.min(1 - Number.EPSILON, Math.max(0, value));
+    }
+
+    function safeCounter(value, min, max, fallback = min) {
+        const number = Number(value);
+        if (!Number.isFinite(number)) return fallback;
+        return Math.min(max, Math.max(min, Math.trunc(number)));
+    }
+
     function passiveState(mit) {
-        const defaults = createPassiveState(mit?.classData?.id);
-        return { ...defaults, ...(mit?.passiveState || {}) };
+        const raw = mit?.passiveState && typeof mit.passiveState === 'object'
+            ? mit.passiveState
+            : {};
+        const classId = mit?.classData?.id || raw.passiveClassId || null;
+        const defaults = createPassiveState(classId);
+        const phase = raw.counterSequence?.phase;
+        const opponentPlayer = Number(raw.counterSequence?.opponentPlayer);
+        const counterSequence = (phase === 'FIRST' || phase === 'SECOND')
+            ? {
+                phase,
+                ...(opponentPlayer === 1 || opponentPlayer === 2 ? { opponentPlayer } : {})
+            }
+            : null;
+
+        return {
+            ...defaults,
+            passiveClassId: classId,
+            ultraCharges: safeCounter(raw.ultraCharges, 0, 3),
+            shadowInvulnerableTurns: safeCounter(raw.shadowInvulnerableTurns, 0, 2),
+            shadowCooldownTurns: safeCounter(raw.shadowCooldownTurns, 0, 1),
+            technicalAttackBonus: raw.technicalAttackBonus === true,
+            technicalDefenseBonus: raw.technicalDefenseBonus === true,
+            adaptabilityCharges: safeCounter(raw.adaptabilityCharges, 0, 2),
+            berserkerPhase: raw.berserkerPhase === 2 ? 2 : 1,
+            murallaHits: safeCounter(raw.murallaHits, 0, 4),
+            murallaQuietTurns: safeCounter(raw.murallaQuietTurns, 0, 3),
+            murallaDamagedThisTurn: raw.murallaDamagedThisTurn === true,
+            destructorBonus: safeCounter(raw.destructorBonus, 0, Number.MAX_SAFE_INTEGER),
+            counterCooldownTurns: safeCounter(raw.counterCooldownTurns, 0, 1),
+            counterSequence
+        };
     }
 
     function beginPassiveAttackTurn(mit, random = Math.random) {
         const state = passiveState(mit);
         const next = { ...state };
         const events = [];
-        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && random() < 0.5) {
-            const type = random() < 0.5 ? 'attack' : 'defense';
+        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && safeRandom(random) < 0.5) {
+            const type = safeRandom(random) < 0.5 ? 'attack' : 'defense';
             const key = type === 'attack' ? 'technicalAttackBonus' : 'technicalDefenseBonus';
             if (!next[key]) {
                 next[key] = true;
@@ -140,7 +181,7 @@
         const faces = Array.isArray(attacker?.attackNums) ? attacker.attackNums : [];
         const ultra = state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && state.ultraCharges >= 3;
         const selectedRoll = ultra && faces.length
-            ? faces[Math.floor(random() * faces.length)]
+            ? faces[Math.floor(safeRandom(random) * faces.length)]
             : roll;
         const hit = ultra || isSuccessfulAttack(faces, selectedRoll);
         let damage = hit ? Number(selectedRoll) : 0;
