@@ -33,12 +33,17 @@
         return attackNums.some(number => parseDieFace(number) === rolledNumber);
     }
 
+    function parseDamage(value) {
+        if (typeof value !== 'number' && typeof value !== 'string') return 0;
+        if (typeof value === 'string' && value.trim() === '') return 0;
+        const number = Number(value);
+        return Number.isFinite(number)
+            ? Math.min(Number.MAX_SAFE_INTEGER, Math.max(0, number))
+            : 0;
+    }
+
     function resolveDefense({ attackDamage, defenseRoll, evadeNums } = {}) {
-        const rawDamage = (
-            typeof attackDamage === 'number' ||
-            (typeof attackDamage === 'string' && attackDamage.trim() !== '')
-        ) ? Number(attackDamage) : NaN;
-        const damage = Number.isFinite(rawDamage) ? Math.max(0, rawDamage) : 0;
+        const damage = parseDamage(attackDamage);
         const roll = parseDieFace(defenseRoll);
         const evadeNumbers = Array.isArray(evadeNums)
             ? evadeNums.map(parseDieFace).filter(number => number !== null)
@@ -122,6 +127,8 @@
     }
 
     function safeCounter(value, min, max, fallback = min) {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        if (typeof value === 'string' && value.trim() === '') return fallback;
         const number = Number(value);
         if (!Number.isSafeInteger(number)) return fallback;
         return Math.min(max, Math.max(min, number));
@@ -134,7 +141,11 @@
         const classId = mit?.classData?.id || raw.passiveClassId || null;
         const defaults = createPassiveState(classId);
         const phase = raw.counterSequence?.phase;
-        const opponentPlayer = Number(raw.counterSequence?.opponentPlayer);
+        const rawOpponentPlayer = raw.counterSequence?.opponentPlayer;
+        const opponentPlayer = (
+            typeof rawOpponentPlayer === 'number' ||
+            (typeof rawOpponentPlayer === 'string' && rawOpponentPlayer.trim() !== '')
+        ) ? Number(rawOpponentPlayer) : NaN;
         const counterSequence = (phase === 'FIRST' || phase === 'SECOND')
             ? {
                 phase,
@@ -155,7 +166,7 @@
             murallaHits: safeCounter(raw.murallaHits, 0, 4),
             murallaQuietTurns: safeCounter(raw.murallaQuietTurns, 0, 3),
             murallaDamagedThisTurn: raw.murallaDamagedThisTurn === true,
-            destructorBonus: safeCounter(raw.destructorBonus, 0, Number.MAX_SAFE_INTEGER),
+            destructorBonus: safeCounter(raw.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1),
             counterCooldownTurns: safeCounter(raw.counterCooldownTurns, 0, 1),
             counterSequence
         };
@@ -181,12 +192,15 @@
         const faces = Array.isArray(attacker?.attackNums)
             ? attacker.attackNums.map(parseDieFace).filter(face => face !== null)
             : [];
-        const ultra = state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && state.ultraCharges >= 3;
-        const selectedRoll = ultra && faces.length
+        // Ultra Impulso solo puede activarse si conserva al menos una cara D
+        // válida. Nunca convierte una distribución corrupta en un golpe NaN.
+        const ultra = state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO &&
+            state.ultraCharges >= 3 && faces.length > 0;
+        const selectedRoll = ultra
             ? faces[Math.floor(safeRandom(random) * faces.length)]
-            : roll;
+            : parseDieFace(roll);
         const hit = ultra || isSuccessfulAttack(faces, selectedRoll);
-        let damage = hit ? Number(selectedRoll) : 0;
+        let damage = hit && selectedRoll !== null ? selectedRoll : 0;
         const events = [];
         const next = { ...state };
         if (ultra) {
@@ -200,7 +214,8 @@
             events.push(hit ? 'Técnico consumió Ataque +1' : 'Técnico perdió Ataque +1 tras fallar');
         }
         if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
-            damage = 1 + Math.max(0, Number(state.destructorBonus) || 0);
+            const bonus = safeCounter(state.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
+            damage = Math.min(Number.MAX_SAFE_INTEGER, 1 + bonus);
         }
         return { hit, roll: selectedRoll, damage, state: next, events, unstoppable: ultra };
     }
@@ -216,7 +231,7 @@
             defenseRoll,
             evadeNums: isUltra || shadow || forceHit ? [] : defender?.evadeNums
         });
-        const rawAttackDamage = Math.max(0, Number(attackDamage) || 0);
+        const rawAttackDamage = parseDamage(attackDamage);
         const berserkerPhaseTwoDodge = !isUltra && !shadow && !forceHit
             && state.passiveClassId === PASSIVE_CLASS_IDS.BERSERKER
             && state.berserkerPhase === 2
@@ -240,12 +255,12 @@
             rawAttackDamage > 0 && damage === 0;
         if (shadow) events.push('Sombra anuló el ataque');
         if (isUltra) events.push('Ultra Impulso ignoró defensas y estados de evasión');
-        if (!shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
+        if (!forceHit && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
             const vulnerability = state.murallaHits === 0 ? 2 : state.murallaHits === 1 ? 1 : 0;
             const reduction = isUltra ? 0 : Math.min(3, Math.max(0, state.murallaHits - 1));
             damage = Math.max(0, damage + vulnerability - reduction);
         }
-        if (!isUltra && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
+        if (!forceHit && !isUltra && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
             damage = Math.max(0, damage - 2);
             next.adaptabilityCharges = 0;
             events.push('Adaptabilidad consumió 2 cargas y redujo 2 de daño');
@@ -280,9 +295,12 @@
         const nextAttacker = { ...attackerState };
         const nextDefender = { ...defenderState };
         const events = [];
-        const actualLoss = Math.max(0, Number(hpLost) || 0);
+        const actualLoss = parseDamage(hpLost);
         if (actualLoss > 0 && attackerState.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR && !shadowNullified) {
-            nextAttacker.destructorBonus = Math.max(0, Number(attackerState.destructorBonus) || 0) + 1;
+            nextAttacker.destructorBonus = Math.min(
+                Number.MAX_SAFE_INTEGER - 1,
+                safeCounter(attackerState.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1) + 1
+            );
             events.push(`Enfurecimiento: daño permanente +${nextAttacker.destructorBonus}`);
         }
         if (actualLoss > 0 && defenderState.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL) {
@@ -350,15 +368,17 @@
         if (state.passiveClassId !== PASSIVE_CLASS_IDS.BERSERKER || state.berserkerPhase !== 1) return null;
         if (!Array.isArray(attackNums) || attackNums.length !== 1 ||
             !Array.isArray(evadeNums) || evadeNums.length !== 5) return null;
-        const all = [...attackNums, ...evadeNums];
-        if (new Set(all).size !== 6 || all.some(face => parseDieFace(face) === null)) return null;
+        const normalizedAttackNums = attackNums.map(parseDieFace);
+        const normalizedEvadeNums = evadeNums.map(parseDieFace);
+        const all = [...normalizedAttackNums, ...normalizedEvadeNums];
+        if (all.some(face => face === null) || new Set(all).size !== 6) return null;
         return {
             ...mit,
             name: 'MIT Berserker · Fase 2',
             maxHp: 3,
             currentHp: 3,
-            attackNums: [...attackNums],
-            evadeNums: [...evadeNums],
+            attackNums: normalizedAttackNums,
+            evadeNums: normalizedEvadeNums,
             classData: { ...(mit.classData || {}), hp: 3, d: 1, a: 5 },
             passiveState: { ...state, berserkerPhase: 2, ultraCharges: 0,
                 shadowInvulnerableTurns: 0, technicalAttackBonus: false,
@@ -375,6 +395,7 @@
         resolveMitDefeat,
         PASSIVE_CLASS_IDS,
         createPassiveState,
+        normalizePassiveState: passiveState,
         beginPassiveAttackTurn,
         resolvePassiveAttack,
         resolvePassiveDefense,
