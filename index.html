@@ -329,6 +329,7 @@
 
             const displayFloatingEffect = (effect) => {
                 if (!effect || !effect.id || lastFloatingEffectIdRef.current === effect.id) return;
+                if (effect.createdAt && Date.now() - effect.createdAt > 10000) return;
                 lastFloatingEffectIdRef.current = effect.id;
                 setFloatingEffect(effect);
                 if (floatingEffectTimerRef.current !== null) clearTimeout(floatingEffectTimerRef.current);
@@ -773,7 +774,8 @@
             const publishFloatingEffect = (effect) => {
                 const event = {
                     ...effect,
-                    id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+                    id: `${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                    createdAt: Date.now()
                 };
                 displayFloatingEffect(event);
                 if (gameMode === 'ONLINE') syncOnline({ floatingEffect: event });
