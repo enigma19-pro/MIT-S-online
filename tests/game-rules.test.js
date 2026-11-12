@@ -388,13 +388,24 @@ test('Resetting Muralla progression never changes its HP', () => {
     assert.equal(mit.currentHp, 7);
 });
 
-test('Sombra activates after a successful evade and can fully nullify the current hit', () => {
+test('Sombra only activates after a complete dodge', () => {
     const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
-    const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
-    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 6 });
-    assert.equal(result.damage, 0);
-    assert.equal(result.state.shadowInvulnerableTurns, 2);
-    assert.equal(result.state.shadowCooldownTurns, 1);
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [3, 6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
+
+    const partial = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 3 });
+    assert.equal(partial.damage, 1);
+    assert.equal(partial.state.shadowInvulnerableTurns, 0);
+    assert.equal(partial.state.shadowCooldownTurns, 0);
+
+    const complete = resolvePassiveDefense({
+        attacker,
+        defender: { ...defender, passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) },
+        attackDamage: 4,
+        defenseRoll: 6
+    });
+    assert.equal(complete.damage, 0);
+    assert.equal(complete.state.shadowInvulnerableTurns, 2);
+    assert.equal(complete.state.shadowCooldownTurns, 1);
 });
 
 test('Adaptabilidad consumes two charges and prevents exactly two damage', () => {
