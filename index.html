@@ -1143,17 +1143,20 @@
                 const passiveInput = value.attackerPassiveState && typeof value.attackerPassiveState === 'object'
                     ? value.attackerPassiveState
                     : attacker?.passiveState;
+                const normalizedPassiveState = MITSGameRules.normalizePassiveState({
+                    ...(attacker || {}),
+                    passiveState: passiveInput
+                });
 
                 return {
                     success: value.success,
                     damage: value.success ? damage : 0,
                     roll,
                     unstoppable: value.unstoppable === true && classId === 'Agil1',
-                    counterChain: value.counterChain === true && classId === 'Dano2',
-                    attackerPassiveState: MITSGameRules.normalizePassiveState({
-                        ...(attacker || {}),
-                        passiveState: passiveInput
-                    })
+                    counterChain: value.counterChain === true &&
+                        classId === 'Dano2' &&
+                        normalizedPassiveState.counterSequence?.phase === 'SECOND',
+                    attackerPassiveState: normalizedPassiveState
                 };
             };
 
