@@ -657,7 +657,7 @@
                 };
 
                 const schedulePresenceCheck = () => {
-                    if (!['building', 'battle'].includes(currentRoomStatus) || presenceGraceTimerRef.current !== null) return;
+                    if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus) || presenceGraceTimerRef.current !== null) return;
                     presenceGraceTimerRef.current = setTimeout(async () => {
                         presenceGraceTimerRef.current = null;
                         try {
@@ -666,11 +666,11 @@
                                 firebase.get(roomRef)
                             ]);
                             const latestRoom = roomSnapshot.exists() ? roomSnapshot.val() : null;
-                            if (!presenceSnapshot.exists() && ['building', 'battle'].includes(latestRoom?.status)) {
+                            if (!presenceSnapshot.exists() && ['building', 'battle', 'berserker_build'].includes(latestRoom?.status)) {
                                 // La transacción evita que ambos clientes sobrescriban
                                 // al mismo tiempo quién abandonó la partida.
                                 await firebase.runTransaction(roomRef, current => {
-                                    if (!current || !['building', 'battle'].includes(current.status)) return;
+                                    if (!current || !['building', 'battle', 'berserker_build'].includes(current.status)) return;
                                     return {
                                         ...current,
                                         status: 'player_left',
@@ -688,7 +688,7 @@
                 const presenceHandler = snapshot => {
                     opponentPresenceKnown = true;
                     opponentIsPresent = snapshot.exists();
-                    if (!['building', 'battle'].includes(currentRoomStatus) || opponentIsPresent) {
+                    if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus) || opponentIsPresent) {
                         clearPresenceGraceTimer();
                     } else {
                         schedulePresenceCheck();
@@ -699,7 +699,7 @@
                     const room = snapshot.val();
                     if (!room) return;
                     currentRoomStatus = room.status || null;
-                    if (!['building', 'battle'].includes(currentRoomStatus)) {
+                    if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus)) {
                         clearPresenceGraceTimer();
                         if (currentRoomStatus === 'gameover') {
                             // A partir de GAMEOVER usamos el onDisconnect de la sala
