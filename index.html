@@ -2877,8 +2877,8 @@
                                         <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider hover:brightness-110">Regresar al lobby</button>
                                     </div>
                                 )}
-                                {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
-                                    <div className="victory-overlay fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/95 backdrop-blur-md p-6 lg:p-12">
+                                {gameState === 'GAMEOVER' && !disconnectedPlayer && (
+                                    <div className="victory-overlay fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/95 backdrop-blur-md p-6 lg:p-12" role="dialog" aria-modal="true" aria-labelledby="victory-title">
                                         <div className="victory-rays-anchor" aria-hidden="true">
                                             <div className="victory-rays"></div>
                                         </div>
@@ -2888,16 +2888,22 @@
                                                 <span className="text-6xl md:text-8xl">🏆</span>
                                                 <span className="inline-block animate-pulse">⭐</span>
                                             </div>
-                                            <h2 className="text-4xl md:text-6xl font-black font-mono-custom text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-100 to-amber-500 drop-shadow-lg">
+                                            <h2 id="victory-title" className="text-4xl md:text-6xl font-black font-mono-custom text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-100 to-amber-500 drop-shadow-lg">
                                                 ¡GANÓ EL JUGADOR {winnerPlayer || '?'}!
                                             </h2>
-                                            <button onClick={returnToOnlineLobby} className="px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 text-lg font-black uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition">
-                                                Regresar al lobby
+                                            <p className="text-slate-300 text-base md:text-lg">
+                                                {gameMode === 'ONLINE' ? 'La sala ha terminado. La victoria está registrada.' : 'Combate concluido. Buen lanzamiento.'}
+                                            </p>
+                                            <button
+                                                onClick={gameMode === 'ONLINE' ? returnToOnlineLobby : resetGame}
+                                                className="px-8 py-4 rounded-2xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 text-lg font-black uppercase tracking-wider shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95 transition"
+                                            >
+                                                {gameMode === 'ONLINE' ? 'Regresar al lobby' : 'Volver al menú'}
                                             </button>
                                         </div>
                                     </div>
                                 )}
-                                {!disconnectedPlayer && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
+                                {!disconnectedPlayer && gameState === 'BATTLE' && (
                                     <>
                                         <div className="battle-players grid grid-cols-1 md:grid-cols-2 gap-4 relative">
                                     {/* PLAYER 1 CARD */}
@@ -3091,6 +3097,7 @@
                                 )}
 
                                 {/* COMBAT LOG */}
+                                {gameState === 'BATTLE' && !disconnectedPlayer && (
                                 <div className="battle-log glass-panel rounded-2xl p-4 border border-slate-800">
                                     <h4 className="text-xs font-bold font-mono-custom text-slate-400 uppercase tracking-widest mb-2">BITÁCORA DE COMBATE</h4>
                                     <div ref={logContainerRef} className="battle-log-list h-32 overflow-y-auto space-y-1 text-xs font-mono-custom pr-2">
@@ -3111,6 +3118,7 @@
                                         ))}
                                     </div>
                                 </div>
+                                )}
                                     </>
                                 )}
                             </div>
