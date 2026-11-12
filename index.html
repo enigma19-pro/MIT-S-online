@@ -1289,7 +1289,7 @@
                 }
 
                 if (defeated) {
-                    handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2, logOverride);
+                    handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2, logOverride, { p1Mits: updatedP1, p2Mits: updatedP2 });
                     return;
                 }
 
@@ -1299,7 +1299,10 @@
                     }), 1000);
             };
 
-            const handleMitDefeated = (playerNum, updatedMits, logOverride = null) => {
+            const handleMitDefeated = (playerNum, updatedMits, logOverride = null, allMits = null) => {
+                const finalP1Mits = allMits?.p1Mits || (playerNum === 1 ? updatedMits : p1Mits);
+                const finalP2Mits = allMits?.p2Mits || (playerNum === 2 ? updatedMits : p2Mits);
+                if (playerNum === 1) setP1Mits(finalP1Mits); else setP2Mits(finalP2Mits);
                 // Conservamos en una sola secuencia el registro de defensa y el KO.
                 const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
                 const koLog = [...baseLog, {
@@ -1339,8 +1342,8 @@
                             syncOnline({
                                 status: 'berserker_build',
                                 berserkerRebuild: rebuild,
-                                p1Mits: playerNum === 1 ? updatedMits : p1Mits,
-                                p2Mits: playerNum === 2 ? updatedMits : p2Mits,
+                                p1Mits: finalP1Mits,
+                                p2Mits: finalP2Mits,
                                 combatLog: rebuildLog,
                                 attackResult: null,
                                 combatPhase: 'RESOLVING'
@@ -1354,8 +1357,8 @@
                     // Publica el KO sin adelantar todavía el turno: el MIT sustituto
                     // debe entrar antes de habilitar la siguiente tirada.
                     syncOnline({
-                        p1Mits: playerNum === 1 ? updatedMits : p1Mits,
-                        p2Mits: playerNum === 2 ? updatedMits : p2Mits,
+                        p1Mits: finalP1Mits,
+                        p2Mits: finalP2Mits,
                         combatLog: koLog,
                         attackResult: null,
                         combatPhase: 'RESOLVING'
@@ -1391,8 +1394,8 @@
                     // endTurn recibe al jugador anterior para que el turno pase al derrotado.
                     const playerWhoJustActed = defeatResolution.nextPlayer === 1 ? 2 : 1;
                     const onlineOverrides = playerNum === 1
-                        ? { activeP1Index: reserveIndex, p1Mits: updatedMits, p2Mits: p2Mits }
-                        : { activeP2Index: reserveIndex, p1Mits: p1Mits, p2Mits: updatedMits };
+                        ? { activeP1Index: reserveIndex, p1Mits: finalP1Mits, p2Mits: finalP2Mits }
+                        : { activeP2Index: reserveIndex, p1Mits: finalP1Mits, p2Mits: finalP2Mits };
                     endTurn(playerWhoJustActed, entryLog, onlineOverrides);
                 }, 1000);
             };
