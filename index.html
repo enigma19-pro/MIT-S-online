@@ -784,7 +784,12 @@
                     onlineListenerRef.current = null;
                 }
                 if (firebase && onlinePresenceRef.current) {
-                    firebase.off(onlinePresenceRef.current.connectedRef, 'value', onlinePresenceRef.current.connectedHandler);
+                    const presence = onlinePresenceRef.current;
+                    presence.dispose?.();
+                    firebase.off(presence.connectedRef, 'value', presence.connectedHandler);
+                    firebase.set(presence.connectionRef, null).catch(error => {
+                        console.warn('No se pudo limpiar la presencia al desmontar:', error);
+                    });
                     onlinePresenceRef.current = null;
                 }
             }, []);
@@ -1277,7 +1282,7 @@
 
                     if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus)) {
                         clearPresenceGraceTimer();
-                        if (['gameover', 'player_left'].includes(currentRoomStatus)) stopOnlinePresenceListener();
+                        if (['gameover', 'player_left'].includes(currentRoomStatus)) stopOnlinePresenceListener(true);
                     } else if (opponentPresenceKnown && !opponentIsPresent) {
                         schedulePresenceCheck();
                     } else if (!opponentPresenceKnown) {
@@ -2391,7 +2396,7 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
-                stopOnlinePresenceListener();
+                await stopOnlinePresenceListener(true);
 
                 // El reinicio local no debe depender de la latencia de Firebase.
                 setGameState('MENU');
