@@ -294,17 +294,17 @@
             // La primera recepción añade +1; la segunda queda neutra.
             // Desde el tercer impacto se resta 1 por escalón, hasta un máximo de 3.
             const vulnerability = state.murallaHits === 0 ? 1 : 0;
-            const reduction = isUltra ? 0 : Math.min(3, Math.max(0, state.murallaHits - 1));
+            const reduction = Math.min(3, Math.max(0, state.murallaHits - 1));
             damage = Math.max(0, damage + vulnerability - reduction);
         }
-        if (!forceHit && !isUltra && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
+        if (!forceHit && !shadow && damage > 0 && state.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL && state.adaptabilityCharges >= 2) {
             damage = Math.max(0, damage - 2);
             next.adaptabilityCharges = 0;
             events.push('Adaptabilidad consumió 2 cargas y redujo 2 de daño');
         }
         if (!forceHit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus > 0) {
             const bonus = next.technicalDefenseBonus;
-            if (!isUltra && !shadow && damage > 0) {
+            if (!shadow && damage > 0) {
                 damage = Math.max(0, damage - bonus);
                 events.push(`Técnico aplicó Defensa +${bonus}`);
             } else if (isUltra) {
