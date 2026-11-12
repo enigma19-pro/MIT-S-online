@@ -1205,6 +1205,48 @@
                 }];
                 setCombatLog(koLog);
 
+                const defeatedActiveIndex = playerNum === 1 ? activeP1Index : activeP2Index;
+                const defeatedMit = updatedMits[defeatedActiveIndex];
+                const defeatedState = defeatedMit?.passiveState || {};
+                if (defeatedMit?.classData?.id === 'Resistente1' && defeatedState.berserkerPhase !== 2) {
+                    const rebuild = { playerNum, index: defeatedActiveIndex };
+                    const rebuildLog = [...koLog, {
+                        type: 'system',
+                        text: '🔥 ¡ÚLTIMO INSTINTO! Berserker entra en su segunda fase con 3 HP. Debe reasignar el dado: 1 cara D y 5 caras A.'
+                    }];
+                    if (gameMode === 'AI' && playerNum === 2) {
+                        const faces = [1, 2, 3, 4, 5, 6];
+                        const chosen = faces[Math.floor(Math.random() * faces.length)];
+                        const phaseTwo = window.MITSGameRules.activateBerserkerSecondPhase(defeatedMit, [chosen], faces.filter(n => n !== chosen));
+                        const aiUpdated = [...updatedMits];
+                        aiUpdated[defeatedActiveIndex] = phaseTwo;
+                        setP2Mits(aiUpdated);
+                        setCombatLog([...rebuildLog, { type: 'system', text: `🤖 La IA asignó ${chosen} a D y el resto a A.` }]);
+                        scheduleGameTimeout(() => endTurn(1, rebuildLog, { p1Mits, p2Mits: aiUpdated }), 900);
+                    } else {
+                        if (playerNum === 1) setP1Mits(updatedMits); else setP2Mits(updatedMits);
+                        setBerserkerRebuild(rebuild);
+                        setBuilderPlayer(playerNum);
+                        setSelectedClass({ ...MIT_CLASSES.find(c => c.id === 'Resistente1'), name: 'Berserker · Fase 2', hp: 3, d: 1, a: 5 });
+                        setCurrentDNums([]);
+                        setCurrentANums([]);
+                        setGameState('BUILD');
+                        setCombatLog(rebuildLog);
+                        if (gameMode === 'ONLINE') {
+                            syncOnline({
+                                status: 'berserker_build',
+                                berserkerRebuild: rebuild,
+                                p1Mits: playerNum === 1 ? updatedMits : p1Mits,
+                                p2Mits: playerNum === 2 ? updatedMits : p2Mits,
+                                combatLog: rebuildLog,
+                                attackResult: null,
+                                combatPhase: 'RESOLVING'
+                            });
+                        }
+                    }
+                    return;
+                }
+
                 if (gameMode === 'ONLINE') {
                     // Publica el KO sin adelantar todavía el turno: el MIT sustituto
                     // debe entrar antes de habilitar la siguiente tirada.
