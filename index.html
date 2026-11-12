@@ -286,14 +286,17 @@
 
         // --- MAIN APP COMPONENT ---
         class AppErrorBoundary extends React.Component {
-            state = { hasError: false };
+            state = { hasError: false, errorMessage: '' };
 
-            static getDerivedStateFromError() {
-                return { hasError: true };
+            static getDerivedStateFromError(error) {
+                return {
+                    hasError: true,
+                    errorMessage: error instanceof Error ? error.message : String(error || 'Error desconocido')
+                };
             }
 
-            componentDidCatch(error) {
-                console.error('MIT\'S render error:', error);
+            componentDidCatch(error, info) {
+                console.error('MIT\\'S render error:', error, info);
             }
 
             render() {
@@ -306,6 +309,14 @@
                                 <p className="mt-3 text-sm text-slate-400 font-mono-custom">
                                     La partida no se borró. Recarga la página para reconstruir la interfaz desde el estado actual.
                                 </p>
+                                {this.state.errorMessage && (
+                                    <details className="mt-4 text-left">
+                                        <summary className="cursor-pointer text-xs text-slate-500">Detalle técnico</summary>
+                                        <pre className="mt-2 max-h-28 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950/80 p-3 text-[10px] text-rose-300">
+                                            {this.state.errorMessage}
+                                        </pre>
+                                    </details>
+                                )}
                                 <button
                                     onClick={() => window.location.reload()}
                                     className="mt-6 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold"
@@ -1177,8 +1188,36 @@
             const clearOpponentTemporaryEffects = (mits) => (Array.isArray(mits) ? mits : [])
                 .map(mit => mit ? window.MITSGameRules.clearTemporaryPassiveEffects(mit) : mit);
 
-            const activeP1Mit = p1Mits[activeP1Index] || {};
-            const activeP2Mit = p2Mits[activeP2Index] || {};
+            const normalizeMitForRender = (mit) => {
+                const source = mit && typeof mit === 'object' && !Array.isArray(mit) ? mit : {};
+                const sourceClass = source.classData && typeof source.classData === 'object' && !Array.isArray(source.classData)
+                    ? source.classData
+                    : {};
+                const maxHpValue = Number(source.maxHp);
+                const currentHpValue = Number(source.currentHp);
+                const maxHp = Number.isFinite(maxHpValue) && maxHpValue > 0 ? maxHpValue : 1;
+                const currentHp = Number.isFinite(currentHpValue) ? Math.min(maxHp, Math.max(0, currentHpValue)) : 0;
+                const attackNums = Array.isArray(source.attackNums) ? source.attackNums.filter(Number.isFinite) : [];
+                const evadeNums = Array.isArray(source.evadeNums) ? source.evadeNums.filter(Number.isFinite) : [];
+
+                return {
+                    ...source,
+                    name: typeof source.name === 'string' && source.name.trim() ? source.name : 'MIT',
+                    maxHp,
+                    currentHp,
+                    attackNums,
+                    evadeNums,
+                    classData: {
+                        ...sourceClass,
+                        id: typeof sourceClass.id === 'string' ? sourceClass.id : null,
+                        d: Number.isInteger(Number(sourceClass.d)) ? Number(sourceClass.d) : 0,
+                        a: Number.isInteger(Number(sourceClass.a)) ? Number(sourceClass.a) : 0
+                    }
+                };
+            };
+
+            const activeP1Mit = normalizeMitForRender(p1Mits[activeP1Index]);
+            const activeP2Mit = normalizeMitForRender(p2Mits[activeP2Index]);
             activeP2MitRef.current = activeP2Mit;
 
             const currentAttacker = currentTurnPlayer === 1 ? activeP1Mit : activeP2Mit;
@@ -1441,9 +1480,18 @@
                 }];
                 setCombatLog(koLog);
 
-                const defeatedActiveIndex = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                const refIndex = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                const stateIndex = playerNum === 1 ? activeP1Index : activeP2Index;
+                const fallbackIndex = updatedMits.findIndex(mit =>
+                    mit?.classData?.id === 'Resistente1' && Number(mit.currentHp) <= 0
+                );
+                const defeatedActiveIndex = Number.isInteger(refIndex) && refIndex >= 0 && refIndex < updatedMits.length
+                    ? refIndex
+                    : Number.isInteger(stateIndex) && stateIndex >= 0 && stateIndex < updatedMits.length
+                        ? stateIndex
+                        : fallbackIndex >= 0 ? fallbackIndex : 0;
                 const defeatedMit = updatedMits[defeatedActiveIndex];
-                const defeatedState = defeatedMit?.passiveState || {};
+                const defeatedState = window.MITSGameRules.createPassiveState(defeatedMit?.classData?.id);
                 if (defeatedMit?.classData?.id === 'Resistente1' && defeatedState.berserkerPhase !== 2) {
                     const rebuild = { playerNum, index: defeatedActiveIndex };
                     const rebuildLog = [...koLog, {
@@ -1453,7 +1501,33 @@
                     if (gameMode === 'AI' && playerNum === 2) {
                         const faces = [1, 2, 3, 4, 5, 6];
                         const chosen = faces[Math.floor(Math.random() * faces.length)];
-                        const phaseTwo = window.MITSGameRules.activateBerserkerSecondPhase(defeatedMit, [chosen], faces.filter(n => n !== chosen));
+                        const berserkerBase = {
+                            ...defeatedMit,
+                            classData: {
+                                ...(defeatedMit?.classData || {}),
+                                id: 'Resistente1',
+                                hp: 20,
+                                d: 3,
+                                a: 1
+                            },
+                            passiveState: {
+                                ...window.MITSGameRules.createPassiveState('Resistente1'),
+                                ...(defeatedMit?.passiveState || {}),
+                                passiveClassId: 'Resistente1',
+                                berserkerPhase: 1
+                            }
+                        };
+                        const phaseTwo = window.MITSGameRules.activateBerserkerSecondPhase(
+                            berserkerBase,
+                            [chosen],
+                            faces.filter(n => n !== chosen)
+                        );
+                        if (!phaseTwo) {
+                            console.error('No se pudo reconstruir la segunda fase del Berserker de la IA.', defeatedMit);
+                            setOnlineStatus('La IA no pudo reconstruir su Berserker.');
+                            isSubmittingMitRef.current = false;
+                            return;
+                        }
                         const aiUpdated = [...updatedMits];
                         aiUpdated[defeatedActiveIndex] = phaseTwo;
                         const humanUpdated = clearOpponentTemporaryEffects(finalP1Mits);
@@ -2492,7 +2566,7 @@
 
                     {/* FOOTER */}
                     <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(39)
+                        MIT’S Engine — Manual Oficial v1.0 · PR(40)
                     </footer>
                 </div>
             );
