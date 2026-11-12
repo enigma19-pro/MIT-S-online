@@ -443,11 +443,11 @@ test('Duelista counter triggers only when it receives zero or one damage', () =>
 });
 
 
-test('Technical attack bonus is consumed even when the attack misses', () => {
+test('Technical attack bonus remains accumulated when the attack misses', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [1], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: true } };
     const result = resolvePassiveAttack({ attacker: mit, roll: 6 });
     assert.equal(result.hit, false);
-    assert.equal(result.state.technicalAttackBonus, 0);
+    assert.equal(result.state.technicalAttackBonus, 1);
 });
 
 test('Technical defense bonus persists after reducing damage and cannot reduce below one', () => {
@@ -535,12 +535,12 @@ test('Adaptabilidad can still reduce damage to zero without consuming charges wh
     assert.equal(result.state.adaptabilityCharges, 2);
 });
 
-test('Ultra Impulso consumes Technical defense bonus without allowing its reduction', () => {
+test('Ultra Impulso ignores Technical defense bonus without consuming it', () => {
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 1, unstoppable: true });
     assert.equal(result.damage, 5);
-    assert.equal(result.state.technicalDefenseBonus, 0);
+    assert.equal(result.state.technicalDefenseBonus, 1);
 });
 
 
