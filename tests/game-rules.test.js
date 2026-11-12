@@ -301,3 +301,25 @@ test('Muralla does not count the turn in which it was damaged toward its decay',
     assert.equal(state.murallaHits, 0);
 });
 
+
+test('Destructor starts at one damage and adds its permanent accumulation', () => {
+    const base = { classData: { id: PASSIVE_CLASS_IDS.DESTRUCTOR }, attackNums: [4], passiveState: createPassiveState(PASSIVE_CLASS_IDS.DESTRUCTOR) };
+    assert.equal(resolvePassiveAttack({ attacker: base, roll: 4 }).damage, 1);
+    const enraged = { ...base, passiveState: { ...base.passiveState, destructorBonus: 3 } };
+    assert.equal(resolvePassiveAttack({ attacker: enraged, roll: 4 }).damage, 4);
+});
+
+test('Duelista counter chains can be explicitly suppressed for counterattacks', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.DUELISTA }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA) };
+    assert.equal(resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 6, allowCounterTrigger: false }).triggersCounter, false);
+});
+
+test('Duelista first counterattack bypasses dice defense and invulnerability', () => {
+    const attacker = { passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA) };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 1 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 3, forceHit: true, allowCounterTrigger: false });
+    assert.equal(result.damage, 3);
+    assert.equal(result.shadowNullified, false);
+});
+
