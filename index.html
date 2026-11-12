@@ -665,6 +665,7 @@
                     const rooms = Object.entries(value).map(([code, room]) => ({
                         code,
                         name: typeof room?.name === 'string' ? room.name.slice(0, 40) : 'Sala pública',
+                        hostName: typeof room?.hostName === 'string' ? room.hostName.trim().replace(/\s+/g, ' ').slice(0, 24) : 'Anfitrión',
                         guestUid: room?.guestUid || null,
                         hostUid: typeof room?.hostUid === 'string' ? room.hostUid : '',
                         createdAt: Number(room?.createdAt) || 0
@@ -789,7 +790,7 @@
             const getPlayerDisplayName = playerNum => {
                 if (gameMode === 'ONLINE') {
                     const roomName = playerNum === 1 ? onlineRoomData?.player1Name : onlineRoomData?.player2Name;
-                    return typeof roomName === 'string' && roomName.trim() ? roomName.trim().slice(0, 24) : `Jugador ${playerNum}`;
+                    return typeof roomName === 'string' && roomName.trim() ? roomName.trim().replace(/\s+/g, ' ').slice(0, 24) : `Jugador ${playerNum}`;
                 }
                 if (playerNum === 1) return playerName || 'Jugador 1';
                 return gameMode === 'AI' ? 'IA' : 'Jugador 2';
@@ -999,7 +1000,7 @@
                     if (roomVisibility === 'public') {
                         const publicRoomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`);
                         await window.MITSFirebase.set(publicRoomRef, {
-                            hostUid: user.uid, name: (roomName.trim() || 'Sala de combate').slice(0, 40), createdAt: Date.now()
+                            hostUid: user.uid, hostName: playerName, name: (roomName.trim() || 'Sala de combate').slice(0, 40), createdAt: Date.now()
                         });
                         await window.MITSFirebase.onDisconnect(publicRoomRef).remove();
                     }
@@ -1961,7 +1962,7 @@
                         }
                         const newLog = [...combatLog, {
                             type: 'attack_hit',
-                            text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${passiveAttack.roll}] → ¡Ataque Exitoso! El rival debe defender.`
+                            text: `🎯 ${getPlayerDisplayName(currentTurnPlayer)} (${currentAttacker.name}) sacó [${passiveAttack.roll}] → ¡Ataque exitoso! El rival debe defender.`
                         }];
                         setAttackResult(atkData);
                         setCombatPhase('DEFENSE_ROLL');
@@ -1982,7 +1983,7 @@
                         playSound('fail');
                         const newLog = [...combatLog, {
                             type: 'attack_miss',
-                            text: `❌ Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → Ataque Fallado. Pasa el turno al rival.`
+                            text: `❌ ${getPlayerDisplayName(currentTurnPlayer)} (${currentAttacker.name}) sacó [${passiveAttack.roll}] → Ataque fallido. Pasa el turno al rival.`
                         }];
                         setAttackResult({ success: false, damage: 0, roll: passiveAttack.roll });
                         setCombatPhase('RESOLVING');
@@ -2046,7 +2047,7 @@
 
                         defenseLogEntry = {
                             type: 'defense_success',
-                            text: `🛡️ Jugador ${defenderPlayerNum} (${currentDefender.name}) sacó [${roll}] en Esquive → Daño recibido: ${finalDamageTaken}`
+                            text: `🛡️ ${getPlayerDisplayName(defenderPlayerNum)} (${currentDefender.name}) sacó [${roll}] en esquive → Daño recibido: ${finalDamageTaken}`
                         };
                         setCombatLog(prev => [...prev, defenseLogEntry]);
                         publishFloatingEffect({
@@ -2058,7 +2059,7 @@
                         playSound('hit');
                         defenseLogEntry = {
                             type: 'defense_fail',
-                            text: `💥 Jugador ${defenderPlayerNum} (${currentDefender.name}) sacó [${roll}] en Esquive → Esquive fallido. Daño recibido: ${finalDamageTaken}`
+                            text: `💥 ${getPlayerDisplayName(defenderPlayerNum)} (${currentDefender.name}) sacó [${roll}] en esquive → Esquive fallido. Daño recibido: ${finalDamageTaken}`
                         };
                         setCombatLog(prev => [...prev, defenseLogEntry]);
                         publishFloatingEffect({
@@ -2176,7 +2177,7 @@
                 const baseLog = Array.isArray(logOverride) ? logOverride : combatLog;
                 const koLog = [...baseLog, {
                     type: 'ko',
-                    text: `☠️ ¡MIT de Jugador ${playerNum} fue DERROTADO!`
+                    text: `☠️ ¡El MIT de ${getPlayerDisplayName(playerNum)} fue derrotado!`
                 }];
                 setCombatLog(koLog);
 
@@ -2297,7 +2298,7 @@
                 const reserveMit = updatedMits[reserveIndex];
                 const entryLog = [...koLog, {
                     type: 'system',
-                    text: `🔄 Entra el MIT de reserva de Jugador ${playerNum}: ${reserveMit?.name || 'MIT de reserva'}`
+                    text: `🔄 Entra el MIT de reserva de ${getPlayerDisplayName(playerNum)}: ${reserveMit?.name || 'MIT de reserva'}`
                 }];
 
                 scheduleGameTimeout(() => {
@@ -2418,7 +2419,7 @@
                 const playerNum = currentTurnPlayer;
                 const switchLog = [...combatLog, {
                     type: 'system',
-                    text: `🔄 Jugador ${playerNum} cambia ${currentAttacker.name} por ${availableMit.name}. Cede el turno al rival.`
+                    text: `🔄 ${getPlayerDisplayName(playerNum)} cambia ${currentAttacker.name} por ${availableMit.name}. Cede el turno al rival.`
                 }];
 
                 if (playerNum === 1) {
@@ -2989,7 +2990,7 @@
                                             <div className="flex justify-between items-center"><h3 className="font-black text-white">🌐 SALAS PÚBLICAS</h3><span className="text-xs text-slate-500">{publicRooms.length} disponibles</span></div>
                                             {publicRooms.length === 0 ? <p className="text-sm text-slate-500">No hay salas públicas disponibles ahora.</p> : publicRooms.map(room => (
                                                 <div key={room.code} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 p-3">
-                                                    <div className="min-w-0"><div className="font-bold text-white truncate">{room.name}</div><div className="text-xs text-slate-500">1/2 jugadores · Sala pública</div></div>
+                                                    <div className="min-w-0"><div className="font-bold text-white truncate">{room.name}</div><div className="text-xs text-slate-500">Anfitrión: {room.hostName} · 1/2 jugadores</div></div>
                                                     <button onClick={() => joinOnlineRoom(room.code)} className="px-3 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-sm font-bold">Unirse</button>
                                                 </div>
                                             ))}
@@ -3009,7 +3010,7 @@
                                             Fase de Construcción
                                         </span>
                                         <h2 className="text-2xl font-bold text-slate-100 mt-1 font-mono-custom">
-                                            {gameMode === 'ONLINE' ? `JUGADOR ${isRoomHost ? 1 : 2}: ${((isRoomHost ? p1Mits : p2Mits).length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}` : `JUGADOR ${builderPlayer}: ${builderPlayer === 1 ? (p1Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2') : (p2Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}`}
+                                            {gameMode === 'ONLINE' ? `${getPlayerDisplayName(isRoomHost ? 1 : 2).toUpperCase()}: ${((isRoomHost ? p1Mits : p2Mits).length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}` : `${getPlayerDisplayName(builderPlayer).toUpperCase()}: ${builderPlayer === 1 ? (p1Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2') : (p2Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}`}
                                         </h2>
                                     </div>
                                     {gameMode === 'ONLINE' && (
