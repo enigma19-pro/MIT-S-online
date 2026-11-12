@@ -138,7 +138,7 @@ test('reserve lookup rejects invalid lists and active indices', () => {
 const {
     PASSIVE_CLASS_IDS, createPassiveState, beginPassiveAttackTurn,
     resolvePassiveAttack, resolvePassiveDefense, applyPassiveDamageConsequences,
-    advancePassiveTurn, activateBerserkerSecondPhase
+    advancePassiveTurn, activateBerserkerSecondPhase, clearTemporaryPassiveEffects
 } = require('../game-rules.js');
 
 test('passive state starts with clean counters and independent Technical slots', () => {
