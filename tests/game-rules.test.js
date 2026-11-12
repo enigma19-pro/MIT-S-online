@@ -136,7 +136,7 @@ test('reserve lookup rejects invalid lists and active indices', () => {
 
 
 const {
-    PASSIVE_CLASS_IDS, createPassiveState, beginPassiveAttackTurn,
+    PASSIVE_CLASS_IDS, createPassiveState, normalizePassiveState, beginPassiveAttackTurn,
     resolvePassiveAttack, resolvePassiveDefense, applyPassiveDamageConsequences,
     advancePassiveTurn, activateBerserkerSecondPhase, clearTemporaryPassiveEffects
 } = require('../game-rules.js');
@@ -526,3 +526,72 @@ test('Berserker cleanse removes rival charges and temporary effects but preserve
     assert.equal(clean.passiveState.berserkerPhase, 2);
 });
 
+
+
+test('Berserker phase-two faces are normalized before uniqueness is checked', () => {
+    const berserker = {
+        classData: { id: PASSIVE_CLASS_IDS.BERSERKER },
+        passiveState: createPassiveState(PASSIVE_CLASS_IDS.BERSERKER)
+    };
+    assert.equal(
+        activateBerserkerSecondPhase(berserker, ['1'], [1, 2, 3, 4, 5]),
+        null
+    );
+    const valid = activateBerserkerSecondPhase(berserker, ['1'], ['2', '3', '4', '5', '6']);
+    assert.deepEqual(valid.attackNums, [1]);
+    assert.deepEqual(valid.evadeNums, [2, 3, 4, 5, 6]);
+});
+
+test('corrupted passive counters do not coerce booleans or null into charges', () => {
+    const mit = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        passiveState: { ultraCharges: true, destructorBonus: null, murallaHits: false }
+    };
+    const state = normalizePassiveState(mit);
+    assert.equal(state.ultraCharges, 0);
+    assert.equal(state.destructorBonus, 0);
+    assert.equal(state.murallaHits, 0);
+});
+
+test('Ultra Impulso cannot turn an invalid attack distribution into NaN damage', () => {
+    const mit = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        attackNums: [0, 7],
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 }
+    };
+    const result = resolvePassiveAttack({ attacker: mit, roll: NaN });
+    assert.equal(result.hit, false);
+    assert.equal(result.damage, 0);
+    assert.equal(result.unstoppable, false);
+    assert.equal(result.state.ultraCharges, 3);
+});
+
+test('Duelista forced first counterattack bypasses passive damage reductions', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const muralla = {
+        classData: { id: PASSIVE_CLASS_IDS.MURALLA },
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 4 }
+    };
+    const result = resolvePassiveDefense({
+        attacker, defender: muralla, attackDamage: 5, forceHit: true, allowCounterTrigger: false
+    });
+    assert.equal(result.damage, 5);
+    assert.equal(result.state.murallaHits, 4);
+
+    const versatil = {
+        classData: { id: PASSIVE_CLASS_IDS.VERSATIL },
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 }
+    };
+    const protectedResult = resolvePassiveDefense({
+        attacker, defender: versatil, attackDamage: 5, forceHit: true, allowCounterTrigger: false
+    });
+    assert.equal(protectedResult.damage, 5);
+    assert.equal(protectedResult.state.adaptabilityCharges, 2);
+});
+
+test('non-finite incoming damage is clamped instead of reaching HP resolution', () => {
+    assert.deepEqual(
+        resolveDefense({ attackDamage: Infinity, defenseRoll: 2, evadeNums: [2] }),
+        { isEvadeNumber: true, finalDamageTaken: 0 }
+    );
+});
