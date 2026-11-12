@@ -197,7 +197,7 @@
             events.push(`Ultra Impulso: ${next.ultraCharges}/3 cargas`);
         }
         if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowCooldownTurns <= 0) {
-            next.shadowInvulnerableTurns = 1;
+            next.shadowInvulnerableTurns = 2;
             next.shadowCooldownTurns = 1;
             events.push('Sombra activada: invulnerable durante el próximo turno rival');
         }
@@ -254,7 +254,7 @@
         }
         if (opponentTurnEnded && state.shadowInvulnerableTurns > 0) next.shadowInvulnerableTurns = Math.max(0, state.shadowInvulnerableTurns - 1);
         if (ownTurnEnded && state.shadowCooldownTurns > 0) next.shadowCooldownTurns = Math.max(0, state.shadowCooldownTurns - 1);
-        if (ownTurnEnded && state.counterCooldownTurns > 0) next.counterCooldownTurns = Math.max(0, state.counterCooldownTurns - 1);
+        if (opponentTurnEnded && state.counterCooldownTurns > 0) next.counterCooldownTurns = Math.max(0, state.counterCooldownTurns - 1);
         return { state: next, events };
     }
 
