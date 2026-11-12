@@ -56,6 +56,23 @@
         };
     }
 
+    function resolveHpAfterDamage({ currentHp, maxHp, damage } = {}) {
+        const safeMaxHp = safeCounter(maxHp, 0, Number.MAX_SAFE_INTEGER);
+        const rawHp = (typeof currentHp === 'number' || typeof currentHp === 'string')
+            ? Number(currentHp)
+            : NaN;
+        const normalizedHp = Number.isSafeInteger(rawHp)
+            ? Math.min(safeMaxHp, Math.max(0, rawHp))
+            : 0;
+        const safeDamage = parseDamage(damage);
+        const nextHp = Math.max(0, normalizedHp - safeDamage);
+        return {
+            currentHp: nextHp,
+            hpLost: normalizedHp - nextHp,
+            defeated: nextHp === 0
+        };
+    }
+
     function findAvailableMitIndex(mits, activeIndex) {
         if (!Array.isArray(mits) || !Number.isInteger(activeIndex) ||
             activeIndex < 0 || activeIndex >= mits.length) {
@@ -232,7 +249,7 @@
         const attackState = passiveState(attacker);
         const state = passiveState(defender);
         const events = [];
-        const isUltra = unstoppable || (attackState.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && attackState.ultraCharges >= 3);
+        const isUltra = unstoppable === true;
         const shadow = state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowInvulnerableTurns > 0 && !isUltra && !forceHit;
         const base = resolveDefense({
             attackDamage,
@@ -245,13 +262,19 @@
             && state.berserkerPhase === 2
             && base.isEvadeNumber
             && rawAttackDamage > 0;
+        const duelistaDefense = !isUltra && !shadow && !forceHit
+            && state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA
+            && base.isEvadeNumber
+            && rawAttackDamage > 0;
         let damage = isUltra
             ? rawAttackDamage
             : shadow
                 ? 0
                 : berserkerPhaseTwoDodge
                     ? 0
-                    : base.finalDamageTaken;
+                    : duelistaDefense
+                        ? Math.min(1, base.finalDamageTaken)
+                        : base.finalDamageTaken;
         let next = { ...state };
         if (berserkerPhaseTwoDodge) {
             events.push('Berserker Fase 2: esquive perfecto');
@@ -281,7 +304,7 @@
         if (!forceHit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus > 0) {
             const bonus = next.technicalDefenseBonus;
             if (!isUltra && !shadow && damage > 0) {
-                damage = Math.max(1, damage - bonus);
+                damage = Math.max(0, damage - bonus);
                 events.push(`Técnico aplicó Defensa +${bonus}`);
             } else if (isUltra) {
                 events.push(`Técnico conserva Defensa +${bonus} (ignorada por Ultra Impulso)`);
@@ -305,7 +328,7 @@
         // el primer golpe del Duelista tampoco puede encadenar otra secuencia.
         const triggersCounter = allowCounterTrigger && !isUltra && !forceHit &&
             state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
-            !state.counterSequence && state.counterCooldownTurns <= 0 && damage <= 1;
+            duelistaDefense && !state.counterSequence && state.counterCooldownTurns <= 0 && damage <= 1;
         return {
             damage, fullyDodged, isEvadeNumber: base.isEvadeNumber,
             state: next, events, triggersCounter,
@@ -416,6 +439,7 @@
     return Object.freeze({
         isSuccessfulAttack,
         resolveDefense,
+        resolveHpAfterDamage,
         findAvailableMitIndex,
         resolveMitDefeat,
         PASSIVE_CLASS_IDS,
