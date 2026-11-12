@@ -231,7 +231,8 @@ test('Ultra Impulso only charges after a complete assigned-face dodge', () => {
         attackDamage: 7, defenseRoll: 6
     });
     assert.equal(damaged.damage, 1);
-    assert.equal(damaged.state.ultraCharges, 2);
+    // A partial reduction is not a complete dodge, so Ultra Impulso does not charge.
+    assert.equal(damaged.state.ultraCharges, 1);
 
     const missedA = resolvePassiveDefense({
         attacker, defender: {
