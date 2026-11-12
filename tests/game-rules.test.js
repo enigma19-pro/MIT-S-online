@@ -571,9 +571,21 @@ test('Ultra Impulso respects Muralla vulnerability and reduction', () => {
     assert.equal(result.damage, 3);
 });
 
-test('Sombra duration and cooldown tick on the correct players turns', () => {
-    const mit = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 2, shadowCooldownTurns: 1 } };
-    let state = advancePassiveTurn(mit, { opponentTurnEnded: true }).state;
+test('Sombra lasts two opponent turns and cooldown starts only after Sombra ends', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 2, shadowCooldownTurns: 2 } };
+    let state = advancePassiveTurn(mit, { ownTurnEnded: true }).state;
+    assert.equal(state.shadowInvulnerableTurns, 2);
+    assert.equal(state.shadowCooldownTurns, 2);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
+    assert.equal(state.shadowInvulnerableTurns, 1);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
+    assert.equal(state.shadowCooldownTurns, 2);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
+    assert.equal(state.shadowInvulnerableTurns, 0);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
+    assert.equal(state.shadowCooldownTurns, 1);
+    state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
+    assert.equal(state.shadowCooldownTurns, 0);
     assert.equal(state.shadowInvulnerableTurns, 1);
     assert.equal(state.shadowCooldownTurns, 1);
     state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
