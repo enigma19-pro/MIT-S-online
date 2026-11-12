@@ -1161,9 +1161,9 @@
                     setOnlineRoomData(confirmedRoom);
                     setIsRoomHost(false);
                     setGameMode('ONLINE');
-                    setGameState('ONLINE_LOBBY');
+                    setGameState(confirmedRoom.status === 'building' ? 'BUILD' : 'ONLINE_LOBBY');
                     setBuilderPlayer(2);
-                    setOnlineStatus('Te uniste a la sala. Espera a que el anfitrión inicie.');
+                    setOnlineStatus(confirmedRoom.status === 'building' ? 'Partida iniciada. Construye tus 2 MITs.' : 'Te uniste a la sala. Espera a que el anfitrión inicie la partida.');
                     setDisconnectedPlayer(null);
                     // Registra presencia antes de comenzar a construir/pelear.
                     await registerOnlinePresence(code, 2);
