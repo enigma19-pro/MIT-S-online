@@ -163,7 +163,7 @@ test('passive state trusts the current MIT class and clamps corrupted counters',
     assert.equal(result.roll, 5);
     assert.equal(result.damage, 6);
     assert.equal(result.state.ultraCharges, 0);
-    assert.equal(result.state.technicalAttackBonus, false);
+    assert.equal(result.state.technicalAttackBonus, 0);
 });
 
 test('Ultra Impulso random selection stays inside the assigned faces at random=1', () => {
@@ -429,7 +429,7 @@ test('Technical defense bonus is consumed after defense and cannot reduce damage
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 1, defenseRoll: 1 });
     assert.equal(result.damage, 1);
-    assert.equal(result.state.technicalDefenseBonus, false);
+    assert.equal(result.state.technicalDefenseBonus, 0);
 });
 
 test('Ultra Impulso still applies Muralla vulnerability but ignores its reduction', () => {
@@ -541,7 +541,7 @@ test('Berserker cleanse removes rival charges and temporary effects but preserve
     const clean = clearTemporaryPassiveEffects(mit);
     assert.equal(clean.passiveState.ultraCharges, 0);
     assert.equal(clean.passiveState.shadowInvulnerableTurns, 0);
-    assert.equal(clean.passiveState.technicalAttackBonus, false);
+    assert.equal(clean.passiveState.technicalAttackBonus, 0);
     assert.equal(clean.passiveState.adaptabilityCharges, 0);
     assert.equal(clean.passiveState.murallaHits, 0);
     assert.equal(clean.passiveState.counterSequence, null);
