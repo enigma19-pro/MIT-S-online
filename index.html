@@ -3137,57 +3137,108 @@
 
                         
                         {showMovementTest && (
-                            <div className="movement-test-screen fixed inset-0 z-[80] bg-slate-950/95 p-3 md:p-6">
-                                <div className="movement-test-shell max-w-6xl mx-auto h-full flex flex-col gap-3">
-                                    <div className="flex items-center justify-between glass-panel rounded-2xl border border-emerald-500/20 px-4 py-3">
-                                        <div>
-                                            <div className="text-xs font-mono-custom uppercase tracking-widest text-emerald-400">SANDBOX / PRUEBA</div>
-                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">Personaje movible</h2>
+                            <div className="movement-test-screen fixed inset-0 z-[80] bg-slate-950 p-2 md:p-4">
+                                <div className="movement-test-shell mx-auto h-full flex flex-col gap-2.5 md:gap-3">
+                                    <header className="shrink-0 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/20 bg-slate-900/90 px-3 py-2.5 md:px-5 md:py-3 shadow-xl">
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-emerald-300">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
+                                                Entrenamiento aislado · Zona 01
+                                            </div>
+                                            <h2 className="text-base md:text-2xl font-black font-mono-custom text-slate-100 leading-tight">Frontera Esmeralda</h2>
                                         </div>
-                                        <button onClick={() => setShowMovementTest(false)} className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold">Salir</button>
-                                    </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <div className="hidden sm:block text-right mr-2">
+                                                <div className="text-[9px] text-slate-500 font-mono-custom uppercase tracking-widest">Estado</div>
+                                                <div className={testIsMoving ? 'text-xs font-bold font-mono-custom text-cyan-300' : 'text-xs font-bold font-mono-custom text-slate-400'}>{testIsMoving ? (testIsSprinting ? 'ACELERANDO' : 'EN MOVIMIENTO') : 'EN REPOSO'}</div>
+                                            </div>
+                                            <button onClick={() => { resetTestJoystick(); testKeysRef.current = {}; testSprintRef.current = false; setShowMovementTest(false); }} className="px-3 md:px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/20 border border-slate-700 hover:border-rose-400/50 text-slate-200 font-bold text-xs md:text-sm transition">Salir ✕</button>
+                                        </div>
+                                    </header>
 
-                                    <div className="movement-test-terrain relative flex-1 min-h-0 overflow-hidden rounded-3xl border border-emerald-500/25 bg-[#16251c] shadow-2xl touch-none">
-                                        <div className="absolute inset-0 opacity-40" style={{
-                                            backgroundImage: 'linear-gradient(rgba(148,163,184,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.10) 1px, transparent 1px)',
-                                            backgroundSize: '48px 48px'
-                                        }} />
-                                        <div className="absolute left-[10%] top-[14%] w-20 h-8 rounded-full bg-emerald-900/70 border border-emerald-700/60 rotate-12" />
-                                        <div className="absolute right-[14%] top-[24%] w-28 h-10 rounded-full bg-emerald-900/70 border border-emerald-700/60 -rotate-6" />
-                                        <div className="absolute left-[23%] bottom-[18%] w-24 h-9 rounded-full bg-emerald-900/70 border border-emerald-700/60 rotate-3" />
-                                        <div className="absolute right-[28%] bottom-[16%] w-16 h-16 rounded-full bg-slate-800/80 border border-slate-700/70" />
-                                        <div
-                                            className="absolute w-14 h-14 md:w-16 md:h-16 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75"
-                                            style={{ left: testPlayerPos.x + '%', top: testPlayerPos.y + '%' }}
-                                        >
-                                            <div className="w-full h-full rounded-2xl bg-gradient-to-br from-cyan-300 to-cyan-600 border-4 border-cyan-100 shadow-[0_0_28px_rgba(34,211,238,.55)] flex items-center justify-center text-2xl md:text-3xl">⚡</div>
-                                            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-mono-custom text-cyan-200 whitespace-nowrap">PLAYER</div>
+                                    <section ref={testTerrainRef} className="movement-test-terrain relative flex-1 min-h-0 overflow-hidden rounded-2xl md:rounded-3xl border border-emerald-400/25 shadow-[0_20px_70px_rgba(0,0,0,.45)]" aria-label="Terreno de entrenamiento">
+                                        <div className="test-terrain-grid" />
+                                        <div className="test-trail test-trail-one" />
+                                        <div className="test-trail test-trail-two" />
+                                        <div className="test-grass-patch left-[8%] top-[36%] rotate-12" />
+                                        <div className="test-grass-patch right-[10%] top-[9%] -rotate-12" />
+                                        <div className="test-grass-patch left-[42%] bottom-[7%] rotate-6" />
+                                        <div className="absolute left-[50%] top-[50%] -translate-x-1/2 -translate-y-1/2 w-[min(46vw,420px)] aspect-square rounded-full border border-emerald-100/10 shadow-[0_0_50px_rgba(16,185,129,.05)] pointer-events-none z-[2]" />
+                                        <div className="absolute left-[50%] top-[50%] -translate-x-1/2 -translate-y-1/2 w-[min(30vw,270px)] aspect-square rounded-full border border-dashed border-emerald-100/10 pointer-events-none z-[2]" />
+
+                                        {MOVEMENT_TEST_OBSTACLES.map(obstacle => (
+                                            <div key={obstacle.id} className="test-obstacle" style={{ left: obstacle.x + '%', top: obstacle.y + '%', width: obstacle.size + 'px', height: obstacle.size + 'px' }} aria-hidden="true">
+                                                {obstacle.kind === 'tree' && <><div className="test-tree-shadow" /><div className="test-tree-trunk" /><div className="test-tree-crown" /></>}
+                                                {obstacle.kind === 'rock' && <div className="test-rock-body" />}
+                                                {obstacle.kind === 'ruin' && <><div className="test-ruin-shadow" /><div className="test-ruin-block" /><div className="test-ruin-block" /><div className="test-ruin-block" /><div className="test-ruin-top" /></>}
+                                                {obstacle.kind === 'bush' && <div className="test-bush" />}
+                                            </div>
+                                        ))}
+
+                                        <div className={'test-player ' + (testIsMoving ? 'is-moving ' : '') + (testIsSprinting ? 'is-sprinting' : '')} style={{ left: testPlayerPos.x + '%', top: testPlayerPos.y + '%', transform: 'translate(-50%, -50%)' }} aria-label="Personaje controlable">
+                                            <div className="test-player-shadow" />
+                                            <div className="test-player-aura" />
+                                            <div className="test-player-facing" style={{ transform: 'rotate(' + testPlayerFacing + 'deg)' }}>
+                                                <div className="test-player-sprite">
+                                                    <div className="test-player-jetpack" />
+                                                    <div className="test-player-leg left"><span className="test-player-boot" /></div>
+                                                    <div className="test-player-leg right"><span className="test-player-boot" /></div>
+                                                    <div className="test-player-arm left" />
+                                                    <div className="test-player-arm right" />
+                                                    <div className="test-player-torso" />
+                                                    <div className="test-player-helmet"><div className="test-player-visor" /></div>
+                                                </div>
+                                            </div>
+                                            <div className="test-player-label">NOVA · EXPLORADOR</div>
                                         </div>
 
-                                        <div className="absolute top-4 left-4 px-3 py-2 rounded-xl bg-slate-950/70 border border-slate-700 text-[10px] md:text-xs font-mono-custom text-slate-300">
-                                            WASD / flechas · joystick
+                                        <div className="absolute z-20 top-3 left-3 md:top-5 md:left-5 rounded-xl border border-white/10 bg-slate-950/65 backdrop-blur-sm px-3 py-2 pointer-events-none">
+                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold tracking-[.2em] text-emerald-300 uppercase">Sector de exploración</div>
+                                            <div className="text-[10px] md:text-xs text-slate-300 font-mono-custom mt-1">Bosque · Ruinas · Rocas</div>
+                                        </div>
+                                        <div className="absolute z-20 top-3 right-3 md:top-5 md:right-5 text-right rounded-xl border border-white/10 bg-slate-950/65 backdrop-blur-sm px-3 py-2 pointer-events-none">
+                                            <div className="text-[9px] md:text-[10px] font-mono-custom text-slate-500 uppercase tracking-widest">Coordenadas</div>
+                                            <div className="text-xs md:text-sm font-bold font-mono-custom text-cyan-200 tabular-nums">{testPlayerPos.x.toFixed(1)} : {testPlayerPos.y.toFixed(1)}</div>
                                         </div>
 
-                                        <div
-                                            ref={testJoystickRef}
-                                            onPointerDown={(e) => {
-                                                e.currentTarget.setPointerCapture(e.pointerId);
-                                                moveTestPlayer(e.clientX, e.clientY);
+                                        <div ref={testJoystickRef} className="test-joystick" onContextMenu={e => e.preventDefault()}
+                                            onPointerDown={e => {
+                                                if (testJoystickPointerRef.current !== null) return;
+                                                e.preventDefault();
+                                                testJoystickPointerRef.current = e.pointerId;
+                                                try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+                                                updateTestJoystick(e.clientX, e.clientY);
                                             }}
-                                            onPointerMove={(e) => {
-                                                if (e.currentTarget.hasPointerCapture(e.pointerId)) moveTestPlayer(e.clientX, e.clientY);
+                                            onPointerMove={e => {
+                                                if (testJoystickPointerRef.current === e.pointerId) {
+                                                    e.preventDefault();
+                                                    updateTestJoystick(e.clientX, e.clientY);
+                                                }
                                             }}
-                                            onPointerUp={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); resetTestJoystick(); }}
-                                            onPointerCancel={(e) => { e.currentTarget.releasePointerCapture(e.pointerId); resetTestJoystick(); }}
-                                            className="absolute left-5 bottom-5 md:left-8 md:bottom-8 w-32 h-32 md:w-40 md:h-40 rounded-full bg-slate-950/70 border-2 border-slate-600/80 shadow-2xl flex items-center justify-center touch-none"
-                                        >
-                                            <div className="absolute inset-3 rounded-full border border-slate-700/80" />
-                                            <div
-                                                className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-cyan-500/80 border-2 border-cyan-200 shadow-[0_0_20px_rgba(34,211,238,.35)] flex items-center justify-center text-slate-950 font-black transition-transform duration-75"
-                                                style={{ transform: `translate(${testJoystickKnob.x}px, ${testJoystickKnob.y}px)` }}
-                                            >✦</div>
+                                            onPointerUp={finishTestJoystickPointer}
+                                            onPointerCancel={finishTestJoystickPointer}
+                                            onLostPointerCapture={finishTestJoystickPointer}
+                                            role="application" aria-label="Joystick de movimiento: mantén una dirección para caminar">
+                                            <div className="test-joystick-ring" />
+                                            <div className="test-joystick-axis" />
+                                            <div className="test-joystick-knob" style={{ transform: 'translate(' + testJoystickKnob.x + 'px, ' + testJoystickKnob.y + 'px)' }}>✦</div>
                                         </div>
-                                    </div>
+
+                                        <button className={'test-sprint-control rounded-2xl flex flex-col items-center justify-center text-amber-100 font-mono-custom ' + (testIsSprinting ? 'is-active' : '')}
+                                            onPointerDown={startTestSprint} onPointerUp={stopTestSprint} onPointerCancel={stopTestSprint} onLostPointerCapture={stopTestSprint}
+                                            onContextMenu={e => e.preventDefault()} aria-label="Mantener para correr">
+                                            <span className="text-2xl md:text-3xl leading-none">⚡</span>
+                                            <span className="text-[9px] md:text-[10px] font-black tracking-[.18em] mt-1">CORRER</span>
+                                        </button>
+
+                                        <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-3 md:bottom-5 rounded-full bg-slate-950/65 border border-white/10 px-3 py-1.5 text-[9px] md:text-[10px] text-slate-300 font-mono-custom pointer-events-none whitespace-nowrap">
+                                            Joystick táctil · WASD / flechas · SHIFT para correr
+                                        </div>
+                                    </section>
+                                    <footer className="shrink-0 flex items-center justify-between gap-2 px-1 text-[9px] md:text-[10px] font-mono-custom text-slate-500">
+                                        <span>CONTROL CONTINUO · COLISIONES ACTIVAS</span>
+                                        <span>VELOCIDAD: {testIsSprinting ? 'SPRINT' : 'NORMAL'}</span>
+                                    </footer>
                                 </div>
                             </div>
                         )}
@@ -3234,7 +3285,7 @@
                                 </div>
 
                                 <button
-                                    onClick={() => { setShowMovementTest(true); setTestPlayerPos({ x: 50, y: 50 }); setTestJoystickKnob({ x: 0, y: 0 }); playSound('click'); }}
+                                    onClick={() => { const spawn = { x: 50, y: 52 }; testPlayerPositionRef.current = spawn; testFacingRef.current = 0; testMovingRef.current = false; testJoystickVectorRef.current = { x: 0, y: 0 }; testJoystickPointerRef.current = null; testSprintRef.current = false; testSprintingRef.current = false; testKeysRef.current = {}; setTestPlayerPos(spawn); setTestPlayerFacing(0); setTestIsMoving(false); setTestIsSprinting(false); setTestJoystickKnob({ x: 0, y: 0 }); setShowMovementTest(true); playSound('click'); }}
                                     className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between group hover:border-emerald-400 hover:bg-emerald-500/15 transition"
                                 >
                                     <div className="flex items-center gap-4 text-left">
