@@ -123,8 +123,8 @@
 
     function safeCounter(value, min, max, fallback = min) {
         const number = Number(value);
-        if (!Number.isFinite(number)) return fallback;
-        return Math.min(max, Math.max(min, Math.trunc(number)));
+        if (!Number.isSafeInteger(number)) return fallback;
+        return Math.min(max, Math.max(min, number));
     }
 
     function passiveState(mit) {
@@ -178,7 +178,9 @@
 
     function resolvePassiveAttack({ attacker, roll, random = Math.random } = {}) {
         const state = passiveState(attacker);
-        const faces = Array.isArray(attacker?.attackNums) ? attacker.attackNums : [];
+        const faces = Array.isArray(attacker?.attackNums)
+            ? attacker.attackNums.map(parseDieFace).filter(face => face !== null)
+            : [];
         const ultra = state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && state.ultraCharges >= 3;
         const selectedRoll = ultra && faces.length
             ? faces[Math.floor(safeRandom(random) * faces.length)]
