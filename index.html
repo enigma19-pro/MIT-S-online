@@ -1012,6 +1012,17 @@
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
                         const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
+                        if (currentAttacker.passiveState?.counterSequence?.phase === 'FIRST') {
+                            const defenderNum = currentTurnPlayer === 1 ? 2 : 1;
+                            const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...currentAttacker, passiveState: passiveAttack.state }, defender: currentDefender, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
+                            const counterLog = [...combatLog, { type: 'attack_hit', text: `⚔️ Contraataque 1/2 de ${currentAttacker.name}: el rival no puede defenderse.` }];
+                            setCombatLog(counterLog);
+                            setCombatPhase('RESOLVING');
+                            setIsTurnProcessing(false);
+                            publishFloatingEffect({ player: currentTurnPlayer, text: 'CONTRAATAQUE 1/2', type: 'hit' });
+                            applyDamageToDefender(defenderNum, forcedResult.damage, counterLog, null, forcedResult, currentTurnPlayer);
+                            return;
+                        }
                         const newLog = [...combatLog, {
                             type: 'attack_hit',
                             text: `🎯 Jugador ${currentTurnPlayer} (${currentAttacker.name}) sacó [${roll}] → ¡Ataque Exitoso! El rival debe defender.`
@@ -1328,6 +1339,16 @@
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
                         const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: aiMit.passiveState?.counterSequence?.phase === 'SECOND' };
+                        if (aiMit.passiveState?.counterSequence?.phase === 'FIRST') {
+                            const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...aiMit, passiveState: passiveAttack.state }, defender: activeP1Mit, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
+                            const counterLog = [...combatLog, { type: 'attack_hit', text: `⚔️ Contraataque 1/2 de ${aiMit.name}: no puedes defenderte.` }];
+                            setCombatLog(counterLog);
+                            setCombatPhase('RESOLVING');
+                            setIsTurnProcessing(false);
+                            publishFloatingEffect({ player: 2, text: 'CONTRAATAQUE 1/2', type: 'hit' });
+                            applyDamageToDefender(1, forcedResult.damage, counterLog, null, forcedResult, 2);
+                            return;
+                        }
                         setAttackResult(atkData);
                         setCombatPhase('DEFENSE_ROLL');
                         setIsTurnProcessing(false);
