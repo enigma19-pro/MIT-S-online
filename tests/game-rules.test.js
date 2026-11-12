@@ -203,7 +203,7 @@ test('Technical keeps its accumulated attack bonus after applying it', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [4], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: 3 } };
     const result = resolvePassiveAttack({ attacker: mit, roll: 4 });
     assert.equal(result.damage, 7);
-    assert.equal(result.state.technicalAttackBonus, 0);
+    assert.equal(result.state.technicalAttackBonus, 3);
 });
 
 test('Technical keeps its defense stack after reducing damage without dropping below one', () => {
@@ -280,8 +280,8 @@ test('Ultra Impulso charges after a successful assigned-face evade without nulli
         attackDamage: 7, defenseRoll: 6
     });
     assert.equal(damaged.damage, 1);
-    // A partial reduction is not a complete dodge, so Ultra Impulso does not charge.
-    assert.equal(damaged.state.ultraCharges, 1);
+    // Any assigned A face is a successful evade for Ultra Impulso, even if 1 HP remains.
+    assert.equal(damaged.state.ultraCharges, 2);
 
     const missedA = resolvePassiveDefense({
         attacker, defender: {
@@ -309,11 +309,11 @@ test('Resetting Muralla progression never changes its HP', () => {
     assert.equal(mit.currentHp, 7);
 });
 
-test('Sombra nullifies a normal hit and activates its one-turn shield', () => {
+test('Sombra activates its one-turn shield after a successful evade while the current hit deals at least one', () => {
     const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 6 });
-    assert.equal(result.damage, 0);
+    assert.equal(result.damage, 1);
     assert.equal(result.state.shadowInvulnerableTurns, 2);
     assert.equal(result.state.shadowCooldownTurns, 1);
 });
@@ -450,12 +450,12 @@ test('Technical attack bonus is consumed even when the attack misses', () => {
     assert.equal(result.state.technicalAttackBonus, 0);
 });
 
-test('Technical defense bonus is consumed after defense and cannot reduce damage below one', () => {
+test('Technical defense bonus persists after reducing damage and cannot reduce below one', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 1, defenseRoll: 1 });
     assert.equal(result.damage, 1);
-    assert.equal(result.state.technicalDefenseBonus, 0);
+    assert.equal(result.state.technicalDefenseBonus, 1);
 });
 
 test('Ultra Impulso still applies Muralla vulnerability but ignores its reduction', () => {
@@ -483,7 +483,7 @@ test('Duelista counter cooldown expires after one opponent turn', () => {
     assert.equal(advancePassiveTurn(mit, { opponentTurnEnded: true }).state.counterCooldownTurns, 0);
 });
 
-test('Muralla does not add vulnerability to a fully dodged zero-damage attack', () => {
+test('Muralla receives at least one damage even when its A face exceeds incoming damage', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
@@ -527,7 +527,7 @@ test('Duelista first counterattack bypasses dice defense and invulnerability', (
 });
 
 
-test('Adaptabilidad keeps its charges if a dodge already nullified all damage', () => {
+test('Adaptabilidad can still reduce damage to zero without consuming charges when no damage remains', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [6], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 6 });
