@@ -287,7 +287,12 @@
                 events.push(`Técnico conserva Defensa +${bonus} (ignorada por Ultra Impulso)`);
             }
         }
-        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
+        // Evasivo uses the normal damage calculation. It only gains a charge
+        // when that normal calculation leaves it with 0 or 1 damage.
+        const evasivoChargeEligible = successfulEvade &&
+            state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO &&
+            base.finalDamageTaken <= 1;
+        if (evasivoChargeEligible) {
             next.ultraCharges = Math.min(3, Math.max(0, Number(state.ultraCharges) || 0) + 1);
             events.push(`Ultra Impulso: ${next.ultraCharges}/3 cargas`);
         }
