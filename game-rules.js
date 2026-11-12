@@ -188,10 +188,10 @@
             next.adaptabilityCharges = 0;
             events.push('Adaptabilidad consumió 2 cargas y redujo 2 de daño');
         }
-        if (!isUltra && !shadow && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus) {
-            if (damage > 0) damage = Math.max(1, damage - 1);
+        if (!forceHit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus) {
+            if (!isUltra && !shadow && damage > 0) damage = Math.max(1, damage - 1);
             next.technicalDefenseBonus = false;
-            events.push('Técnico consumió Defensa +1');
+            events.push(isUltra ? 'Técnico consumió Defensa +1 (ignorada por Ultra Impulso)' : 'Técnico consumió Defensa +1');
         }
         if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
             next.ultraCharges = Math.min(3, state.ultraCharges + 1);
