@@ -215,7 +215,7 @@ test('Technical keeps its defense stack after reducing damage without dropping b
 });
 
 
-test('Evasivo cannot completely nullify damage with an A face', () => {
+test('Evasivo can fully nullify damage when its A face matches or exceeds the attack damage', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = {
         classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
@@ -223,12 +223,12 @@ test('Evasivo cannot completely nullify damage with an A face', () => {
         passiveState: createPassiveState(PASSIVE_CLASS_IDS.EVASIVO)
     };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 2, defenseRoll: 4 });
-    assert.equal(result.damage, 1);
-    assert.equal(result.fullyDodged, false);
+    assert.equal(result.damage, 0);
+    assert.equal(result.fullyDodged, true);
     assert.equal(result.state.ultraCharges, 1);
 });
 
-test('only Berserker phase two can completely nullify damage with an A face', () => {
+test('Berserker phase two can also completely nullify damage with an A face', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = {
         classData: { id: PASSIVE_CLASS_IDS.BERSERKER },
@@ -258,7 +258,7 @@ test('Ultra Impulso bypasses evasion and invulnerability but still leaves target
     assert.equal(result.shadowNullified, false);
 });
 
-test('Ultra Impulso charges after a successful assigned-face evade without nullifying damage', () => {
+test('Ultra Impulso charges after a successful assigned-face evade, including a complete nullification', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = {
         classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
@@ -269,7 +269,7 @@ test('Ultra Impulso charges after a successful assigned-face evade without nulli
     const blocked = resolvePassiveDefense({
         attacker, defender, attackDamage: 5, defenseRoll: 6
     });
-    assert.equal(blocked.damage, 1);
+    assert.equal(blocked.damage, 0);
     assert.equal(blocked.state.ultraCharges, 2);
 
     const damaged = resolvePassiveDefense({
@@ -280,7 +280,7 @@ test('Ultra Impulso charges after a successful assigned-face evade without nulli
         attackDamage: 7, defenseRoll: 6
     });
     assert.equal(damaged.damage, 1);
-    // Any assigned A face is a successful evade for Ultra Impulso, even if 1 HP remains.
+    // Any assigned A face is a successful evade for Ultra Impulso, including partial reduction.
     assert.equal(damaged.state.ultraCharges, 2);
 
     const missedA = resolvePassiveDefense({
