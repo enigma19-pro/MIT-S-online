@@ -282,8 +282,9 @@
         // Ultra Impulso only charges from a real, complete die-based dodge:
         // the defender must actually roll an assigned A face and reduce a
         // positive incoming hit to zero. Invulnerability is not a dodge.
-        // Una cara A exitosa reduce el daño, pero nunca lo anula por completo.
-        // La anulación total pertenece exclusivamente al Berserker en Fase 2.
+        // Evasivo, Móvil y las demás clases usan la fórmula normal de defensa.
+        // La anulación total especial e independiente del valor de A pertenece
+        // exclusivamente al Berserker en Fase 2.
         const successfulEvade = !isUltra && !shadow && !forceHit &&
             base.isEvadeNumber && rawAttackDamage > 0;
         const fullyDodged = berserkerPhaseTwoDodge;
@@ -319,7 +320,7 @@
             next.ultraCharges = Math.min(3, Math.max(0, Number(state.ultraCharges) || 0) + 1);
             events.push(`Ultra Impulso: ${next.ultraCharges}/3 cargas`);
         }
-        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowCooldownTurns <= 0) {
+        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && damage === 0 && state.shadowCooldownTurns <= 0) {
             next.shadowInvulnerableTurns = 2;
             next.shadowCooldownTurns = 1;
             events.push('Sombra activada: invulnerable durante el próximo turno rival');
