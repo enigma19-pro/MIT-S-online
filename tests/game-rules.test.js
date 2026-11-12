@@ -631,3 +631,29 @@ test('Muralla scales impact damage as +1, neutral, then reduction up to three', 
         assert.equal(result.damage, expectedDamage[hits], `murallaHits=${hits}`);
     }
 });
+
+
+test('fractional damage is rejected instead of reaching the HP system', () => {
+    assert.deepEqual(
+        resolveDefense({ attackDamage: 2.5, defenseRoll: 1, evadeNums: [1] }),
+        { isEvadeNumber: true, finalDamageTaken: 0 }
+    );
+});
+
+test('a malformed reserve HP value is not treated as a living MIT', () => {
+    assert.equal(
+        findAvailableMitIndex([{ currentHp: 10 }, { currentHp: true }], 0),
+        null
+    );
+    assert.equal(
+        findAvailableMitIndex([{ currentHp: 10 }, { currentHp: '2.5' }], 0),
+        null
+    );
+});
+
+test('random generators that return non-numbers or throw are safely neutralized', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
+    const result = beginPassiveAttackTurn(mit, () => { throw new Error('broken random source'); });
+    assert.equal(result.state.technicalAttackBonus, false);
+    assert.equal(result.state.technicalDefenseBonus, false);
+});
