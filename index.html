@@ -533,7 +533,7 @@
         const MIT_CLASSES = [
             { id: 'Agil1', name: 'Evasivo', hp: 10, d: 2, a: 4, desc: 'Ultra Impulso: 3 esquives completos activan un ataque inevitable con +1 daño.' },
             { id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3, desc: 'Sombra: un esquive completo otorga 1 turno rival de invulnerabilidad; enfriamiento de 1 turno.' },
-            { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Útil: 50% de obtener un bono al atacar; puede guardar uno de ataque y uno de defensa.' },
+            { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Útil: al inicio de cada turno acumula Ataque +1 y Defensa +1, hasta 3 de cada uno.' },
             { id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1, desc: 'Adaptabilidad: cada daño recibido carga; con 2 cargas reduce 2 del siguiente golpe.' },
             { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Último Instinto: al caer, vuelve con 3 HP; en Fase 2, cualquier A acertado anula todo el daño. Ultra Impulso lo atraviesa.' },
             { id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1, desc: 'Revestimiento: cada impacto mejora su resistencia hasta reducir 3 de daño.' },
@@ -1830,7 +1830,7 @@
                 const items = [];
                 if (id === 'Agil1') items.push(`Ultra Impulso: ${state.ultraCharges}/3`);
                 if (id === 'Agil2') { if (state.shadowInvulnerableTurns > 0) items.push('Sombra: invulnerable (1 turno rival)'); else if (state.shadowCooldownTurns > 0) items.push(`Sombra: enfriamiento (${state.shadowCooldownTurns})`); else items.push('Sombra: lista'); }
-                if (id === 'Normal1') { if (state.technicalAttackBonus) items.push('Ataque +1 guardado'); if (state.technicalDefenseBonus) items.push('Defensa +1 guardada'); }
+                if (id === 'Normal1') { items.push(`Ataque +${state.technicalAttackBonus}/3`); items.push(`Defensa +${state.technicalDefenseBonus}/3`); }
                 if (id === 'Normal2') items.push(`Adaptabilidad: ${state.adaptabilityCharges}/2`);
                 if (id === 'Resistente1') items.push(state.berserkerPhase === 2 ? 'Último Instinto: FASE 2 · 3 HP' : 'Último Instinto: fase 1');
                 if (id === 'Resistente2') { const v = state.murallaHits === 0 ? '+1 recibido' : 'sin vulnerabilidad'; const r = Math.min(3, Math.max(0, state.murallaHits - 1)); items.push(`Revestimiento: ${state.murallaHits}/4 · ${v} · reducción ${r}`); }
