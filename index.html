@@ -1108,9 +1108,12 @@
 
                 const maxHp = classData.hp;
                 const incomingHp = Number(value.currentHp);
-                const currentHp = Number.isFinite(incomingHp)
-                    ? Math.min(maxHp, Math.max(0, Math.floor(incomingHp)))
-                    : maxHp;
+                if (
+                    (typeof value.currentHp !== 'number' && typeof value.currentHp !== 'string') ||
+                    (typeof value.currentHp === 'string' && value.currentHp.trim() === '') ||
+                    !Number.isFinite(incomingHp)
+                ) return null;
+                const currentHp = Math.min(maxHp, Math.max(0, Math.floor(incomingHp)));
                 const rawName = typeof value.name === 'string' ? value.name.trim() : '';
                 const rawId = typeof value.id === 'string' ? value.id.trim() : '';
                 const passiveState = MITSGameRules.normalizePassiveState({
@@ -1155,11 +1158,17 @@
                 if (typeof value.success !== 'boolean') return null;
                 const rawDamage = Number(value.damage);
                 const rawRoll = Number(value.roll);
-                const damage = Number.isFinite(rawDamage)
-                    ? Math.min(1000, Math.max(0, Math.floor(rawDamage)))
-                    : 0;
+                if (
+                    (typeof value.damage !== 'number' && typeof value.damage !== 'string') ||
+                    (typeof value.damage === 'string' && value.damage.trim() === '') ||
+                    !Number.isInteger(rawDamage) || rawDamage < 0 || rawDamage > 1000 ||
+                    (typeof value.roll !== 'number' && typeof value.roll !== 'string') ||
+                    (typeof value.roll === 'string' && value.roll.trim() === '') ||
+                    !Number.isInteger(rawRoll) || rawRoll < 1 || rawRoll > 6
+                ) return null;
+                const damage = rawDamage;
                 if (value.success && damage <= 0) return null;
-                const roll = Number.isInteger(rawRoll) && rawRoll >= 1 && rawRoll <= 6 ? rawRoll : 1;
+                const roll = rawRoll;
                 const classId = attacker?.classData?.id;
                 const passiveInput = value.attackerPassiveState && typeof value.attackerPassiveState === 'object'
                     ? value.attackerPassiveState
