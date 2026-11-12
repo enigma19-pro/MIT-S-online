@@ -405,7 +405,7 @@ test('Sombra only activates after a complete dodge', () => {
     });
     assert.equal(complete.damage, 0);
     assert.equal(complete.state.shadowInvulnerableTurns, 2);
-    assert.equal(complete.state.shadowCooldownTurns, 1);
+    assert.equal(complete.state.shadowCooldownTurns, 2);
 });
 
 test('Adaptabilidad consumes two charges and prevents exactly two damage', () => {
@@ -586,13 +586,19 @@ test('Sombra lasts two opponent turns and cooldown starts only after Sombra ends
     assert.equal(state.shadowCooldownTurns, 1);
     state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
     assert.equal(state.shadowCooldownTurns, 0);
-    assert.equal(state.shadowInvulnerableTurns, 1);
-    assert.equal(state.shadowCooldownTurns, 1);
-    state = advancePassiveTurn({ ...mit, passiveState: state }, { ownTurnEnded: true }).state;
-    assert.equal(state.shadowInvulnerableTurns, 1);
-    assert.equal(state.shadowCooldownTurns, 0);
-    state = advancePassiveTurn({ ...mit, passiveState: state }, { opponentTurnEnded: true }).state;
-    assert.equal(state.shadowInvulnerableTurns, 0);
+});
+
+test('Sombra cannot reactivate during its own invulnerability window', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.MOVIL },
+        evadeNums: [6],
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MOVIL), shadowInvulnerableTurns: 1, shadowCooldownTurns: 0 }
+    };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 6 });
+    assert.equal(result.damage, 0);
+    assert.equal(result.state.shadowInvulnerableTurns, 1);
+    assert.equal(result.state.shadowCooldownTurns, 0);
 });
 
 test('Duelista counter cooldown expires after one opponent turn', () => {
