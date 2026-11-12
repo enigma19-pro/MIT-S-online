@@ -1326,11 +1326,23 @@
                         const phaseTwo = window.MITSGameRules.activateBerserkerSecondPhase(defeatedMit, [chosen], faces.filter(n => n !== chosen));
                         const aiUpdated = [...updatedMits];
                         aiUpdated[defeatedActiveIndex] = phaseTwo;
-                        setP1Mits(finalP1Mits);
+                        const humanUpdated = [...finalP1Mits];
+                        if (humanUpdated[activeP1Index]) {
+                            const humanMit = humanUpdated[activeP1Index];
+                            const humanState = { ...window.MITSGameRules.createPassiveState(humanMit.classData?.id), ...(humanMit.passiveState || {}) };
+                            humanState.shadowInvulnerableTurns = 0;
+                            humanState.shadowCooldownTurns = 0;
+                            humanState.counterCooldownTurns = 0;
+                            humanState.technicalAttackBonus = false;
+                            humanState.technicalDefenseBonus = false;
+                            humanState.counterSequence = null;
+                            humanUpdated[activeP1Index] = { ...humanMit, passiveState: humanState };
+                        }
+                        setP1Mits(humanUpdated);
                         setP2Mits(aiUpdated);
                         const aiLog = [...rebuildLog, { type: 'system', text: `🤖 La IA asignó ${chosen} a D y el resto a A.` }];
                         setCombatLog(aiLog);
-                        scheduleGameTimeout(() => endTurn(1, aiLog, { p1Mits: finalP1Mits, p2Mits: aiUpdated }), 900);
+                        scheduleGameTimeout(() => endTurn(1, aiLog, { p1Mits: humanUpdated, p2Mits: aiUpdated }), 900);
                     } else {
                         if (playerNum === 1) setP1Mits(updatedMits); else setP2Mits(updatedMits);
                         setBerserkerRebuild(rebuild);
