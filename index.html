@@ -675,7 +675,7 @@
                                         ...current,
                                         status: 'player_left',
                                         disconnectedPlayer: opponentNum,
-                                        ...(current.status === 'battle' ? { winner: localPlayerNum } : {})
+                                        ...(['battle', 'berserker_build'].includes(current.status) ? { winner: localPlayerNum } : {})
                                     };
                                 });
                             }
