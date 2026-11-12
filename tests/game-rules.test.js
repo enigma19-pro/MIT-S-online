@@ -148,6 +148,35 @@ test('passive state starts with clean counters and independent Technical slots',
     assert.equal(state.ultraCharges, 0);
 });
 
+test('passive state trusts the current MIT class and clamps corrupted counters', () => {
+    const mit = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        attackNums: [2, 5],
+        passiveState: {
+            passiveClassId: PASSIVE_CLASS_IDS.DESTRUCTOR,
+            ultraCharges: '999',
+            technicalAttackBonus: 'yes'
+        }
+    };
+    const result = resolvePassiveAttack({ attacker: mit, roll: 1, random: () => 0.9 });
+    assert.equal(result.unstoppable, true);
+    assert.equal(result.roll, 5);
+    assert.equal(result.damage, 6);
+    assert.equal(result.state.ultraCharges, 0);
+    assert.equal(result.state.technicalAttackBonus, false);
+});
+
+test('Ultra Impulso random selection stays inside the assigned faces at random=1', () => {
+    const mit = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        attackNums: [2, 5],
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 }
+    };
+    const result = resolvePassiveAttack({ attacker: mit, roll: 1, random: () => 1 });
+    assert.equal(result.roll, 5);
+    assert.equal(result.damage, 6);
+});
+
 test('Technical has a 50 percent proc followed by a 50/50 bonus type', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
     const result = beginPassiveAttackTurn(mit, () => 0.1);
