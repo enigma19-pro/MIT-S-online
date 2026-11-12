@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIT'S — Tactical Dice Combat Engine</title>
+    <title>MIT'S — Núcleos de Combate Adaptativo</title>
     <!-- Tailwind Play CDN pinned to v3.4.17 to keep utility behavior stable. -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script>
@@ -632,15 +632,15 @@
         };
 
         // --- CLASSES DEFINITIONS ---
-        const MIT_CLASSES = [
-            { id: 'Agil1', name: 'Evasivo', hp: 10, d: 2, a: 4, desc: 'Ultra Impulso: 3 esquives exitosos activan un ataque inevitable con +1 daño.' },
-            { id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3, desc: 'Sombra: un esquive exitoso otorga 1 turno rival de invulnerabilidad; enfriamiento de 1 turno.' },
-            { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Útil: al inicio de cada turno acumula Ataque +1 y Defensa +1, hasta 3 de cada uno; los acumuladores permanecen activos.' },
-            { id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1, desc: 'Adaptabilidad: cada daño recibido carga; con 2 cargas reduce 2 del siguiente golpe.' },
-            { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Último Instinto: al caer, vuelve con 3 HP; solo en Fase 2, cualquier A acertado anula todo el daño. Ultra Impulso lo atraviesa.' },
-            { id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1, desc: 'Revestimiento: cada impacto mejora su resistencia hasta reducir 3 de daño.' },
-            { id: 'Dano1', name: 'Destructor', hp: 15, d: 4, a: 1, desc: 'Enfurecimiento: ataques acertados empiezan en 1 y aumentan al quitar HP.' },
-            { id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2, desc: 'Contraataque: si recibe 0 o 1 de daño, encadena dos ataques.' }
+        // Los MIT son núcleos artificiales de combate. La clase define su arquitectura de adaptación; el cuerpo es solo la plataforma que el núcleo controla.\n        const MIT_CLASSES = [
+            { id: 'Agil1', name: 'Evasivo', hp: 10, d: 2, a: 4, desc: 'Núcleo de reacción extrema. Ultra Impulso convierte defensas casi perfectas en energía ofensiva.' },
+            { id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3, desc: 'Núcleo de movilidad adaptativa. Sombra permite al MIT alterar temporalmente su respuesta al combate.' },
+            { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Núcleo analítico. Útil acumula recursos al interpretar cada nuevo ciclo de combate.' },
+            { id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1, desc: 'Núcleo de aprendizaje. Adaptabilidad transforma el daño recibido en patrones defensivos.' },
+            { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Núcleo de supervivencia extrema. Último Instinto reconstruye funciones esenciales tras un colapso.' },
+            { id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1, desc: 'Núcleo defensivo. Revestimiento adapta la respuesta del blindaje tras cada impacto.' },
+            { id: 'Dano1', name: 'Destructor', hp: 15, d: 4, a: 1, desc: 'Núcleo ofensivo. Enfurecimiento optimiza su salida de daño a partir de resultados reales.' },
+            { id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2, desc: 'Núcleo de lectura táctica. Contraataque analiza la acción rival y recupera la iniciativa.' }
         ];
 
         const MIT_PASSIVE_DETAILS = {
@@ -3028,7 +3028,7 @@
                                 <h1 className="font-extrabold text-2xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-200 to-indigo-400 font-mono-custom">
                                     MIT’S
                                 </h1>
-                                <p className="text-xs text-slate-400">Tactical Dice Combat Engine v1.0</p>
+                                <p className="text-xs text-slate-400">Adaptive Core Combat System v1.0</p>
                             </div>
                         </div>
 
@@ -3143,7 +3143,7 @@
                                         <div className="min-w-0">
                                             <div className="flex items-center gap-2 text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-emerald-300">
                                                 <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399]" />
-                                                Entrenamiento aislado · Zona 01
+                                                Simulación de movimiento · Zona 01
                                             </div>
                                             <h2 className="text-base md:text-2xl font-black font-mono-custom text-slate-100 leading-tight">Frontera Esmeralda</h2>
                                         </div>
@@ -3245,9 +3245,27 @@
                         {/* 1. MENU SCREEN */}
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
-                                <div className="space-y-2">
-                                    <h2 className="text-3xl font-extrabold text-slate-100 font-mono-custom">SELECCIONA MODO</h2>
-                                    <p className="text-slate-400 text-sm">Construye tu equipo de 2 MITs y domina las probabilidades del dado.</p>
+                                <div className="space-y-3">
+                                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-cyan-400/20 bg-cyan-400/5 text-[10px] font-mono-custom font-bold tracking-[.22em] text-cyan-300 uppercase">
+                                        PROTOCOLO LINK · NÚCLEO MIT
+                                    </div>
+                                    <h2 className="text-3xl font-extrabold text-slate-100 font-mono-custom">SELECCIONA OPERACIÓN</h2>
+                                    <p className="text-slate-400 text-sm leading-relaxed">Los MIT no son el cuerpo que ves en la arena. Son núcleos artificiales capaces de interpretar órdenes, aprender de cada combate y adaptar sus propios protocolos. Tú eres el Operador.</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-left">
+                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                                        <div className="text-[10px] font-mono-custom font-bold text-cyan-300 uppercase tracking-widest">Núcleo</div>
+                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">La identidad del MIT. Aprende, se adapta y puede desarrollar nuevos protocolos.</p>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                                        <div className="text-[10px] font-mono-custom font-bold text-purple-300 uppercase tracking-widest">Operador</div>
+                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">Toma las decisiones tácticas mediante la interfaz LINK y configura el núcleo antes de luchar.</p>
+                                    </div>
+                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                                        <div className="text-[10px] font-mono-custom font-bold text-amber-300 uppercase tracking-widest">Evolución</div>
+                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">Bajo condiciones extremas, un núcleo puede alterar su sistema para sobrevivir.</p>
+                                    </div>
                                 </div>
 
                                 <div className="space-y-3 pt-4">
@@ -3260,8 +3278,8 @@
                                                 🤖
                                             </div>
                                             <div>
-                                                <div className="font-bold text-slate-100">Jugador vs IA</div>
-                                                <div className="text-xs text-slate-400">Enfréntate a la computadora en combate individual</div>
+                                                <div className="font-bold text-slate-100">Operador vs Núcleo IA</div>
+                                                <div className="text-xs text-slate-400">Pon a prueba tu sincronización contra un núcleo controlado por IA</div>
                                             </div>
                                         </div>
                                         <span className="text-cyan-400 text-xl font-bold font-mono-custom">→</span>
@@ -3276,8 +3294,8 @@
                                                 👥
                                             </div>
                                             <div>
-                                                <div className="font-bold text-slate-100">Jugador vs Jugador</div>
-                                                <div className="text-xs text-slate-400">Pase y Juega local en la misma pantalla</div>
+                                                <div className="font-bold text-slate-100">Operador vs Operador</div>
+                                                <div className="text-xs text-slate-400">Dos Operadores, dos núcleos, una misma arena</div>
                                             </div>
                                         </div>
                                         <span className="text-purple-400 text-xl font-bold font-mono-custom">→</span>
@@ -3292,7 +3310,7 @@
                                         <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">🕹️</div>
                                         <div>
                                             <div className="font-bold text-slate-100">Prueba</div>
-                                            <div className="text-xs text-slate-400">Sandbox de personaje + terreno + joystick</div>
+                                            <div className="text-xs text-slate-400">Simulación aislada de plataforma y control</div>
                                         </div>
                                     </div>
                                     <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
@@ -3306,8 +3324,8 @@
                                         <div className="flex items-center gap-4 text-left">
                                             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">🌐</div>
                                             <div>
-                                                <div className="font-bold text-slate-100">Multijugador online</div>
-                                                <div className="text-xs text-slate-400">Crea o únete con un código de sala</div>
+                                                <div className="font-bold text-slate-100">Enlace online entre Operadores</div>
+                                                <div className="text-xs text-slate-400">Conecta tu interfaz LINK a otro Operador</div>
                                             </div>
                                         </div>
                                         <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
@@ -3318,7 +3336,7 @@
                                     onClick={() => { setShowClassGuide(true); setGuideClassId(MIT_CLASSES[0].id); playSound('click'); }}
                                     className="w-full py-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-200 font-bold hover:bg-amber-500/20 transition"
                                 >
-                                    📖 Manual de clases: estadísticas y habilidades
+                                    📖 Manual de núcleos: arquitecturas y protocolos
                                 </button>
 
                                 <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-left text-xs space-y-2 text-slate-300">
@@ -3326,11 +3344,11 @@
                                         ℹ️ REGLAS OFICIALES
                                     </div>
                                     <ul className="list-disc list-inside space-y-1 text-slate-400">
-                                        <li>Cada jugador crea <strong>2 MITs</strong> con asignación de números.</li>
-                                        <li>Asigna números de <strong>Daño (D)</strong> y <strong>Esquive (A)</strong> sin repetir.</li>
-                                        <li>Ataque: Si coincide con tu rango <strong>D</strong>, ¡aciertas!</li>
-                                        <li>Defensa: Si esquivas con rango <strong>A</strong>, reduces el daño.</li>
-                                        <li>Si fallas el ataque, <strong>pasa el turno inmediatamente</strong>.</li>
+                                        <li>Cada Operador configura <strong>2 núcleos MIT</strong> y les asigna protocolos antes del combate.</li>
+                                        <li>Asigna números de <strong>Directiva ofensiva (D)</strong> y <strong>Directiva defensiva (A)</strong> sin repetir.</li>
+                                        <li>Ataque: si el resultado coincide con una <strong>D</strong>, el núcleo ejecuta la directiva ofensiva.</li>
+                                        <li>Defensa: una <strong>A</strong> activa la respuesta defensiva del núcleo.</li>
+                                        <li>El Operador decide la acción; el núcleo interpreta y ejecuta el protocolo.</li>
                                     </ul>
                                 </div>
 
@@ -3387,7 +3405,7 @@
                         {gameState === 'ONLINE_LOBBY' && (
                             <div className="lobby-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-5 text-center border border-emerald-500/20 shadow-2xl">
                                 <div>
-                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Multijugador online</span>
+                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Enlace online entre Operadores</span>
                                     <h2 className="text-3xl font-extrabold text-slate-100 mt-3 font-mono-custom">SALAS DE COMBATE</h2>
                                 </div>
 
@@ -3447,10 +3465,10 @@
                                 <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4">
                                     <div>
                                         <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
-                                            Fase de Construcción
+                                            Fase de Configuración del Núcleo
                                         </span>
                                         <h2 className="text-2xl font-bold text-slate-100 mt-1 font-mono-custom">
-                                            {gameMode === 'ONLINE' ? `${getPlayerDisplayName(isRoomHost ? 1 : 2).toUpperCase()}: ${((isRoomHost ? p1Mits : p2Mits).length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}` : `${getPlayerDisplayName(builderPlayer).toUpperCase()}: ${builderPlayer === 1 ? (p1Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2') : (p2Mits.length === 0 ? 'Crear MIT #1' : 'Crear MIT #2')}`}
+                                            {gameMode === 'ONLINE' ? `${getPlayerDisplayName(isRoomHost ? 1 : 2).toUpperCase()}: ${((isRoomHost ? p1Mits : p2Mits).length === 0 ? 'Configurar Núcleo #1' : 'Configurar Núcleo #2')}` : `${getPlayerDisplayName(builderPlayer).toUpperCase()}: ${builderPlayer === 1 ? (p1Mits.length === 0 ? 'Configurar Núcleo #1' : 'Configurar Núcleo #2') : (p2Mits.length === 0 ? 'Configurar Núcleo #1' : 'Configurar Núcleo #2')}`}
                                         </h2>
                                     </div>
                                     {gameMode === 'ONLINE' && (
@@ -3594,7 +3612,7 @@
                                                 ¡GANÓ {winnerPlayer ? getPlayerDisplayName(winnerPlayer).toUpperCase() : '…'}!
                                             </h2>
                                             <p className="text-slate-300 text-base md:text-lg">
-                                                {gameMode === 'ONLINE' ? 'La sala ha terminado. La victoria está registrada.' : 'Combate concluido. Buen lanzamiento.'}
+                                                {gameMode === 'ONLINE' ? 'La sincronización de la sala ha terminado. El resultado del combate ha sido registrado.' : 'Protocolo de combate concluido. Buena ejecución, Operador.'}
                                             </p>
                                             <button
                                                 onClick={gameMode === 'ONLINE' ? returnToOnlineLobby : resetGame}
