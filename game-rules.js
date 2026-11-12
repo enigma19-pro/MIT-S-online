@@ -231,12 +231,11 @@
             next.ultraCharges = 0;
             events.push('Ultra Impulso activado');
         }
-        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus > 0) {
+        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus > 0 && hit) {
             const bonus = next.technicalAttackBonus;
-            if (hit) {
-                damage += bonus;
-                events.push(`Técnico aplicó Ataque +${bonus}`);
-            }
+            damage += bonus;
+            next.technicalAttackBonus = 0;
+            events.push(`Técnico aplicó Ataque +${bonus} y gastó sus cargas`);
         }
         if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
             const bonus = safeCounter(state.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
@@ -306,7 +305,8 @@
             const bonus = next.technicalDefenseBonus;
             if (!shadow && damage > 0) {
                 damage = Math.max(0, damage - bonus);
-                events.push(`Técnico aplicó Defensa +${bonus}`);
+                next.technicalDefenseBonus = 0;
+                events.push(`Técnico aplicó Defensa +${bonus} y gastó sus cargas`);
             }
         }
         // Evasivo uses the normal damage calculation. It only gains a charge
