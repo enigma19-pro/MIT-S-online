@@ -371,16 +371,25 @@
         const next = { ...state };
         const events = [];
         if (state.passiveClassId === PASSIVE_CLASS_IDS.MURALLA) {
-            if (tookDamage || state.murallaDamagedThisTurn) {
-                next.murallaQuietTurns = 0;
-                next.murallaDamagedThisTurn = false;
-            } else {
-                next.murallaQuietTurns = Math.max(0, state.murallaQuietTurns) + 1;
-                if (next.murallaQuietTurns >= 3 && state.murallaHits > 0) {
-                    next.murallaHits = 0;
+            // El desgaste de Muralla se mide en turnos de ataque del rival,
+            // no en cada cambio de turno. Así, el turno propio de Muralla
+            // nunca consume uno de sus 3 turnos de tolerancia.
+            if (opponentTurnEnded) {
+                if (tookDamage || state.murallaDamagedThisTurn) {
                     next.murallaQuietTurns = 0;
-                    events.push('Revestimiento perdió su progreso por 3 turnos sin recibir daño');
+                } else {
+                    next.murallaQuietTurns = Math.max(0, state.murallaQuietTurns) + 1;
+                    if (next.murallaQuietTurns >= 3 && state.murallaHits > 0) {
+                        next.murallaHits = 0;
+                        next.murallaQuietTurns = 0;
+                        events.push('Revestimiento perdió su progreso por 3 turnos de ataque rival sin recibir daño');
+                    }
                 }
+                next.murallaDamagedThisTurn = false;
+            } else if (tookDamage) {
+                // Conserva la marca hasta que termine el turno de ataque rival.
+                next.murallaDamagedThisTurn = true;
+                next.murallaQuietTurns = 0;
             }
         }
         if (opponentTurnEnded && state.shadowInvulnerableTurns > 0) next.shadowInvulnerableTurns = Math.max(0, state.shadowInvulnerableTurns - 1);
