@@ -400,6 +400,16 @@
             }
         }
 
+        /* Movimiento sandbox: aislado del juego base. */
+        .movement-test-screen { overscroll-behavior: contain; }
+        .movement-test-terrain { min-height: 320px; background:
+            radial-gradient(circle at 50% 45%, rgba(16,185,129,.12), transparent 35%),
+            linear-gradient(145deg, #122017, #1a2b20 48%, #0e1912);
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .movement-test-terrain * { transition: none !important; }
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;
@@ -656,6 +666,75 @@
             const onlinePresenceRef = useRef(null);
             const presenceGraceTimerRef = useRef(null);
             const [soundEnabled, setSoundEnabled] = useState(true);
+            // Sandbox de movimiento: totalmente aislada del combate/base del juego.
+            const [showMovementTest, setShowMovementTest] = useState(false);
+            const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 50 });
+            const testJoystickRef = useRef(null);
+            const testKeysRef = useRef({});
+            const testAnimationRef = useRef(null);
+
+            useEffect(() => {
+                if (!showMovementTest) return;
+                const keys = testKeysRef.current;
+                const onKeyDown = (event) => {
+                    const key = event.key.toLowerCase();
+                    if (['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key)) {
+                        event.preventDefault();
+                        keys[key] = true;
+                    }
+                };
+                const onKeyUp = (event) => { keys[event.key.toLowerCase()] = false; };
+                window.addEventListener('keydown', onKeyDown);
+                window.addEventListener('keyup', onKeyUp);
+
+                let last = performance.now();
+                const loop = (now) => {
+                    const dt = Math.min((now - last) / 1000, 0.05);
+                    last = now;
+                    let dx = 0;
+                    let dy = 0;
+                    if (keys.w || keys.arrowup) dy -= 1;
+                    if (keys.s || keys.arrowdown) dy += 1;
+                    if (keys.a || keys.arrowleft) dx -= 1;
+                    if (keys.d || keys.arrowright) dx += 1;
+                    if (dx || dy) {
+                        const length = Math.hypot(dx, dy) || 1;
+                        dx /= length;
+                        dy /= length;
+                        setTestPlayerPos(prev => ({
+                            x: Math.max(7, Math.min(93, prev.x + dx * 30 * dt)),
+                            y: Math.max(9, Math.min(91, prev.y + dy * 30 * dt))
+                        }));
+                    }
+                    testAnimationRef.current = requestAnimationFrame(loop);
+                };
+                testAnimationRef.current = requestAnimationFrame(loop);
+                return () => {
+                    window.removeEventListener('keydown', onKeyDown);
+                    window.removeEventListener('keyup', onKeyUp);
+                    if (testAnimationRef.current) cancelAnimationFrame(testAnimationRef.current);
+                };
+            }, [showMovementTest]);
+
+            const moveTestPlayer = (clientX, clientY) => {
+                const pad = testJoystickRef.current;
+                if (!pad) return;
+                const rect = pad.getBoundingClientRect();
+                const max = rect.width * 0.31;
+                let dx = clientX - (rect.left + rect.width / 2);
+                let dy = clientY - (rect.top + rect.height / 2);
+                const distance = Math.hypot(dx, dy) || 1;
+                if (distance > max) {
+                    dx = dx / distance * max;
+                    dy = dy / distance * max;
+                }
+                const nx = dx / max;
+                const ny = dy / max;
+                setTestPlayerPos(prev => ({
+                    x: Math.max(7, Math.min(93, prev.x + nx * 1.35)),
+                    y: Math.max(9, Math.min(91, prev.y + ny * 1.35))
+                }));
+            };
 
             useEffect(() => {
                 if (gameState !== 'ONLINE_LOBBY' || !onlineUser || !window.MITSFirebase) return;
@@ -2816,6 +2895,59 @@
                             </div>
                         )}
 
+                        
+                        {showMovementTest && (
+                            <div className="movement-test-screen fixed inset-0 z-[80] bg-slate-950/95 p-3 md:p-6">
+                                <div className="movement-test-shell max-w-6xl mx-auto h-full flex flex-col gap-3">
+                                    <div className="flex items-center justify-between glass-panel rounded-2xl border border-emerald-500/20 px-4 py-3">
+                                        <div>
+                                            <div className="text-xs font-mono-custom uppercase tracking-widest text-emerald-400">SANDBOX / PRUEBA</div>
+                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">Personaje movible</h2>
+                                        </div>
+                                        <button onClick={() => setShowMovementTest(false)} className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold">Salir</button>
+                                    </div>
+
+                                    <div className="movement-test-terrain relative flex-1 min-h-0 overflow-hidden rounded-3xl border border-emerald-500/25 bg-[#16251c] shadow-2xl touch-none">
+                                        <div className="absolute inset-0 opacity-40" style={{
+                                            backgroundImage: 'linear-gradient(rgba(148,163,184,.10) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.10) 1px, transparent 1px)',
+                                            backgroundSize: '48px 48px'
+                                        }} />
+                                        <div className="absolute left-[10%] top-[14%] w-20 h-8 rounded-full bg-emerald-900/70 border border-emerald-700/60 rotate-12" />
+                                        <div className="absolute right-[14%] top-[24%] w-28 h-10 rounded-full bg-emerald-900/70 border border-emerald-700/60 -rotate-6" />
+                                        <div className="absolute left-[23%] bottom-[18%] w-24 h-9 rounded-full bg-emerald-900/70 border border-emerald-700/60 rotate-3" />
+                                        <div className="absolute right-[28%] bottom-[16%] w-16 h-16 rounded-full bg-slate-800/80 border border-slate-700/70" />
+                                        <div
+                                            className="absolute w-14 h-14 md:w-16 md:h-16 -translate-x-1/2 -translate-y-1/2 transition-transform duration-75"
+                                            style={{ left: testPlayerPos.x + '%', top: testPlayerPos.y + '%' }}
+                                        >
+                                            <div className="w-full h-full rounded-2xl bg-gradient-to-br from-cyan-300 to-cyan-600 border-4 border-cyan-100 shadow-[0_0_28px_rgba(34,211,238,.55)] flex items-center justify-center text-2xl md:text-3xl">⚡</div>
+                                            <div className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-mono-custom text-cyan-200 whitespace-nowrap">PLAYER</div>
+                                        </div>
+
+                                        <div className="absolute top-4 left-4 px-3 py-2 rounded-xl bg-slate-950/70 border border-slate-700 text-[10px] md:text-xs font-mono-custom text-slate-300">
+                                            WASD / flechas · joystick
+                                        </div>
+
+                                        <div
+                                            ref={testJoystickRef}
+                                            onPointerDown={(e) => {
+                                                e.currentTarget.setPointerCapture(e.pointerId);
+                                                moveTestPlayer(e.clientX, e.clientY);
+                                            }}
+                                            onPointerMove={(e) => {
+                                                if (e.currentTarget.hasPointerCapture(e.pointerId)) moveTestPlayer(e.clientX, e.clientY);
+                                            }}
+                                            onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                                            onPointerCancel={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
+                                            className="absolute left-5 bottom-5 md:left-8 md:bottom-8 w-32 h-32 md:w-40 md:h-40 rounded-full bg-slate-950/70 border-2 border-slate-600/80 shadow-2xl flex items-center justify-center touch-none"
+                                        >
+                                            <div className="absolute inset-3 rounded-full border border-slate-700/80" />
+                                            <div className="w-14 h-14 md:w-16 md:h-16 rounded-full bg-cyan-500/80 border-2 border-cyan-200 shadow-[0_0_20px_rgba(34,211,238,.35)] flex items-center justify-center text-slate-950 font-black">✦</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                         {/* 1. MENU SCREEN */}
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
@@ -2857,6 +2989,20 @@
                                         <span className="text-purple-400 text-xl font-bold font-mono-custom">→</span>
                                     </button>
                                 </div>
+
+                                <button
+                                    onClick={() => { setShowMovementTest(true); setTestPlayerPos({ x: 50, y: 50 }); playSound('click'); }}
+                                    className="w-full p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between group hover:border-emerald-400 hover:bg-emerald-500/15 transition"
+                                >
+                                    <div className="flex items-center gap-4 text-left">
+                                        <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">🕹️</div>
+                                        <div>
+                                            <div className="font-bold text-slate-100">Prueba</div>
+                                            <div className="text-xs text-slate-400">Sandbox de personaje + terreno + joystick</div>
+                                        </div>
+                                    </div>
+                                    <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
+                                </button>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <button
