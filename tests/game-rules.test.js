@@ -562,7 +562,7 @@ test('Ultra Impulso still applies Muralla vulnerability but ignores its reductio
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 4 } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 6, defenseRoll: 1, unstoppable: true });
-    assert.equal(result.damage, 6);
+    assert.equal(result.damage, 3);
 });
 
 test('Sombra duration and cooldown tick on the correct players turns', () => {
@@ -635,11 +635,28 @@ test('Adaptabilidad can reduce the last point of damage to zero and consumes its
     assert.equal(result.state.adaptabilityCharges, 0);
 });
 
-test('Ultra Impulso ignores Technical defense bonus without consuming it', () => {
+test('Ultra Impulso still respects Versatil damage protection', () => {
+    const attacker = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 0 }
+    };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.VERSATIL },
+        evadeNums: [],
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.VERSATIL), adaptabilityCharges: 2 }
+    };
+    const result = resolvePassiveDefense({
+        attacker, defender, attackDamage: 5, defenseRoll: 1, unstoppable: true
+    });
+    assert.equal(result.damage, 3);
+    assert.equal(result.state.adaptabilityCharges, 0);
+});
+
+test('Ultra Impulso still applies Technical defense without consuming it', () => {
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 1, unstoppable: true });
-    assert.equal(result.damage, 5);
+    assert.equal(result.damage, 4);
     assert.equal(result.state.technicalDefenseBonus, 1);
 });
 
