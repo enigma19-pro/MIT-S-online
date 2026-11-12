@@ -180,6 +180,56 @@ test('Ultra Impulso bypasses evasion and invulnerability but still leaves target
     assert.equal(result.shadowNullified, false);
 });
 
+test('Ultra Impulso only charges after a complete assigned-face dodge', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        evadeNums: [6],
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 1 }
+    };
+
+    const blocked = resolvePassiveDefense({
+        attacker, defender, attackDamage: 5, defenseRoll: 6
+    });
+    assert.equal(blocked.damage, 0);
+    assert.equal(blocked.state.ultraCharges, 2);
+
+    const damaged = resolvePassiveDefense({
+        attacker, defender: {
+            ...defender,
+            passiveState: { ...defender.passiveState, ultraCharges: 1 }
+        },
+        attackDamage: 6, defenseRoll: 6
+    });
+    assert.equal(damaged.damage, 0);
+    assert.equal(damaged.state.ultraCharges, 2);
+
+    const missedA = resolvePassiveDefense({
+        attacker, defender: {
+            ...defender,
+            evadeNums: [5],
+            passiveState: { ...defender.passiveState, ultraCharges: 1 }
+        },
+        attackDamage: 5, defenseRoll: 6
+    });
+    assert.equal(missedA.damage, 5);
+    assert.equal(missedA.state.ultraCharges, 1);
+});
+
+test('Resetting Muralla progression never changes its HP', () => {
+    const mit = {
+        currentHp: 7,
+        classData: { id: PASSIVE_CLASS_IDS.MURALLA },
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.MURALLA), murallaHits: 4 }
+    };
+    let state = mit.passiveState;
+    for (let i = 0; i < 3; i++) {
+        state = advancePassiveTurn({ ...mit, passiveState: state }).state;
+    }
+    assert.equal(state.murallaHits, 0);
+    assert.equal(mit.currentHp, 7);
+});
+
 test('Sombra nullifies a normal hit and activates its one-turn shield', () => {
     const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
