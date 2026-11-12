@@ -1618,6 +1618,7 @@
                 setOnlineStatus('');
                 setDisconnectedPlayer(null);
                 setWinnerPlayer(null);
+                setBerserkerRebuild(null);
                 setIsRoomHost(false);
                 setBuilderPlayer(1);
                 setP1Mits([]);
@@ -1670,6 +1671,7 @@
                 setIsRoomHost(false);
                 setDisconnectedPlayer(null);
                 setWinnerPlayer(null);
+                setBerserkerRebuild(null);
                 setGameMode('AI');
                 setP1Mits([]);
                 setP2Mits([]);
@@ -1970,7 +1972,7 @@
                                         </div>
 
                                         <button
-                                            disabled={!isBuildValid}
+                                            disabled={!isBuildValid || (gameMode === 'ONLINE' && berserkerRebuild && (isRoomHost ? 1 : 2) !== berserkerRebuild.playerNum)}
                                             onClick={handleConfirmMit}
                                             className={`w-full py-3.5 rounded-xl font-bold text-sm uppercase tracking-wider transition font-mono-custom ${
                                                 isBuildValid
@@ -1978,7 +1980,7 @@
                                                 : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-60'
                                             }`}
                                         >
-                                            Confirmar MIT
+                                            {berserkerRebuild ? (gameMode === 'ONLINE' && (isRoomHost ? 1 : 2) !== berserkerRebuild.playerNum ? 'Esperando al rival...' : 'Confirmar segunda fase') : 'Confirmar MIT'}
                                         </button>
                                     </div>
                                 </div>
