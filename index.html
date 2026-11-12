@@ -800,7 +800,7 @@
                 const pad = testJoystickRef.current;
                 if (!pad) return;
                 const rect = pad.getBoundingClientRect();
-                const max = Math.max(1, Math.min(rect.width, rect.height) * 0.31);
+                const max = Math.max(1, Math.min(rect.width, rect.height) * 0.27);
                 let dx = clientX - (rect.left + rect.width / 2);
                 let dy = clientY - (rect.top + rect.height / 2);
                 const distance = Math.hypot(dx, dy);
@@ -3231,7 +3231,7 @@
                                             <span className="text-[9px] md:text-[10px] font-black tracking-[.18em] mt-1">CORRER</span>
                                         </button>
 
-                                        <div className="absolute z-20 left-1/2 -translate-x-1/2 bottom-3 md:bottom-5 rounded-full bg-slate-950/65 border border-white/10 px-3 py-1.5 text-[9px] md:text-[10px] text-slate-300 font-mono-custom pointer-events-none whitespace-nowrap">
+                                        <div className="hidden md:block absolute z-20 left-1/2 -translate-x-1/2 bottom-3 md:bottom-5 rounded-full bg-slate-950/65 border border-white/10 px-3 py-1.5 text-[9px] md:text-[10px] text-slate-300 font-mono-custom pointer-events-none whitespace-nowrap">
                                             Joystick táctil · WASD / flechas · SHIFT para correr
                                         </div>
                                     </section>
