@@ -305,6 +305,10 @@
             const [builderPlayer, setBuilderPlayer] = useState(1);
             const [p1Mits, setP1Mits] = useState([]);
             const [p2Mits, setP2Mits] = useState([]);
+            const p1MitsRef = useRef(p1Mits);
+            const p2MitsRef = useRef(p2Mits);
+            p1MitsRef.current = p1Mits;
+            p2MitsRef.current = p2Mits;
 
             // Builder Selection
             const [selectedClass, setSelectedClass] = useState(MIT_CLASSES[2]);
@@ -1221,38 +1225,42 @@
             };
 
             const applyDamageToDefender = (defenderPlayerNum, damage, logOverride = null, defenseRoll = null, passiveDefenseResult = null, attackerPlayerNum = defenderPlayerNum === 1 ? 2 : 1) => {
-                let updatedP1 = p1Mits;
-                let updatedP2 = p2Mits;
+                const latestP1Mits = p1MitsRef.current;
+                const latestP2Mits = p2MitsRef.current;
+                const latestActiveP1Mit = latestP1Mits[activeP1Index] || activeP1Mit;
+                const latestActiveP2Mit = latestP2Mits[activeP2Index] || activeP2Mit;
+                let updatedP1 = latestP1Mits;
+                let updatedP2 = latestP2Mits;
                 let defeated = false;
 
                 if (defenderPlayerNum === 1) {
-                    const newHp = Math.max(0, activeP1Mit.currentHp - damage);
-                    updatedP1 = [...p1Mits];
-                    const hpLost = Math.max(0, activeP1Mit.currentHp - newHp);
-                    const defenderWithState = { ...activeP1Mit, passiveState: passiveDefenseResult?.state || activeP1Mit.passiveState };
-                    const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
+                    const newHp = Math.max(0, latestActiveP1Mit.currentHp - damage);
+                    updatedP1 = [...latestP1Mits];
+                    const hpLost = Math.max(0, latestActiveP1Mit.currentHp - newHp);
+                    const defenderWithState = { ...latestActiveP1Mit, passiveState: passiveDefenseResult?.state || latestActiveP1Mit.passiveState };
+                    const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
                     consequences.events.forEach(event => publishFloatingEffect({ player: event.startsWith('Enfurecimiento') ? attackerPlayerNum : defenderPlayerNum, text: event, type: 'hit' }));
                     const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
                         ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
                         : consequences.defenderState;
                     updatedP1[activeP1Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
-                    if (attackerPlayerNum === 2) { updatedP2 = [...p2Mits]; updatedP2[activeP2Index] = { ...activeP2Mit, passiveState: consequences.attackerState }; }
+                    if (attackerPlayerNum === 2) { updatedP2 = [...latestP2Mits]; updatedP2[activeP2Index] = { ...latestActiveP2Mit, passiveState: consequences.attackerState }; }
                     setP1Mits(updatedP1);
                     defeated = newHp === 0;
                 } else {
-                    const newHp = Math.max(0, activeP2Mit.currentHp - damage);
-                    updatedP2 = [...p2Mits];
-                    const hpLost = Math.max(0, activeP2Mit.currentHp - newHp);
-                    const defenderWithState = { ...activeP2Mit, passiveState: passiveDefenseResult?.state || activeP2Mit.passiveState };
-                    const attackerMit = attackerPlayerNum === 1 ? activeP1Mit : activeP2Mit;
+                    const newHp = Math.max(0, latestActiveP2Mit.currentHp - damage);
+                    updatedP2 = [...latestP2Mits];
+                    const hpLost = Math.max(0, latestActiveP2Mit.currentHp - newHp);
+                    const defenderWithState = { ...latestActiveP2Mit, passiveState: passiveDefenseResult?.state || latestActiveP2Mit.passiveState };
+                    const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
                     consequences.events.forEach(event => publishFloatingEffect({ player: event.startsWith('Enfurecimiento') ? attackerPlayerNum : defenderPlayerNum, text: event, type: 'hit' }));
                     const counterState = newHp > 0 && passiveDefenseResult?.triggersCounter
                         ? { ...consequences.defenderState, counterSequence: { phase: 'FIRST', opponentPlayer: attackerPlayerNum } }
                         : consequences.defenderState;
                     updatedP2[activeP2Index] = { ...defenderWithState, currentHp: newHp, passiveState: counterState };
-                    if (attackerPlayerNum === 1) { updatedP1 = [...p1Mits]; updatedP1[activeP1Index] = { ...activeP1Mit, passiveState: consequences.attackerState }; }
+                    if (attackerPlayerNum === 1) { updatedP1 = [...latestP1Mits]; updatedP1[activeP1Index] = { ...latestActiveP1Mit, passiveState: consequences.attackerState }; }
                     setP2Mits(updatedP2);
                     defeated = newHp === 0;
                 }
@@ -1332,7 +1340,7 @@
                         setSelectedClass({ ...MIT_CLASSES.find(c => c.id === 'Resistente1'), name: 'Berserker · Fase 2', hp: 3, d: 1, a: 5 });
                         setCurrentDNums([]);
                         setCurrentANums([]);
-                        setGameState('BUILD');
+                        setGameState('BATTLE');
                         setCombatLog(rebuildLog);
                         if (gameMode === 'ONLINE') {
                             syncOnline({
@@ -1407,8 +1415,8 @@
                 setCombatPhase('ATTACK_ROLL');
 
                 let nextPlayer = playerWhoJustActed === 1 ? 2 : 1;
-                let nextP1Mits = [...(onlineOverrides.p1Mits || p1Mits)];
-                let nextP2Mits = [...(onlineOverrides.p2Mits || p2Mits)];
+                let nextP1Mits = [...(onlineOverrides.p1Mits || p1MitsRef.current)];
+                let nextP2Mits = [...(onlineOverrides.p2Mits || p2MitsRef.current)];
                 const p1Index = Number.isInteger(onlineOverrides.activeP1Index) ? onlineOverrides.activeP1Index : activeP1Index;
                 const p2Index = Number.isInteger(onlineOverrides.activeP2Index) ? onlineOverrides.activeP2Index : activeP2Index;
 
@@ -1759,7 +1767,7 @@
                             >
                                 <span>{soundEnabled ? '🔊 Sonido: ON' : '🔇 Sonido: OFF'}</span>
                             </button>
-                            {gameState !== 'MENU' && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
+                            {gameState !== 'MENU' && !berserkerRebuild && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
                                 <button 
                                     onClick={resetGame}
                                     className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition"
