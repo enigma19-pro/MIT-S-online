@@ -287,3 +287,17 @@ test('Muralla does not add vulnerability to a fully dodged zero-damage attack', 
     assert.equal(result.damage, 0);
 });
 
+
+test('Muralla does not count the turn in which it was damaged toward its decay', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
+    const consequence = applyPassiveDamageConsequences({ attacker: {}, defender: mit, hpLost: 1 });
+    const afterDamageTurn = advancePassiveTurn({ ...mit, passiveState: consequence.defenderState }).state;
+    assert.equal(afterDamageTurn.murallaQuietTurns, 0);
+    assert.equal(afterDamageTurn.murallaDamagedThisTurn, false);
+    let state = afterDamageTurn;
+    for (let i = 0; i < 2; i++) state = advancePassiveTurn({ ...mit, passiveState: state }).state;
+    assert.equal(state.murallaHits, 1);
+    state = advancePassiveTurn({ ...mit, passiveState: state }).state;
+    assert.equal(state.murallaHits, 0);
+});
+
