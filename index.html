@@ -862,18 +862,7 @@
                                 const transformed = window.MITSGameRules.activateBerserkerSecondPhase(original, currentDNums, currentANums);
                                 if (!transformed) return;
                                 updated[berserkerRebuild.index] = transformed;
-                                const opponents = Array.isArray(room[opponentKey]) ? [...room[opponentKey]] : [];
-                                const opponentIndex = expectedPlayer === 1 ? (room.activeP2Index || 0) : (room.activeP1Index || 0);
-                                if (opponents[opponentIndex]) {
-                                    const opponentState = { ...window.MITSGameRules.createPassiveState(opponents[opponentIndex].classData?.id), ...(opponents[opponentIndex].passiveState || {}) };
-                                    opponentState.shadowInvulnerableTurns = 0;
-                                    opponentState.shadowCooldownTurns = 0;
-                                    opponentState.counterCooldownTurns = 0;
-                                    opponentState.technicalAttackBonus = false;
-                                    opponentState.technicalDefenseBonus = false;
-                                    opponentState.counterSequence = null;
-                                    opponents[opponentIndex] = { ...opponents[opponentIndex], passiveState: opponentState };
-                                }
+                                const opponents = clearOpponentTemporaryEffects(room[opponentKey]);
                                 return {
                                     ...room,
                                     [playerKey]: updated,
@@ -904,20 +893,8 @@
                             }
                             list[berserkerRebuild.index] = transformed;
                             if (berserkerRebuild.playerNum === 1) setP1Mits(list); else setP2Mits(list);
-                            const opponentList = berserkerRebuild.playerNum === 1 ? [...p2Mits] : [...p1Mits];
-                            const opponentIndex = berserkerRebuild.playerNum === 1 ? activeP2Index : activeP1Index;
-                            if (opponentList[opponentIndex]) {
-                                const opponent = opponentList[opponentIndex];
-                                const state = { ...window.MITSGameRules.createPassiveState(opponent.classData?.id), ...(opponent.passiveState || {}) };
-                                state.shadowInvulnerableTurns = 0;
-                                state.shadowCooldownTurns = 0;
-                                state.counterCooldownTurns = 0;
-                                state.technicalAttackBonus = false;
-                                state.technicalDefenseBonus = false;
-                                state.counterSequence = null;
-                                opponentList[opponentIndex] = { ...opponent, passiveState: state };
-                                if (berserkerRebuild.playerNum === 1) setP2Mits(opponentList); else setP1Mits(opponentList);
-                            }
+                            const opponentList = clearOpponentTemporaryEffects(berserkerRebuild.playerNum === 1 ? p2Mits : p1Mits);
+                            if (berserkerRebuild.playerNum === 1) setP2Mits(opponentList); else setP1Mits(opponentList);
                         }
                         setBerserkerRebuild(null);
                         setSelectedClass(MIT_CLASSES[2]);
@@ -1053,6 +1030,23 @@
                 if (id === 'Dano2') items.push(state.counterSequence?.phase === 'FIRST' ? 'Contraataque: 1/2' : state.counterSequence?.phase === 'SECOND' ? 'Contraataque: 2/2' : state.counterCooldownTurns > 0 ? `Contraataque: enfriamiento ${state.counterCooldownTurns}` : 'Contraataque: listo');
                 return items;
             };
+
+            const clearOpponentTemporaryEffects = (mits) => (Array.isArray(mits) ? mits : []).map(mit => {
+                if (!mit) return mit;
+                const state = { ...window.MITSGameRules.createPassiveState(mit.classData?.id), ...(mit.passiveState || {}) };
+                return {
+                    ...mit,
+                    passiveState: {
+                        ...state,
+                        shadowInvulnerableTurns: 0,
+                        shadowCooldownTurns: 0,
+                        counterCooldownTurns: 0,
+                        technicalAttackBonus: false,
+                        technicalDefenseBonus: false,
+                        counterSequence: null
+                    }
+                };
+            });
 
             const activeP1Mit = p1Mits[activeP1Index] || {};
             const activeP2Mit = p2Mits[activeP2Index] || {};
@@ -1326,18 +1320,7 @@
                         const phaseTwo = window.MITSGameRules.activateBerserkerSecondPhase(defeatedMit, [chosen], faces.filter(n => n !== chosen));
                         const aiUpdated = [...updatedMits];
                         aiUpdated[defeatedActiveIndex] = phaseTwo;
-                        const humanUpdated = [...finalP1Mits];
-                        if (humanUpdated[activeP1Index]) {
-                            const humanMit = humanUpdated[activeP1Index];
-                            const humanState = { ...window.MITSGameRules.createPassiveState(humanMit.classData?.id), ...(humanMit.passiveState || {}) };
-                            humanState.shadowInvulnerableTurns = 0;
-                            humanState.shadowCooldownTurns = 0;
-                            humanState.counterCooldownTurns = 0;
-                            humanState.technicalAttackBonus = false;
-                            humanState.technicalDefenseBonus = false;
-                            humanState.counterSequence = null;
-                            humanUpdated[activeP1Index] = { ...humanMit, passiveState: humanState };
-                        }
+                        const humanUpdated = clearOpponentTemporaryEffects(finalP1Mits);
                         setP1Mits(humanUpdated);
                         setP2Mits(aiUpdated);
                         const aiLog = [...rebuildLog, { type: 'system', text: `🤖 La IA asignó ${chosen} a D y el resto a A.` }];
