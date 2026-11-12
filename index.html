@@ -645,14 +645,14 @@
         ];
 
         const MIT_PASSIVE_DETAILS = {
-            Agil1: 'Ultra Impulso: cada defensa que deje 0 o 1 de daño carga 1 punto. Al llegar a 3, tu siguiente ataque acierta automáticamente, elige una de tus caras D y gana +1 daño. No puede esquivarse ni bloquearse; atraviesa la defensa especial del Berserker.',
-            Agil2: 'Sombra: al anular completamente un ataque con una cara A asignada, obtienes invulnerabilidad durante el siguiente turno del rival. Tiene 1 turno de enfriamiento.',
-            Normal1: 'Útil: al inicio de cada uno de tus turnos acumulas Ataque +1 y Defensa +1, hasta un máximo de +3 en cada reserva. Los acumuladores permanecen activos y la Defensa puede reducir el daño hasta 0.',
-            Normal2: 'Adaptabilidad: cada vez que pierdes al menos 1 HP, acumulas 1 carga. Con 2 cargas, el siguiente golpe que te haga daño se reduce en 2 y consume ambas cargas.',
-            Resistente1: 'Último Instinto: al perder su primera vida, Berserker vuelve con 3 HP y reconstruye su dado con 1 cara D y 5 caras A. En Fase 2, acertar cualquier cara A anula por completo el daño, sin importar el valor de esa cara ni el daño del ataque. Ultra Impulso ignora esta defensa.',
-            Resistente2: 'Revestimiento: cada impacto que te quite HP fortalece tu armadura. El primer impacto tiene una vulnerabilidad inicial; después acumulas reducción hasta un máximo de 3 puntos. Si pasas 3 turnos sin recibir daño, pierdes el progreso.',
-            Dano1: 'Enfurecimiento: tus ataques acertados comienzan haciendo 1 de daño. Cada ataque que quite al menos 1 HP aumenta permanentemente el daño de tus siguientes ataques en +1 durante esa vida.',
-            Dano2: 'Contraataque: si recibes un golpe que te hace 0 o 1 de daño, activas una secuencia de dos ataques: el primero no puede defenderse, el segundo sí. Después el rival recupera el turno. Tiene 1 turno de enfriamiento.'
+            Agil1: 'Ultra Impulso · Sobrecarga de respuesta: cuando una defensa normal reduce el daño final a 0 o 1, el núcleo almacena 1 carga. Con 3 cargas, el siguiente ataque impacta automáticamente, selecciona una de tus caras D y obtiene +1 daño. Ignora esquives y defensas especiales.',
+            Agil2: 'Sombra · Desfase cinético: al esquivar por completo un ataque con una cara A, el núcleo entra en un estado temporal de invulnerabilidad y potencia sus ataques. Sombra tiene una duración limitada y un periodo de enfriamiento; consulta sus indicadores durante el combate.',
+            Normal1: 'Útil · Análisis incremental: al inicio de cada turno propio, el núcleo acumula +1 de ataque y +1 de defensa, hasta +3 en cada reserva. Un ataque fallido no consume el bono ofensivo; una defensa solo consume el bono cuando reduce daño real.',
+            Normal2: 'Adaptabilidad · Aprendizaje reactivo: cada vez que pierde al menos 1 HP, el núcleo registra 1 carga de adaptación. Al reunir 2, su siguiente defensa aplicable reduce 2 puntos de daño y consume ambas cargas.',
+            Resistente1: 'Último Instinto · Protocolo de emergencia: al colapsar por primera vez, el núcleo reconstruye su plataforma con 3 HP y una configuración de 1 cara D y 5 caras A. En esta segunda fase, cualquier cara A que active la defensa anula todo el daño. Ultra Impulso puede atravesar esta protección.',
+            Resistente2: 'Revestimiento · Blindaje adaptativo: cada impacto que quite HP permite al núcleo reforzar su blindaje. Tras el primer impacto, cada nuevo impacto aumenta la reducción hasta un máximo de 3. Si transcurren 3 turnos de ataque rivales sin recibir daño, el blindaje pierde su progreso acumulado.',
+            Dano1: 'Enfurecimiento · Optimización ofensiva: los ataques acertados comienzan con 1 de daño. Cada ataque que quite al menos 1 HP aumenta permanentemente en +1 el daño de los siguientes ataques de ese núcleo durante su vida actual.',
+            Dano2: 'Contraataque · Lectura de patrones: cuando una defensa válida reduce un impacto recibido a 0 o 1 de daño, el núcleo puede activar una secuencia de dos ataques: el primero no puede ser defendido y el segundo sí. Después el rival recupera la iniciativa; la habilidad tiene enfriamiento.'
         };
 
         const MAX_COMBAT_LOG_ENTRIES = 250;
@@ -3360,13 +3360,18 @@
                                             <div className="mits-class-guide-panel w-full overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
                                                 <div className="flex items-center justify-between gap-5 px-6 py-5 md:px-9 md:py-7 xl:px-12 xl:py-9 border-b border-slate-800 bg-gradient-to-r from-cyan-950/30 via-slate-950 to-purple-950/20">
                                                     <div className="text-left">
-                                                        <h3 id="class-guide-title" className="text-2xl md:text-3xl lg:text-4xl font-black text-cyan-300 font-mono-custom tracking-wide">MANUAL DE CLASES</h3>
-                                                        <p className="text-sm md:text-base text-slate-400 mt-2">Explora las estadísticas, el estilo de juego y las habilidades pasivas de cada clase</p>
+                                                        <div className="text-[10px] md:text-xs font-bold tracking-[0.3em] text-cyan-400 mb-2">ARCHIVO LINK · BASE DE DATOS MIT</div>
+                                                        <h3 id="class-guide-title" className="text-2xl md:text-3xl lg:text-4xl font-black text-cyan-300 font-mono-custom tracking-wide">MANUAL DE NÚCLEOS</h3>
+                                                        <p className="text-sm md:text-base text-slate-400 mt-2">Arquitecturas adaptativas · Capacidades · Protocolos de combate</p>
                                                     </div>
                                                     <button onClick={() => setShowClassGuide(false)} className="shrink-0 rounded-lg px-3 py-2 bg-slate-800 hover:bg-rose-900/60 text-slate-200 font-bold" aria-label="Cerrar manual">✕ Cerrar</button>
                                                 </div>
                                                 <div className="mits-class-guide-grid min-h-0 flex-1">
                                                     <div className="mits-class-guide-list gap-3 xl:gap-4 p-4 md:p-6 xl:p-8 border-b md:border-b-0 md:border-r border-slate-800 bg-slate-900/30">
+                                                        <div className="rounded-xl border border-cyan-500/20 bg-cyan-950/20 p-3 text-xs text-slate-400 leading-relaxed">
+                                                            <div className="font-bold text-cyan-300 mb-1">REGISTRO DE ARQUITECTURAS</div>
+                                                            Cada núcleo posee una arquitectura propia. Selecciona un registro para consultar sus parámetros y capacidad adaptativa.
+                                                        </div>
                                                         {MIT_CLASSES.map(c => (
                                                             <button key={c.id} onClick={() => setGuideClassId(c.id)} className={`min-w-0 text-left rounded-2xl border p-4 md:p-5 xl:p-6 transition ${guideClassId === c.id ? 'border-cyan-400 bg-cyan-950/50 text-white' : 'border-slate-800 bg-slate-900/60 text-slate-400 hover:border-slate-600'}`}>
                                                                 <div className="font-bold text-base md:text-lg">{c.name}</div>
@@ -3375,23 +3380,32 @@
                                                         ))}
                                                     </div>
                                                     <div className="mits-class-guide-details mits-modal-content min-w-0 p-6 md:p-10 xl:p-14 2xl:p-16 text-left bg-gradient-to-br from-slate-950 via-slate-950 to-cyan-950/10">
+                                                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/15 p-4 md:p-5 mb-7">
+                                                            <div className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-cyan-400 font-bold">REGISTRO DE NÚCLEO · LINK #{guideClass.id}</div>
+                                                            <p className="text-sm md:text-base text-slate-300 mt-2 leading-relaxed">Un MIT es un núcleo artificial inteligente que dirige una plataforma física de combate. Su arquitectura determina cómo interpreta el entorno, responde a las amenazas y desarrolla sus capacidades.</p>
+                                                        </div>
                                                         <div className="flex flex-wrap items-start justify-between gap-3">
                                                             <div>
-                                                                <div className="text-sm uppercase tracking-[0.25em] text-cyan-400 font-bold">Clase MIT</div>
+                                                                <div className="text-sm uppercase tracking-[0.25em] text-cyan-400 font-bold">Arquitectura adaptativa</div>
                                                                 <h4 className="text-4xl md:text-5xl xl:text-6xl 2xl:text-7xl font-black text-white mt-2 break-words">{guideClass.name}</h4>
+                                                                <p className="text-sm md:text-base text-slate-400 mt-3 max-w-3xl">{guideClass.desc}</p>
                                                             </div>
-                                                            <span className="text-sm rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-slate-400">{guideClass.id}</span>
+                                                            <span className="text-sm rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-slate-400">ID · {guideClass.id}</span>
                                                         </div>
                                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-7 2xl:gap-9 mt-8 xl:mt-12">
-                                                            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 lg:p-7"><div className="text-xs text-rose-300 font-bold">VIDA</div><div className="text-4xl lg:text-5xl font-black text-white mt-2">{guideClass.hp}<span className="text-sm text-slate-500 ml-1">HP</span></div></div>
-                                                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 lg:p-7"><div className="text-xs text-amber-300 font-bold">DAÑO</div><div className="text-3xl font-black text-white mt-1">{guideClass.d}<span className="text-sm text-slate-500 ml-1">D</span></div><div className="text-[10px] text-slate-500 mt-1">Caras de acierto</div></div>
-                                                            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 lg:p-7"><div className="text-xs text-cyan-300 font-bold">ESQUIVE</div><div className="text-3xl font-black text-white mt-1">{guideClass.a}<span className="text-sm text-slate-500 ml-1">A</span></div><div className="text-[10px] text-slate-500 mt-1">Caras de defensa</div></div>
+                                                            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-5 lg:p-7"><div className="text-xs text-rose-300 font-bold">INTEGRIDAD</div><div className="text-4xl lg:text-5xl font-black text-white mt-2">{guideClass.hp}<span className="text-sm text-slate-500 ml-1">HP</span></div><div className="text-[10px] text-slate-500 mt-1">Resistencia de la plataforma</div></div>
+                                                            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-5 lg:p-7"><div className="text-xs text-amber-300 font-bold">PROTOCOLO D</div><div className="text-3xl font-black text-white mt-1">{guideClass.d}<span className="text-sm text-slate-500 ml-1">caras</span></div><div className="text-[10px] text-slate-500 mt-1">Caras ofensivas que puedes asignar</div></div>
+                                                            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 lg:p-7"><div className="text-xs text-cyan-300 font-bold">PROTOCOLO A</div><div className="text-3xl font-black text-white mt-1">{guideClass.a}<span className="text-sm text-slate-500 ml-1">caras</span></div><div className="text-[10px] text-slate-500 mt-1">Caras defensivas que puedes asignar</div></div>
                                                         </div>
                                                         <div className="mt-8 lg:mt-12 rounded-3xl border border-purple-500/25 bg-purple-500/5 p-6 lg:p-10 2xl:p-12">
-                                                            <div className="text-sm uppercase tracking-[0.2em] text-purple-300 font-bold">✦ Habilidad pasiva</div>
-                                                            <p className="text-base md:text-lg xl:text-xl 2xl:text-2xl leading-8 xl:leading-9 text-slate-200 mt-5 max-w-5xl break-words">{MIT_PASSIVE_DETAILS[guideClass.id] || guideClass.desc}</p>
+                                                            <div className="text-sm uppercase tracking-[0.2em] text-purple-300 font-bold">✦ Capacidad adaptativa registrada</div>
+                                                            <h5 className="text-xl md:text-2xl font-black text-white mt-3">{MIT_PASSIVE_DETAILS[guideClass.id]?.split(' · ')[0] || 'Protocolo especial'}</h5>
+                                                            <p className="text-base md:text-lg xl:text-xl 2xl:text-2xl leading-8 xl:leading-9 text-slate-200 mt-4 max-w-5xl break-words">{MIT_PASSIVE_DETAILS[guideClass.id] || guideClass.desc}</p>
                                                         </div>
-                                                        <p className="mt-7 text-sm text-slate-500 leading-relaxed">D = cantidad de caras asignadas para acertar. A = cantidad de caras asignadas para esquivar. Los valores exactos del dado se eligen al construir el MIT.</p>
+                                                        <div className="mt-7 rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
+                                                            <div className="text-xs font-bold tracking-widest text-cyan-300 mb-2">SOBRE LOS PROTOCOLOS</div>
+                                                            <p className="text-sm text-slate-400 leading-relaxed">El Operador configura las caras D y A antes del combate, sin repetir números. D identifica los resultados que activan un ataque; A identifica los resultados que activan una defensa. El número obtenido en el dado determina el daño del ataque: la cantidad de caras D no es el daño.</p>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
