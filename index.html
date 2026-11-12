@@ -1819,6 +1819,7 @@
                                             </div>
                                         </div>
 
+                                        <div className="flex flex-wrap gap-1.5 mb-3">{passiveIndicators(activeP1Mit).map(item => <span key={item} className="px-2 py-1 rounded-lg bg-violet-950/50 border border-violet-500/30 text-violet-200 text-[10px] font-bold">{item}</span>)}</div>
                                         <div className="grid grid-cols-2 gap-2 text-xs font-mono-custom">
                                             <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30">
                                                 <span className="text-amber-400 block font-bold mb-1">🎯 ATAQUE (D:{activeP1Mit.classData?.d})</span>
@@ -1880,6 +1881,7 @@
                                             </div>
                                         </div>
 
+                                        <div className="flex flex-wrap gap-1.5 mb-3">{passiveIndicators(activeP2Mit).map(item => <span key={item} className="px-2 py-1 rounded-lg bg-violet-950/50 border border-violet-500/30 text-violet-200 text-[10px] font-bold">{item}</span>)}</div>
                                         <div className="grid grid-cols-2 gap-2 text-xs font-mono-custom">
                                             <div className="p-2.5 rounded-xl bg-amber-950/20 border border-amber-500/30">
                                                 <span className="text-amber-400 block font-bold mb-1">🎯 ATAQUE (D:{activeP2Mit.classData?.d})</span>
