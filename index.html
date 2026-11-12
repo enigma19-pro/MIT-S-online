@@ -801,9 +801,18 @@
 
             const generateRoomCode = () => {
                 const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                let code = '';
-                for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-                return code;
+                const bytes = new Uint8Array(6);
+                if (window.crypto?.getRandomValues) {
+                    window.crypto.getRandomValues(bytes);
+                } else {
+                    // Compatibilidad con navegadores antiguos; producción debe usar HTTPS
+                    // para disponer del generador criptográfico del navegador.
+                    for (let i = 0; i < bytes.length; i++) {
+                        bytes[i] = Math.floor(Math.random() * 256);
+                    }
+                }
+                // 32 símbolos exactos: byte % 32 no introduce sesgo.
+                return Array.from(bytes, byte => chars[byte % chars.length]).join('');
             };
 
             const registerOnlineDisconnect = async (code, playerNum) => {
