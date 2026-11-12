@@ -1413,20 +1413,17 @@
                 const p1Index = Number.isInteger(onlineOverrides.activeP1Index) ? onlineOverrides.activeP1Index : activeP1Index;
                 const p2Index = Number.isInteger(onlineOverrides.activeP2Index) ? onlineOverrides.activeP2Index : activeP2Index;
 
-                const advanceActive = (playerNum, list, index) => {
-                    const mit = list[index];
-                    if (!mit) return list;
+                const advanceList = (playerNum, list) => list.map(mit => {
+                    if (!mit) return mit;
                     const advanced = window.MITSGameRules.advancePassiveTurn(mit, {
                         opponentTurnEnded: playerWhoJustActed !== playerNum,
                         ownTurnEnded: playerWhoJustActed === playerNum
                     });
-                    const updated = [...list];
-                    updated[index] = { ...mit, passiveState: advanced.state };
                     advanced.events.forEach(event => publishFloatingEffect({ player: playerNum, text: event, type: 'hit' }));
-                    return updated;
-                };
-                nextP1Mits = advanceActive(1, nextP1Mits, p1Index);
-                nextP2Mits = advanceActive(2, nextP2Mits, p2Index);
+                    return { ...mit, passiveState: advanced.state };
+                });
+                nextP1Mits = advanceList(1, nextP1Mits);
+                nextP2Mits = advanceList(2, nextP2Mits);
 
                 const actorList = playerWhoJustActed === 1 ? nextP1Mits : nextP2Mits;
                 const actorIndex = playerWhoJustActed === 1 ? p1Index : p2Index;
