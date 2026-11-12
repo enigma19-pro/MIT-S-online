@@ -2015,7 +2015,7 @@
                             <div className="fixed inset-0 z-[80] bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4">
                                 <div className="w-full max-w-2xl glass-panel rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-500/20 p-6 md:p-8">
                                     <div className="text-center space-y-2 mb-6">
-                                        {gameMode === 'ONLINE' && berserkerRebuild.playerNum !== localPlayerNum && (
+                                        {gameMode === 'ONLINE' && berserkerRebuild.playerNum !== (isRoomHost ? 1 : 2) && (
                                             <div className="fixed inset-0 z-[90] flex items-center justify-center pointer-events-none">
                                                 <div className="text-red-500 text-5xl md:text-7xl font-black uppercase tracking-widest font-mono-custom drop-shadow-[0_0_25px_rgba(239,68,68,0.9)]">
                                                     una vez más..
