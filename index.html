@@ -860,9 +860,13 @@
                             const roomRef = onlineRoomRef();
                             const tx = await window.MITSFirebase.runTransaction(roomRef, room => {
                                 if (!room || room.status !== 'berserker_build' ||
-                                    room.berserkerRebuild?.playerNum !== expectedPlayer) return;
-                                const playerKey = expectedPlayer === 1 ? 'p1Mits' : 'p2Mits';
-                                const opponentKey = expectedPlayer === 1 ? 'p2Mits' : 'p1Mits';
+                                    room.berserkerRebuild?.playerNum !== expectedPlayer ||
+                                    room.berserkerRebuild?.index !== berserkerRebuild.index) return;
+                                const playerKey = room.hostUid === user.uid ? 'p1Mits'
+                                    : room.guestUid === user.uid ? 'p2Mits' : null;
+                                const expectedKey = expectedPlayer === 1 ? 'p1Mits' : 'p2Mits';
+                                if (playerKey !== expectedKey) return;
+                                const opponentKey = playerKey === 'p1Mits' ? 'p2Mits' : 'p1Mits';
                                 const updated = Array.isArray(room[playerKey]) ? [...room[playerKey]] : [];
                                 const original = updated[berserkerRebuild.index];
                                 const transformed = window.MITSGameRules.activateBerserkerSecondPhase(original, currentDNums, currentANums);
