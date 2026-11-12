@@ -400,6 +400,26 @@
             }
         }
 
+        /* Prueba de combate: interfaz retro inspirada en RPG portátiles clásicos. */
+        .combat-test-screen { background:radial-gradient(ellipse at 50% 30%,#263c54 0%,#101b2b 58%,#080d16 100%); }
+        .combat-test-frame { width:min(100%,1100px); image-rendering:pixelated; border:4px solid #c6d0d8; box-shadow:0 0 0 4px #273748,0 24px 80px rgba(0,0,0,.55); background:#dce5df; color:#17212c; }
+        .combat-test-stage { min-height:clamp(330px,55vh,560px); position:relative; overflow:hidden; background:linear-gradient(180deg,#d7e4d7 0%,#b9d0c3 53%,#8da99b 100%); }
+        .combat-test-stage::before { content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 31px,rgba(38,65,58,.045) 32px 33px),linear-gradient(155deg,transparent 0 57%,rgba(61,91,79,.12) 57.2% 57.8%,transparent 58%); }
+        .combat-test-platform { position:absolute;border-radius:50%;background:radial-gradient(ellipse,rgba(73,105,83,.28),rgba(73,105,83,.08) 62%,transparent 70%);border-bottom:5px solid rgba(71,99,80,.16); }
+        .combat-test-orb { position:absolute;width:clamp(76px,12vw,118px);aspect-ratio:1;border-radius:50%;border:5px solid #263746;background:linear-gradient(180deg,#f7f8f5 0 47%,#263746 48% 53%,#e24d4d 54% 100%);box-shadow:inset -9px -8px 0 rgba(0,0,0,.12),inset 7px 7px 0 rgba(255,255,255,.35),0 12px 0 rgba(31,48,54,.15),0 18px 22px rgba(0,0,0,.2);z-index:2; }
+        .combat-test-orb::before { content:"";position:absolute;left:50%;top:50%;width:27%;aspect-ratio:1;transform:translate(-50%,-50%);border:5px solid #263746;border-radius:50%;background:#edf2ed;box-shadow:0 0 0 3px rgba(255,255,255,.55); }
+        .combat-test-orb.enemy { top:26%;right:17%;transform:rotate(-13deg); }
+        .combat-test-orb.player { bottom:13%;left:17%;transform:rotate(12deg); }
+        .combat-test-status { position:absolute;z-index:4;width:min(46%,310px);background:#f7f8ef;border:3px solid #344858;box-shadow:4px 4px 0 rgba(37,53,63,.18);padding:10px 12px;font-family:'Courier New',monospace; }
+        .combat-test-status.enemy { top:7%;left:5%; }
+        .combat-test-status.player { right:5%;bottom:5%; }
+        .combat-test-hp { height:10px;background:#aebbb5;border:2px solid #344858;padding:1px; }
+        .combat-test-hp > span { display:block;height:100%;width:100%;background:#65a86b; }
+        .combat-test-dialog { background:#f8f9f2;border-top:4px solid #344858;color:#17212c;font-family:'Courier New',monospace; }
+        .combat-test-action { min-height:48px;border:3px solid #526675;background:#e8eee8;box-shadow:inset -3px -3px 0 rgba(39,57,67,.12);font-family:'Courier New',monospace;font-weight:900;letter-spacing:.04em; }
+        .combat-test-action:active { transform:translateY(2px);box-shadow:none; }
+        @media(max-width:520px){.combat-test-status{padding:7px 8px;font-size:10px}.combat-test-status.enemy{top:5%;left:3%}.combat-test-status.player{right:3%;bottom:3%}.combat-test-stage{min-height:390px}.combat-test-orb.enemy{right:12%;top:31%}.combat-test-orb.player{left:12%;bottom:17%}}
+        
         /* Arena sandbox: presentación, terreno y personaje. */
         .movement-test-screen { overscroll-behavior:none; touch-action:none; user-select:none; -webkit-user-select:none; }
         .movement-test-shell { max-width:1600px; }
@@ -774,6 +794,9 @@
             const [soundEnabled, setSoundEnabled] = useState(true);
             // Sandbox de movimiento: estado independiente del combate y de Firebase.
             const [showMovementTest, setShowMovementTest] = useState(false);
+            const [showCombatTest, setShowCombatTest] = useState(false);
+            const [combatTestMessage, setCombatTestMessage] = useState('¡Un MIT salvaje aparece!');
+            const [combatTestAction, setCombatTestAction] = useState('');
             const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
             const [testPlayerFacing, setTestPlayerFacing] = useState(0);
             const [testIsMoving, setTestIsMoving] = useState(false);
@@ -3243,6 +3266,47 @@
                                 </div>
                             </div>
                         )}
+                        {showCombatTest && (
+                            <div className="combat-test-screen fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto p-3 md:p-6">
+                                <div className="w-full max-w-6xl flex flex-col gap-3">
+                                    <header className="flex items-center justify-between gap-3 text-slate-100">
+                                        <div>
+                                            <div className="text-[10px] font-mono-custom font-black tracking-[.28em] text-cyan-300">LINK SIMULATION · BATTLE UI</div>
+                                            <h2 className="text-xl md:text-2xl font-black font-mono-custom">PRUEBA DE COMBATE</h2>
+                                        </div>
+                                        <button onClick={() => { setShowCombatTest(false); playSound('click'); }} className="px-4 py-2 rounded-lg border border-slate-500/60 bg-slate-900/80 text-sm font-bold hover:bg-rose-950">Salir ✕</button>
+                                    </header>
+
+                                    <div className="combat-test-frame mx-auto w-full">
+                                        <div className="combat-test-stage">
+                                            <div className="combat-test-platform" style={{width:'42%',height:'17%',top:'25%',right:'5%'}} />
+                                            <div className="combat-test-platform" style={{width:'48%',height:'19%',bottom:'8%',left:'3%'}} />
+                                            <div className="combat-test-status enemy">
+                                                <div className="flex items-center justify-between gap-2 font-black text-sm"><span>OPONENTE</span><span>Lv. ??</span></div>
+                                                <div className="mt-2 flex items-center gap-2 text-[10px] font-bold"><span>HP</span><div className="combat-test-hp flex-1"><span /></div></div>
+                                            </div>
+                                            <div className="combat-test-orb enemy" aria-label="MIT rival" />
+                                            <div className="combat-test-orb player" aria-label="Tu MIT" />
+                                            <div className="combat-test-status player">
+                                                <div className="flex items-center justify-between gap-2 font-black text-sm"><span>TU MIT</span><span>Lv. ??</span></div>
+                                                <div className="mt-2 flex items-center gap-2 text-[10px] font-bold"><span>HP</span><div className="combat-test-hp flex-1"><span /></div></div>
+                                                <div className="mt-1 text-right text-[10px] font-bold">20 / 20</div>
+                                            </div>
+                                        </div>
+                                        <div className="combat-test-dialog grid grid-cols-1 md:grid-cols-[1fr_1.1fr] gap-3 p-3 md:p-4">
+                                            <div className="flex items-center min-h-[74px] px-2 text-sm md:text-base font-bold leading-relaxed" aria-live="polite">{combatTestMessage}</div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                {['ATACAR','DEFENDER','HABILIDAD','MÓDULOS'].map(action => (
+                                                    <button key={action} onClick={() => { setCombatTestAction(action); setCombatTestMessage(action === 'ATACAR' ? '¡Tu MIT ejecutó un ataque!' : action === 'DEFENDER' ? 'Tu MIT adoptó una postura defensiva.' : action === 'HABILIDAD' ? 'No hay habilidades configuradas en esta prueba.' : 'No hay módulos equipados en esta prueba.'); playSound('click'); }} className={'combat-test-action rounded-md text-xs md:text-sm ' + (combatTestAction === action ? 'bg-cyan-200 border-cyan-700' : 'hover:bg-cyan-100')}>{action}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="text-center text-[10px] md:text-xs text-slate-400 font-mono-custom">VISTA CONCEPTUAL · LOS MIT SE REPRESENTAN COMO ESFERAS SIN IDENTIDAD NI NOMBRE</p>
+                                </div>
+                            </div>
+                        )}
+
                         {/* 1. MENU SCREEN */}
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
@@ -3315,6 +3379,20 @@
                                         </div>
                                     </div>
                                     <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
+                                </button>
+
+                                <button
+                                    onClick={() => { setCombatTestMessage('¡Un MIT salvaje aparece!'); setCombatTestAction(''); setShowCombatTest(true); playSound('click'); }}
+                                    className="w-full p-4 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-between group hover:border-cyan-300 hover:bg-cyan-400/15 transition"
+                                >
+                                    <div className="flex items-center gap-4 text-left">
+                                        <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-300 group-hover:scale-110 transition">⚔️</div>
+                                        <div>
+                                            <div className="font-bold text-slate-100">Prueba de combate</div>
+                                            <div className="text-xs text-slate-400">Vista previa de la nueva interfaz de batalla</div>
+                                        </div>
+                                    </div>
+                                    <span className="text-cyan-300 text-xl font-bold font-mono-custom">→</span>
                                 </button>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
