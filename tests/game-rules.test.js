@@ -199,9 +199,9 @@ test('Ultra Impulso only charges after a complete assigned-face dodge', () => {
             ...defender,
             passiveState: { ...defender.passiveState, ultraCharges: 1 }
         },
-        attackDamage: 6, defenseRoll: 6
+        attackDamage: 7, defenseRoll: 6
     });
-    assert.equal(damaged.damage, 0);
+    assert.equal(damaged.damage, 1);
     assert.equal(damaged.state.ultraCharges, 2);
 
     const missedA = resolvePassiveDefense({
