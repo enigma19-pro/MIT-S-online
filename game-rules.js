@@ -307,8 +307,6 @@
             if (!shadow && damage > 0) {
                 damage = Math.max(0, damage - bonus);
                 events.push(`Técnico aplicó Defensa +${bonus}`);
-            } else if (isUltra) {
-                events.push(`Técnico conserva Defensa +${bonus} (ignorada por Ultra Impulso)`);
             }
         }
         // Evasivo uses the normal damage calculation. It only gains a charge
