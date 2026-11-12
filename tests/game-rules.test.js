@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const {
     isSuccessfulAttack,
     resolveDefense,
+    resolveHpAfterDamage,
     findAvailableMitIndex,
     resolveMitDefeat
 } = require('../game-rules.js');
@@ -260,6 +261,64 @@ test('Berserker phase two can also completely nullify damage with an A face', ()
     assert.equal(result.fullyDodged, true);
 });
 
+test('Evasivo only gains Ultra Impulso charge when normal defense leaves zero or one damage', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        evadeNums: [3, 4, 5],
+        passiveState: createPassiveState(PASSIVE_CLASS_IDS.EVASIVO)
+    };
+
+    const twoDamage = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 3 });
+    assert.equal(twoDamage.damage, 2);
+    assert.equal(twoDamage.state.ultraCharges, 0);
+
+    const oneDamage = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 4 });
+    assert.equal(oneDamage.damage, 1);
+    assert.equal(oneDamage.state.ultraCharges, 1);
+
+    const zeroDamage = resolvePassiveDefense({
+        attacker,
+        defender: { ...defender, passiveState: { ...defender.passiveState, ultraCharges: 1 } },
+        attackDamage: 5,
+        defenseRoll: 5
+    });
+    assert.equal(zeroDamage.damage, 0);
+    assert.equal(zeroDamage.state.ultraCharges, 2);
+});
+
+test('Ultra Impulso cannot activate from three stale charges without an unstoppable attack result', () => {
+    const attacker = {
+        classData: { id: PASSIVE_CLASS_IDS.EVASIVO },
+        passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 }
+    };
+    const defender = {
+        classData: { id: PASSIVE_CLASS_IDS.MOVIL },
+        evadeNums: [6],
+        passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL)
+    };
+    const result = resolvePassiveDefense({
+        attacker, defender, attackDamage: 4, defenseRoll: 6
+    });
+    assert.equal(result.damage, 0);
+    assert.equal(result.state.shadowInvulnerableTurns, 2);
+});
+ 
+test('HP resolution clamps malformed HP and never heals from invalid damage', () => {
+    assert.deepEqual(resolveHpAfterDamage({ currentHp: 20, maxHp: 10, damage: 3 }), {
+        currentHp: 7, hpLost: 3, defeated: false
+    });
+    assert.deepEqual(resolveHpAfterDamage({ currentHp: -5, maxHp: 10, damage: 0 }), {
+        currentHp: 0, hpLost: 0, defeated: true
+    });
+    assert.deepEqual(resolveHpAfterDamage({ currentHp: 10, maxHp: 10, damage: -50 }), {
+        currentHp: 10, hpLost: 0, defeated: false
+    });
+    assert.deepEqual(resolveHpAfterDamage({ currentHp: 'invalid', maxHp: 10, damage: 2 }), {
+        currentHp: 0, hpLost: 0, defeated: true
+    });
+});
+
 test('Ultra Impulso selects one assigned attack face, adds one damage and consumes three charges', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, attackNums: [2, 5], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
     const result = resolvePassiveAttack({ attacker: mit, roll: 1, random: () => 0.9 });
@@ -329,11 +388,11 @@ test('Resetting Muralla progression never changes its HP', () => {
     assert.equal(mit.currentHp, 7);
 });
 
-test('Sombra activates its one-turn shield after a successful evade while the current hit deals at least one', () => {
+test('Sombra activates after a successful evade and can fully nullify the current hit', () => {
     const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 6 });
-    assert.equal(result.damage, 1);
+    assert.equal(result.damage, 0);
     assert.equal(result.state.shadowInvulnerableTurns, 2);
     assert.equal(result.state.shadowCooldownTurns, 1);
 });
@@ -455,11 +514,21 @@ test('Ultra Impulso bypasses Berserker phase 2 perfect evasion', () => {
     assert.equal(result.fullyDodged, false);
 });
 
-test('Duelista counter triggers only when it receives zero or one damage', () => {
+test('Duelista only triggers from its own successful defense and reduces a blocked hit to zero or one', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.DUELISTA }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA), evadeNums: [6] };
-    assert.equal(resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 6 }).triggersCounter, true);
-    assert.equal(resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 1 }).triggersCounter, false);
+
+    const blocked = resolvePassiveDefense({ attacker, defender, attackDamage: 3, defenseRoll: 6 });
+    assert.equal(blocked.damage, 0);
+    assert.equal(blocked.triggersCounter, true);
+
+    const reduced = resolvePassiveDefense({ attacker, defender, attackDamage: 8, defenseRoll: 6 });
+    assert.equal(reduced.damage, 1);
+    assert.equal(reduced.triggersCounter, true);
+
+    const failedDefense = resolvePassiveDefense({ attacker, defender, attackDamage: 1, defenseRoll: 1 });
+    assert.equal(failedDefense.damage, 1);
+    assert.equal(failedDefense.triggersCounter, false);
 });
 
 
@@ -470,11 +539,11 @@ test('Technical attack bonus remains accumulated when the attack misses', () => 
     assert.equal(result.state.technicalAttackBonus, 1);
 });
 
-test('Technical defense bonus persists after reducing damage and cannot reduce below one', () => {
+test('Technical defense bonus persists and may reduce a one-point hit to zero', () => {
     const attacker = { passiveState: createPassiveState('other') };
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 1, defenseRoll: 1 });
-    assert.equal(result.damage, 1);
+    assert.equal(result.damage, 0);
     assert.equal(result.state.technicalDefenseBonus, 1);
 });
 
