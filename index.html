@@ -1557,7 +1557,7 @@
                         setBerserkerRebuild(null);
                         setGameState('GAMEOVER');
                         setIsTurnProcessing(false);
-                        setOnlineStatus('El Jugador ' + (normalizedDisconnectedPlayer || '?') + ' salió de la partida.');
+                        setOnlineStatus((normalizedDisconnectedPlayer ? getPlayerDisplayName(normalizedDisconnectedPlayer) : 'Un jugador') + ' salió de la partida.');
                     }
 
                     const invalidMitData = (
@@ -3130,7 +3130,7 @@
                                     <div className="disconnect-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-7 text-center border border-rose-500/40 shadow-2xl space-y-4">
                                         <div className="text-4xl">🚪</div>
                                         <h2 className="text-2xl font-black text-rose-300 font-mono-custom">PARTIDA TERMINADA</h2>
-                                        <p className="text-slate-200">El Jugador {disconnectedPlayer} salió de la partida.</p>
+                                        <p className="text-slate-200">{getPlayerDisplayName(disconnectedPlayer)} salió de la partida.</p>
                                         <p className="text-sm text-slate-400">
                                             La conexión se perdió o el jugador salió de la sala.
                                             {winnerPlayer ? ` Resultado registrado: ganó ${getPlayerDisplayName(winnerPlayer)}.` : ' La partida terminó sin un ganador registrado.'}
