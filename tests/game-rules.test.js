@@ -556,13 +556,32 @@ test('Technical attack bonus remains accumulated when the attack misses', () => 
     assert.equal(result.state.technicalAttackBonus, 1);
 });
 
-test('Technical defense bonus persists and may reduce a one-point hit to zero', () => {
-    const attacker = { passiveState: createPassiveState('other') };
-    const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
-    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 1, defenseRoll: 1 });
-    assert.equal(result.damage, 0);
-    assert.equal(result.state.technicalDefenseBonus, 1);
+test('Technical attack charge is consumed after a successful hit', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [4], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: 3 } };
+    const result = resolvePassiveAttack({ attacker, roll: 4 });
+    assert.equal(result.damage, 7);
+    assert.equal(result.state.technicalAttackBonus, 0);
 });
+
+test('Technical defense charge is consumed after a successful defense action', () => {
+    const attacker = { passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: 3 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 4, defenseRoll: 1 });
+    assert.equal(result.damage, 1);
+    assert.equal(result.state.technicalDefenseBonus, 0);
+});
+
+test('Technical charges are not consumed by unsuccessful actions', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [4], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: 3 } };
+    const miss = resolvePassiveAttack({ attacker, roll: 6 });
+    assert.equal(miss.state.technicalAttackBonus, 3);
+
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: 3 } };
+    const zeroDamage = resolvePassiveDefense({ attacker: { passiveState: createPassiveState('other') }, defender, attackDamage: 0, defenseRoll: 1 });
+    assert.equal(zeroDamage.state.technicalDefenseBonus, 3);
+});
+
+
 
 test('Ultra Impulso respects Muralla vulnerability and reduction', () => {
     const attacker = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.EVASIVO), ultraCharges: 3 } };
