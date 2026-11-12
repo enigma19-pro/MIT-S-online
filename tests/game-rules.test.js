@@ -421,7 +421,7 @@ test('Technical attack bonus is consumed even when the attack misses', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [1], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: true } };
     const result = resolvePassiveAttack({ attacker: mit, roll: 6 });
     assert.equal(result.hit, false);
-    assert.equal(result.state.technicalAttackBonus, false);
+    assert.equal(result.state.technicalAttackBonus, 0);
 });
 
 test('Technical defense bonus is consumed after defense and cannot reduce damage below one', () => {
@@ -514,7 +514,7 @@ test('Ultra Impulso consumes Technical defense bonus without allowing its reduct
     const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
     const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 1, unstoppable: true });
     assert.equal(result.damage, 5);
-    assert.equal(result.state.technicalDefenseBonus, false);
+    assert.equal(result.state.technicalDefenseBonus, 0);
 });
 
 
@@ -677,6 +677,6 @@ test('a malformed reserve HP value is not treated as a living MIT', () => {
 test('random generators that return non-numbers or throw are safely neutralized', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
     const result = beginPassiveAttackTurn(mit, () => { throw new Error('broken random source'); });
-    assert.equal(result.state.technicalAttackBonus, false);
-    assert.equal(result.state.technicalDefenseBonus, false);
+    assert.equal(result.state.technicalAttackBonus, 0);
+    assert.equal(result.state.technicalDefenseBonus, 0);
 });
