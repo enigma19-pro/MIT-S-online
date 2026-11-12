@@ -110,8 +110,8 @@
             ultraCharges: 0,
             shadowInvulnerableTurns: 0,
             shadowCooldownTurns: 0,
-            technicalAttackBonus: false,
-            technicalDefenseBonus: false,
+            technicalAttackBonus: 0,
+            technicalDefenseBonus: 0,
             adaptabilityCharges: 0,
             berserkerPhase: 1,
             murallaHits: 0,
@@ -167,8 +167,8 @@
             ultraCharges: safeCounter(raw.ultraCharges, 0, 3),
             shadowInvulnerableTurns: safeCounter(raw.shadowInvulnerableTurns, 0, 2),
             shadowCooldownTurns: safeCounter(raw.shadowCooldownTurns, 0, 1),
-            technicalAttackBonus: raw.technicalAttackBonus === true,
-            technicalDefenseBonus: raw.technicalDefenseBonus === true,
+            technicalAttackBonus: raw.technicalAttackBonus === true ? 1 : safeCounter(raw.technicalAttackBonus, 0, 3),
+            technicalDefenseBonus: raw.technicalDefenseBonus === true ? 1 : safeCounter(raw.technicalDefenseBonus, 0, 3),
             adaptabilityCharges: safeCounter(raw.adaptabilityCharges, 0, 2),
             berserkerPhase: raw.berserkerPhase === 2 ? 2 : 1,
             murallaHits: safeCounter(raw.murallaHits, 0, 4),
@@ -184,13 +184,11 @@
         const state = passiveState(mit);
         const next = { ...state };
         const events = [];
-        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && safeRandom(random) < 0.5) {
-            const type = safeRandom(random) < 0.5 ? 'attack' : 'defense';
-            const key = type === 'attack' ? 'technicalAttackBonus' : 'technicalDefenseBonus';
-            if (!next[key]) {
-                next[key] = true;
-                events.push(type === 'attack' ? 'Técnico guardó Ataque +1' : 'Técnico guardó Defensa +1');
-            }
+        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO) {
+            next.technicalAttackBonus = Math.min(3, state.technicalAttackBonus + 1);
+            next.technicalDefenseBonus = Math.min(3, state.technicalDefenseBonus + 1);
+            if (next.technicalAttackBonus > state.technicalAttackBonus) events.push(`Técnico acumuló Ataque +1 (${next.technicalAttackBonus}/3)`);
+            if (next.technicalDefenseBonus > state.technicalDefenseBonus) events.push(`Técnico acumuló Defensa +1 (${next.technicalDefenseBonus}/3)`);
         }
         return { state: next, events };
     }
@@ -216,10 +214,11 @@
             next.ultraCharges = 0;
             events.push('Ultra Impulso activado');
         }
-        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus) {
-            if (hit) damage += 1;
-            next.technicalAttackBonus = false;
-            events.push(hit ? 'Técnico consumió Ataque +1' : 'Técnico perdió Ataque +1 tras fallar');
+        if (state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalAttackBonus > 0) {
+            const bonus = next.technicalAttackBonus;
+            if (hit) damage += bonus;
+            next.technicalAttackBonus = 0;
+            events.push(hit ? `Técnico consumió Ataque +${bonus}` : `Técnico perdió Ataque +${bonus} tras fallar`);
         }
         if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
             const bonus = safeCounter(state.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
@@ -275,10 +274,11 @@
             next.adaptabilityCharges = 0;
             events.push('Adaptabilidad consumió 2 cargas y redujo 2 de daño');
         }
-        if (!forceHit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus) {
-            if (!isUltra && !shadow && damage > 0) damage = Math.max(1, damage - 1);
-            next.technicalDefenseBonus = false;
-            events.push(isUltra ? 'Técnico consumió Defensa +1 (ignorada por Ultra Impulso)' : 'Técnico consumió Defensa +1');
+        if (!forceHit && state.passiveClassId === PASSIVE_CLASS_IDS.TECNICO && next.technicalDefenseBonus > 0) {
+            const bonus = next.technicalDefenseBonus;
+            if (!isUltra && !shadow && damage > 0) damage = Math.max(1, damage - bonus);
+            next.technicalDefenseBonus = 0;
+            events.push(isUltra ? `Técnico consumió Defensa +${bonus} (ignorada por Ultra Impulso)` : `Técnico consumió Defensa +${bonus}`);
         }
         if (fullyDodged && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
             next.ultraCharges = Math.min(3, Math.max(0, Number(state.ultraCharges) || 0) + 1);
@@ -364,8 +364,8 @@
                 ultraCharges: 0,
                 shadowInvulnerableTurns: 0,
                 shadowCooldownTurns: 0,
-                technicalAttackBonus: false,
-                technicalDefenseBonus: false,
+                technicalAttackBonus: 0,
+                technicalDefenseBonus: 0,
                 adaptabilityCharges: 0,
                 murallaHits: 0,
                 murallaQuietTurns: 0,
@@ -394,8 +394,8 @@
             evadeNums: normalizedEvadeNums,
             classData: { ...(mit.classData || {}), hp: 3, d: 1, a: 5 },
             passiveState: { ...state, berserkerPhase: 2, ultraCharges: 0,
-                shadowInvulnerableTurns: 0, technicalAttackBonus: false,
-                technicalDefenseBonus: false, adaptabilityCharges: 0,
+                shadowInvulnerableTurns: 0, technicalAttackBonus: 0,
+                technicalDefenseBonus: 0, adaptabilityCharges: 0,
                 murallaHits: 0, murallaQuietTurns: 0, murallaDamagedThisTurn: false, destructorBonus: 0,
                 counterCooldownTurns: 0, counterSequence: null }
         };
