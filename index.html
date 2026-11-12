@@ -118,183 +118,285 @@
             .victory-rays { animation: none; opacity: 0.65; }
         }
 
-        /* Modal layouts: consistent breathing room on desktop without squeezing mobile. */
-        .mits-modal-overlay {
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            align-items: flex-start;
+        /* Class guide modal: scoped rules so other overlays keep their own sizing. */
+        .mits-class-guide-overlay {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            overflow: hidden;
+            box-sizing: border-box;
         }
-        .mits-modal-panel {
-            width: min(96vw, 1500px) !important;
-            max-width: none !important;
-            height: min(86vh, 980px);
+        .mits-class-guide-panel {
+            display: flex;
+            flex-direction: column;
+            width: min(100%, 1100px);
+            max-width: 100%;
+            height: min(92vh, 900px);
             max-height: 92vh;
+            min-height: 0;
             margin: auto;
-            overflow: hidden !important;
-            flex: 0 0 auto;
+            overflow: hidden;
+            box-sizing: border-box;
         }
-        /* At high Windows display scaling/browser zoom, a desktop can report a
-           narrow CSS viewport. Keep the details visible instead of clipping the
-           second grid row below the class list. */
         .mits-class-guide-grid {
             display: grid;
             grid-template-columns: minmax(0, 1fr);
-            grid-template-rows: auto auto;
+            grid-template-rows: auto minmax(0, 1fr);
+            flex: 1 1 0%;
             min-height: 0;
+            overflow: hidden;
         }
         .mits-class-guide-list {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
-            max-height: 28vh;
+            grid-auto-rows: min-content;
+            max-height: 26vh;
+            min-height: 0;
             overflow-y: auto;
+            overflow-x: hidden;
         }
         .mits-class-guide-details {
             min-width: 0;
-            overflow: visible;
+            min-height: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
-        @media (min-width: 900px) {
-            .mits-modal-overlay { padding: 2rem; }
-            .mits-modal-panel { border-radius: 1.75rem; }
+
+        /* Berserker and victory overlays use their own natural content sizes. */
+        .berserker-overlay,
+        .victory-overlay {
+            position: fixed;
+            inset: 0;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+        }
+        .berserker-panel {
+            width: min(100%, 820px);
+            max-height: 92vh;
+            overflow-y: auto;
+        }
+
+        /* Desktop layout system: consistent page width and useful density. */
+        .app-shell {
+            width: 100%;
+            max-width: 1680px;
+            margin-inline: auto;
+            box-sizing: border-box;
+        }
+        .app-main {
+            width: 100%;
+            max-width: 1600px;
+            margin-inline: auto;
+            min-width: 0;
+            gap: 22px;
+            padding-block: 10px 22px;
+            justify-content: flex-start;
+            box-sizing: border-box;
+        }
+        @media (min-width: 1024px) {
+            .app-shell {
+                padding: 24px clamp(24px, 2.2vw, 38px) !important;
+            }
+            .app-header {
+                padding: 18px 26px !important;
+                margin-bottom: 8px !important;
+            }
+            .app-main[data-screen="MENU"],
+            .app-main[data-screen="ONLINE_LOBBY"] {
+                justify-content: center;
+                align-items: center;
+            }
+            .menu-screen {
+                width: min(100%, 780px);
+                max-width: 780px;
+                padding: 32px 36px !important;
+                gap: 22px;
+            }
+            .lobby-screen {
+                width: min(100%, 780px);
+                max-width: 780px;
+                padding: 34px 40px !important;
+                gap: 24px;
+            }
+            .build-screen {
+                width: 100%;
+                max-width: 1380px;
+                padding: clamp(24px, 2vw, 34px) !important;
+                gap: 28px;
+            }
+            .build-layout {
+                gap: clamp(24px, 2vw, 34px) !important;
+                align-items: stretch;
+            }
+            .build-class-section {
+                min-width: 0;
+            }
+            .build-class-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 12px !important;
+            }
+            .build-class-option {
+                min-height: 86px;
+                padding: 16px 18px !important;
+            }
+            .build-number-panel {
+                min-width: 0;
+                padding: clamp(22px, 2vw, 30px) !important;
+            }
+            .build-die-face {
+                height: 68px !important;
+                min-height: 68px;
+                font-size: 1.55rem !important;
+            }
+
+            .battle-screen {
+                width: 100%;
+                max-width: 1600px;
+                margin-inline: auto;
+                min-width: 0;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                align-items: stretch;
+                gap: 18px 20px;
+            }
+            .battle-screen > * {
+                min-width: 0;
+                margin-top: 0 !important;
+            }
+            .battle-screen .battle-players {
+                grid-column: 1 / -1;
+                min-width: 0;
+                gap: 20px !important;
+            }
+            .battle-player-card {
+                min-width: 0;
+                min-height: 280px;
+                padding: clamp(22px, 1.7vw, 30px) !important;
+            }
+            .battle-controls {
+                grid-column: 1;
+                min-width: 0;
+                min-height: 100%;
+                padding: clamp(22px, 1.8vw, 30px) !important;
+                gap: 18px !important;
+            }
+            .battle-action-buttons {
+                width: 100%;
+                max-width: 560px !important;
+            }
+            .battle-controls .w-20.h-20 {
+                width: 92px !important;
+                height: 92px !important;
+                font-size: 2.8rem !important;
+            }
+            .battle-log {
+                grid-column: 2;
+                min-width: 0;
+                min-height: 100%;
+                padding: 22px 24px !important;
+            }
+            .battle-log-list {
+                height: clamp(190px, 25vh, 310px) !important;
+                font-size: 0.78rem !important;
+                line-height: 1.5;
+            }
+            .disconnect-screen {
+                grid-column: 1 / -1;
+                width: min(100%, 820px);
+                max-width: 820px;
+                padding: 34px 42px !important;
+                margin-inline: auto;
+            }
+            .victory-content {
+                max-width: 920px !important;
+                gap: 38px !important;
+            }
+            .app-footer {
+                margin-top: 8px !important;
+                padding-block: 16px !important;
+            }
+            .berserker-overlay {
+                padding: 24px !important;
+                align-items: center;
+                justify-content: center;
+            }
+            .berserker-panel {
+                width: min(100%, 860px);
+                max-height: min(92vh, 940px);
+                padding: 34px !important;
+            }
+            .mits-class-guide-overlay {
+                padding: 0 !important;
+            }
+            .mits-class-guide-panel {
+                width: 100vw !important;
+                max-width: 100vw !important;
+                height: 100vh !important;
+                height: 100dvh !important;
+                max-height: 100dvh !important;
+                border-radius: 0 !important;
+            }
+            .mits-class-guide-panel > div:first-child {
+                flex: 0 0 auto;
+                padding: 18px clamp(24px, 3vw, 48px) !important;
+            }
             .mits-class-guide-grid {
-                grid-template-columns: minmax(230px, 0.34fr) minmax(0, 0.66fr);
+                grid-template-columns: minmax(240px, 22vw) minmax(0, 1fr);
                 grid-template-rows: minmax(0, 1fr);
             }
             .mits-class-guide-list {
                 display: flex;
                 flex-direction: column;
                 max-height: none;
-                min-height: 0;
+                padding: 22px !important;
+                gap: 12px !important;
+            }
+            .mits-class-guide-list button {
+                padding: 17px 19px !important;
             }
             .mits-class-guide-details {
-                overflow-y: auto;
+                padding: clamp(28px, 3vw, 56px) !important;
             }
-        }
-        /* Desktop input devices keep a permanent side-by-side guide layout,
-           even when Windows display scaling makes the CSS viewport look narrow. */
-        @media (hover: hover) and (pointer: fine) {
-            .mits-modal-overlay {
-                padding: 1vh 1vw !important;
-                align-items: center !important;
-                justify-content: center !important;
+            .mits-class-guide-details > div:first-child h4 {
+                font-size: clamp(2.4rem, 3.4vw, 4rem) !important;
+                line-height: 1.08;
             }
-            .mits-modal-panel {
-                width: 98vw !important;
-                max-width: 98vw !important;
-                height: 96vh !important;
-                max-height: 96vh !important;
-                min-height: 0 !important;
-                margin: 0 auto !important;
-                overflow: hidden !important;
-                flex: 0 0 98vw !important;
+            .mits-class-guide-details > .grid {
+                gap: clamp(14px, 1.4vw, 24px) !important;
+                margin-top: clamp(24px, 3vh, 40px) !important;
             }
-            .mits-class-guide-grid {
-                display: grid !important;
-                grid-template-columns: minmax(250px, 22vw) minmax(0, 1fr) !important;
-                grid-template-rows: minmax(0, 1fr) !important;
-                height: 100% !important;
-                min-height: 0 !important;
-                flex: 1 1 auto !important;
+            .mits-class-guide-details > .grid > div {
+                padding: clamp(18px, 1.7vw, 30px) !important;
             }
-            .mits-class-guide-list {
-                display: flex !important;
-                flex-direction: column !important;
-                max-height: none !important;
-                min-height: 0 !important;
-                overflow-y: auto !important;
+            .mits-class-guide-details > div:last-child {
+                margin-top: clamp(22px, 3vh, 40px) !important;
+                padding: clamp(22px, 2.2vw, 38px) !important;
             }
-            .mits-class-guide-details {
-                min-width: 0 !important;
-                min-height: 0 !important;
-                overflow-y: auto !important;
+            .mits-class-guide-details > div:last-child p {
+                font-size: clamp(1.05rem, 1.2vw, 1.35rem) !important;
+                line-height: 1.65 !important;
             }
         }
         @media (min-width: 1440px) {
-            .mits-modal-overlay { padding: 2.5rem; }
-            .mits-modal-panel .mits-modal-content { padding: 3rem; }
-        }
-
-        /* The class guide is portaled to document.body, so fixed now truly
-           references the browser viewport and not the menu's backdrop-filter. */
-        @media (hover: hover) and (pointer: fine) {
-            .mits-class-guide-overlay {
-                position: fixed !important;
-                inset: 0 !important;
-                width: auto !important;
-                height: auto !important;
-                max-width: none !important;
-                max-height: none !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                display: flex !important;
-                flex-direction: column !important;
-                align-items: stretch !important;
-                justify-content: stretch !important;
-                overflow: hidden !important;
-                box-sizing: border-box !important;
+            .app-main {
+                max-width: 1640px;
+                gap: 24px;
             }
-            .mits-class-guide-panel {
-                position: relative !important;
-                inset: auto !important;
-                width: 100% !important;
-                max-width: none !important;
-                height: 100% !important;
-                max-height: none !important;
-                min-height: 0 !important;
-                margin: 0 !important;
-                border-radius: 0 !important;
-                overflow: hidden !important;
-                box-sizing: border-box !important;
-                flex: 1 1 auto !important;
-            }
-            .mits-class-guide-panel > div:first-child {
-                flex: 0 0 auto !important;
-                padding: 18px 3vw !important;
-            }
-            .mits-class-guide-grid {
-                display: grid !important;
-                flex: 1 1 0% !important;
-                min-height: 0 !important;
-                height: auto !important;
-                grid-template-columns: minmax(230px, 21vw) minmax(0, 1fr) !important;
-                grid-template-rows: minmax(0, 1fr) !important;
-                overflow: hidden !important;
-            }
-            .mits-class-guide-list {
-                min-width: 0 !important;
-                min-height: 0 !important;
-                max-height: none !important;
-                padding: 24px !important;
+            .build-class-grid {
+                grid-template-columns: repeat(4, minmax(0, 1fr));
                 gap: 14px !important;
-                overflow-x: hidden !important;
-                overflow-y: auto !important;
             }
-            .mits-class-guide-list button {
-                padding: 20px !important;
+            .battle-screen {
+                gap: 22px 24px;
             }
-            .mits-class-guide-details {
-                min-width: 0 !important;
-                min-height: 0 !important;
-                padding: clamp(28px, 3vw, 64px) !important;
-                overflow: auto !important;
+            .battle-player-card {
+                min-height: 310px;
             }
-            .mits-class-guide-details > div:first-child h4 {
-                font-size: clamp(2.5rem, 4vw, 4.5rem) !important;
-                line-height: 1.08 !important;
-            }
-            .mits-class-guide-details > .grid {
-                gap: clamp(14px, 1.5vw, 28px) !important;
-                margin-top: clamp(24px, 3vh, 48px) !important;
-            }
-            .mits-class-guide-details > .grid > div {
-                padding: clamp(18px, 2vw, 36px) !important;
-            }
-            .mits-class-guide-details > div:last-child {
-                margin-top: clamp(24px, 3vh, 48px) !important;
-                padding: clamp(22px, 2.5vw, 44px) !important;
-            }
-            .mits-class-guide-details > div:last-child p {
-                font-size: clamp(1.1rem, 1.35vw, 1.5rem) !important;
-                line-height: 1.7 !important;
+            .battle-players {
+                gap: 24px !important;
             }
         }
 
@@ -2167,9 +2269,9 @@
             };
 
             return (
-                <div className="min-h-screen flex flex-col justify-between p-3 md:p-6 max-w-7xl mx-auto w-full">
+                <div className="app-shell min-h-screen flex flex-col justify-between p-3 md:p-6 w-full">
                     {/* TOP HEADER */}
-                    <header className="glass-panel rounded-2xl p-4 mb-4 flex flex-wrap justify-between items-center border-b border-cyan-500/20">
+                    <header className="app-header glass-panel rounded-2xl p-4 mb-4 flex flex-wrap justify-between items-center border-b border-cyan-500/20">
                         <div className="flex items-center gap-3">
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-xl text-slate-950 shadow-lg shadow-cyan-500/30">
                                 🎲
@@ -2202,10 +2304,10 @@
                     </header>
 
                     {/* MAIN GAME CONTAINER */}
-                    <main className="flex-1 flex flex-col justify-center">
+                    <main className="app-main flex-1 flex flex-col justify-center" data-screen={gameState}>
                         {/* BERSERKER TRANSFORMATION OVERLAY */}
                         {berserkerRebuild && (
-                            <div className="mits-modal-overlay fixed inset-0 z-[80] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 lg:p-10">
+                            <div className="berserker-overlay fixed inset-0 z-[80] bg-slate-950/95 backdrop-blur-md flex items-center justify-center p-4 lg:p-10">
                                 {gameMode === 'ONLINE' && berserkerRebuild.playerNum !== (isRoomHost ? 1 : 2) ? (
                                     <div className="w-full h-full flex items-center justify-center pointer-events-none">
                                         <div className="text-red-500 text-5xl md:text-7xl font-black uppercase tracking-widest font-mono-custom drop-shadow-[0_0_25px_rgba(239,68,68,0.9)] text-center">
@@ -2213,7 +2315,7 @@
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="mits-modal-panel glass-panel w-full max-w-4xl rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-500/20 p-6 md:p-9 lg:p-12">
+                                    <div className="berserker-panel glass-panel w-full max-w-4xl rounded-3xl border border-orange-400/40 shadow-2xl shadow-orange-500/20 p-6 md:p-9 lg:p-12">
                                         <div className="text-center space-y-2 mb-6">
                                             <div className="text-5xl">🔥</div>
                                             <div className="text-xs font-black uppercase tracking-[0.3em] text-orange-300">ÚLTIMO INSTINTO</div>
@@ -2287,7 +2389,7 @@
 
                         {/* 1. MENU SCREEN */}
                         {gameState === 'MENU' && (
-                            <div className="max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
+                            <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
                                 <div className="space-y-2">
                                     <h2 className="text-3xl font-extrabold text-slate-100 font-mono-custom">SELECCIONA MODO</h2>
                                     <p className="text-slate-400 text-sm">Construye tu equipo de 2 MITs y domina las probabilidades del dado.</p>
@@ -2366,8 +2468,8 @@
                                 {showClassGuide && (() => {
                                     const guideClass = MIT_CLASSES.find(c => c.id === guideClassId) || MIT_CLASSES[0];
                                     return ReactDOM.createPortal(
-                                        <div className="mits-modal-overlay mits-class-guide-overlay fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-3 md:p-6 lg:p-10" role="dialog" aria-modal="true" aria-labelledby="class-guide-title">
-                                            <div className="mits-modal-panel mits-class-guide-panel w-full overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
+                                        <div className="mits-class-guide-overlay fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-3 md:p-6 lg:p-10" role="dialog" aria-modal="true" aria-labelledby="class-guide-title">
+                                            <div className="mits-class-guide-panel w-full overflow-hidden rounded-3xl border border-cyan-400/30 bg-slate-950 shadow-[0_25px_100px_rgba(0,0,0,0.65)] flex flex-col">
                                                 <div className="flex items-center justify-between gap-5 px-6 py-5 md:px-9 md:py-7 xl:px-12 xl:py-9 border-b border-slate-800 bg-gradient-to-r from-cyan-950/30 via-slate-950 to-purple-950/20">
                                                     <div className="text-left">
                                                         <h3 id="class-guide-title" className="text-2xl md:text-3xl lg:text-4xl font-black text-cyan-300 font-mono-custom tracking-wide">MANUAL DE CLASES</h3>
@@ -2414,7 +2516,7 @@
 
                         {/* ONLINE LOBBY */}
                         {gameState === 'ONLINE_LOBBY' && (
-                            <div className="max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-5 text-center border border-emerald-500/20 shadow-2xl">
+                            <div className="lobby-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-5 text-center border border-emerald-500/20 shadow-2xl">
                                 <div>
                                     <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Multijugador online</span>
                                     <h2 className="text-3xl font-extrabold text-slate-100 mt-3 font-mono-custom">SALAS DE COMBATE</h2>
@@ -2442,7 +2544,7 @@
 
                         {/* 2. MIT BUILDER SCREEN */}
                         {gameState === 'BUILD' && (
-                            <div className="max-w-4xl mx-auto w-full glass-panel rounded-3xl p-6 space-y-6">
+                            <div className="build-screen max-w-4xl mx-auto w-full glass-panel rounded-3xl p-6 space-y-6">
                                 <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4">
                                     <div>
                                         <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
@@ -2460,11 +2562,11 @@
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                <div className="build-layout grid grid-cols-1 lg:grid-cols-12 gap-6">
                                     {/* Class Selection */}
-                                    <div className="lg:col-span-7 space-y-3">
+                                    <div className="build-class-section lg:col-span-7 space-y-3">
                                         <label className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Elige una Clase base</label>
-                                        <div className="grid grid-cols-2 gap-2.5">
+                                        <div className="build-class-grid grid grid-cols-2 gap-2.5">
                                             {MIT_CLASSES.map(c => {
                                                 const isSelected = selectedClass.id === c.id;
                                                 return (
@@ -2472,7 +2574,7 @@
                                                         key={c.id}
                                                         onClick={() => handleSelectClass(c)}
                                                         disabled={!!berserkerRebuild}
-                                                        className={`p-3 rounded-xl text-left border transition ${
+                                                        className={`build-class-option p-3 rounded-xl text-left border transition ${
                                                             isSelected 
                                                             ? 'bg-cyan-950/40 border-cyan-400 text-slate-100 shadow-md shadow-cyan-500/10' 
                                                             : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -2493,7 +2595,7 @@
                                     </div>
 
                                     {/* Numbers Assignment */}
-                                    <div className="lg:col-span-5 flex flex-col justify-between glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
+                                    <div className="build-number-panel lg:col-span-5 flex flex-col justify-between glass-panel rounded-2xl p-5 border border-slate-800 space-y-4">
                                         <div>
                                             <label className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-1">
                                                 2. Asigna Números al Dado (1 al 6)
@@ -2522,7 +2624,7 @@
                                                         <button
                                                             key={num}
                                                             onClick={() => handleToggleNumber(num)}
-                                                            className={`h-14 rounded-xl border-2 flex flex-col items-center justify-center font-mono-custom text-xl font-bold transition-all ${btnStyle}`}
+                                                            className={`build-die-face h-14 rounded-xl border-2 flex flex-col items-center justify-center font-mono-custom text-xl font-bold transition-all ${btnStyle}`}
                                                         >
                                                             <span>{num}</span>
                                                             {badge}
@@ -2565,9 +2667,9 @@
 
                         {/* 3. BATTLEFIELD SCREEN */}
                         {(gameState === 'BATTLE' || gameState === 'GAMEOVER') && (
-                            <div className="space-y-4">
+                            <div className="battle-screen space-y-4">
                                 {gameMode === 'ONLINE' && disconnectedPlayer && (
-                                    <div className="max-w-xl mx-auto w-full glass-panel rounded-3xl p-7 text-center border border-rose-500/40 shadow-2xl space-y-4">
+                                    <div className="disconnect-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-7 text-center border border-rose-500/40 shadow-2xl space-y-4">
                                         <div className="text-4xl">🚪</div>
                                         <h2 className="text-2xl font-black text-rose-300 font-mono-custom">PARTIDA TERMINADA</h2>
                                         <p className="text-slate-200">El Jugador {disconnectedPlayer} salió de la partida.</p>
@@ -2576,11 +2678,11 @@
                                     </div>
                                 )}
                                 {gameMode === 'ONLINE' && gameState === 'GAMEOVER' && !disconnectedPlayer && (
-                                    <div className="mits-modal-overlay fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/95 backdrop-blur-md p-6 lg:p-12">
+                                    <div className="victory-overlay fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-slate-950/95 backdrop-blur-md p-6 lg:p-12">
                                         <div className="victory-rays-anchor" aria-hidden="true">
                                             <div className="victory-rays"></div>
                                         </div>
-                                        <div className="relative z-10 w-full max-w-4xl text-center space-y-10 lg:space-y-14">
+                                        <div className="victory-content relative z-10 w-full max-w-4xl text-center space-y-10 lg:space-y-14">
                                             <div className="flex items-center justify-center gap-5 md:gap-8 text-4xl md:text-6xl text-amber-300 drop-shadow-[0_0_18px_rgba(251,191,36,0.9)]" aria-hidden="true">
                                                 <span className="inline-block animate-pulse">⭐</span>
                                                 <span className="text-6xl md:text-8xl">🏆</span>
@@ -2597,9 +2699,9 @@
                                 )}
                                 {!disconnectedPlayer && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
                                     <>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative">
+                                        <div className="battle-players grid grid-cols-1 md:grid-cols-2 gap-4 relative">
                                     {/* PLAYER 1 CARD */}
-                                    <div className={`glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
+                                    <div className={`battle-player-card glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
                                         currentTurnPlayer === 1 && gameState === 'BATTLE' ? 'border-cyan-400 shadow-xl shadow-cyan-500/10' : 'border-slate-800 opacity-85'
                                     }`}>
                                         <div className="flex justify-between items-start mb-3">
@@ -2659,7 +2761,7 @@
                                     </div>
 
                                     {/* PLAYER 2 CARD */}
-                                    <div className={`glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
+                                    <div className={`battle-player-card glass-panel rounded-3xl p-5 border-2 transition-all relative overflow-hidden ${
                                         currentTurnPlayer === 2 && gameState === 'BATTLE' ? 'border-purple-400 shadow-xl shadow-purple-500/10' : 'border-slate-800 opacity-85'
                                     }`}>
                                         <div className="flex justify-between items-start mb-3">
@@ -2723,7 +2825,7 @@
 
                                 {/* ACTION CONTROL & DICE DISPLAY */}
                                 {gameState === 'BATTLE' && (
-                                    <div className="glass-panel rounded-3xl p-5 border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center">
+                                    <div className="battle-controls glass-panel rounded-3xl p-5 border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center">
                                         <div className="text-xs font-mono-custom text-slate-400 flex items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                                             TURNO ACTUAL: <strong className="text-cyan-300 uppercase">JUGADOR {currentTurnPlayer} ({currentTurnPlayer === 1 ? activeP1Mit.name : activeP2Mit.name})</strong>
@@ -2737,7 +2839,7 @@
                                             </div>
                                         </div>
 
-                                        <div className="w-full max-w-sm">
+                                        <div className="battle-action-buttons w-full max-w-sm">
                                             {(
                                                 gameMode !== 'ONLINE' ||
                                                 (combatPhase === 'ATTACK_ROLL'
@@ -2789,9 +2891,9 @@
                                 )}
 
                                 {/* COMBAT LOG */}
-                                <div className="glass-panel rounded-2xl p-4 border border-slate-800">
+                                <div className="battle-log glass-panel rounded-2xl p-4 border border-slate-800">
                                     <h4 className="text-xs font-bold font-mono-custom text-slate-400 uppercase tracking-widest mb-2">BITÁCORA DE COMBATE</h4>
-                                    <div ref={logContainerRef} className="h-32 overflow-y-auto space-y-1 text-xs font-mono-custom pr-2">
+                                    <div ref={logContainerRef} className="battle-log-list h-32 overflow-y-auto space-y-1 text-xs font-mono-custom pr-2">
                                         {combatLog.map((log, index) => (
                                             <div 
                                                 key={index} 
@@ -2816,8 +2918,8 @@
                     </main>
 
                     {/* FOOTER */}
-                    <footer className="text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
-                        MIT’S Engine — Manual Oficial v1.0 · PR(48)
+                    <footer className="app-footer text-center py-4 text-xs font-mono-custom text-slate-500 border-t border-slate-900 mt-6">
+                        MIT’S Engine — Manual Oficial v1.0 · PR(49)
                     </footer>
                 </div>
             );
