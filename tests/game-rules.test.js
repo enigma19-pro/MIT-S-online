@@ -141,10 +141,10 @@ const {
     advancePassiveTurn, activateBerserkerSecondPhase, clearTemporaryPassiveEffects
 } = require('../game-rules.js');
 
-test('passive state starts with clean counters and independent Technical slots', () => {
+test('passive state starts with empty Technical bonus counters', () => {
     const state = createPassiveState(PASSIVE_CLASS_IDS.TECNICO);
-    assert.equal(state.technicalAttackBonus, false);
-    assert.equal(state.technicalDefenseBonus, false);
+    assert.equal(state.technicalAttackBonus, 0);
+    assert.equal(state.technicalDefenseBonus, 0);
     assert.equal(state.ultraCharges, 0);
 });
 
@@ -177,18 +177,41 @@ test('Ultra Impulso random selection stays inside the assigned faces at random=1
     assert.equal(result.damage, 6);
 });
 
-test('Technical has a 50 percent proc followed by a 50/50 bonus type', () => {
+test('Technical always gains one attack and defense stack at each own turn', () => {
     const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
-    const result = beginPassiveAttackTurn(mit, () => 0.1);
-    assert.equal(result.state.technicalAttackBonus, true);
-    assert.equal(result.state.technicalDefenseBonus, false);
+    const result = beginPassiveAttackTurn(mit, () => 0.99);
+    assert.equal(result.state.technicalAttackBonus, 1);
+    assert.equal(result.state.technicalDefenseBonus, 1);
 });
 
-test('Technical can store one attack and one defense bonus independently', () => {
-    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: true } };
-    const result = beginPassiveAttackTurn(mit, (() => { const values = [0.1, 0.1]; return () => values.shift(); })());
-    assert.equal(result.state.technicalAttackBonus, true);
-    assert.equal(result.state.technicalDefenseBonus, true);
+test('Technical attack and defense stacks accumulate independently up to three', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: 2, technicalDefenseBonus: 3 } };
+    const result = beginPassiveAttackTurn(mit);
+    assert.equal(result.state.technicalAttackBonus, 3);
+    assert.equal(result.state.technicalDefenseBonus, 3);
+    assert.deepEqual(result.events, ['Técnico acumuló Ataque +1 (3/3)']);
+});
+
+test('Technical normalizes legacy boolean bonuses and clamps invalid stacks', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, passiveState: { technicalAttackBonus: true, technicalDefenseBonus: 99 } };
+    const result = normalizePassiveState(mit);
+    assert.equal(result.technicalAttackBonus, 1);
+    assert.equal(result.technicalDefenseBonus, 3);
+});
+
+test('Technical consumes all accumulated attack bonus after attacking', () => {
+    const mit = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [4], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalAttackBonus: 3 } };
+    const result = resolvePassiveAttack({ attacker: mit, roll: 4 });
+    assert.equal(result.damage, 7);
+    assert.equal(result.state.technicalAttackBonus, 0);
+});
+
+test('Technical consumes accumulated defense bonus and reduces damage without dropping below one', () => {
+    const attacker = { classData: { id: 'other' }, passiveState: createPassiveState('other') };
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, evadeNums: [], passiveState: { ...createPassiveState(PASSIVE_CLASS_IDS.TECNICO), technicalDefenseBonus: 3 } };
+    const result = resolvePassiveDefense({ attacker, defender, attackDamage: 5, defenseRoll: 2 });
+    assert.equal(result.damage, 2);
+    assert.equal(result.state.technicalDefenseBonus, 0);
 });
 
 test('Ultra Impulso selects one assigned attack face, adds one damage and consumes three charges', () => {
