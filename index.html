@@ -823,6 +823,7 @@
             const presenceGraceTimerRef = useRef(null);
             const waitingRoomExpiryTimerRef = useRef(null);
             const waitingRoomExpiryKeyRef = useRef(null);
+            const waitingRoomDisconnectRef = useRef(null);
             const publicRoomSyncVersionsRef = useRef(new Map());
             const bumpPublicRoomSyncVersion = code => {
                 if (!code) return 0;
@@ -1415,6 +1416,36 @@
                 return Promise.resolve();
             };
 
+            // La salida del anfitrión durante WAITING también queda registrada en
+            // el servidor. Así, cerrar pestaña/navegador o perder la conexión no
+            // depende de que el cliente consiga ejecutar código al salir.
+            const registerWaitingRoomDisconnect = async (code, uid = onlineUser?.uid) => {
+                if (!code || !uid || !window.MITSFirebase) return;
+                const firebase = window.MITSFirebase;
+                const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
+                const patch = MITSOnlineRoomLifecycle.waitingRoomDisconnectPatch({
+                    status: 'waiting',
+                    hostUid: uid
+                }, uid);
+                if (!patch) throw new Error('No se pudo preparar la desconexión de la sala.');
+                await firebase.onDisconnect(roomRef).update(patch);
+                waitingRoomDisconnectRef.current = { code, roomRef };
+            };
+
+            const cancelWaitingRoomDisconnect = async (code = waitingRoomDisconnectRef.current?.code) => {
+                if (!window.MITSFirebase || !code) return;
+                const ref = waitingRoomDisconnectRef.current?.code === code
+                    ? waitingRoomDisconnectRef.current.roomRef
+                    : window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                try {
+                    await window.MITSFirebase.onDisconnect(ref).cancel();
+                } finally {
+                    if (!waitingRoomDisconnectRef.current || waitingRoomDisconnectRef.current.code === code) {
+                        waitingRoomDisconnectRef.current = null;
+                    }
+                }
+            };
+
             const createOnlineRoom = async () => {
                 if (isCreatingRoomRef.current) return;
                 isCreatingRoomRef.current = true;
@@ -1460,7 +1491,9 @@
                     setOnlineStatus('Comparte el código con tu rival.');
                     setDisconnectedPlayer(null);
                     // La presencia individual detecta desconexiones y permite
-                    // recuperar el anuncio público al reconectar.
+                    // recuperar el anuncio público al reconectar. El cierre de la
+                    // sala de espera queda además armado directamente en Firebase.
+                    await registerWaitingRoomDisconnect(code, user.uid);
                     await registerOnlinePresence(code, 1, user.uid);
                     subscribeToOnlineRoom(code, 1, user.uid);
                 } catch (error) {
@@ -1509,6 +1542,7 @@
                         return;
                     }
                     const updatedRoom = tx.snapshot?.val?.();
+                    await cancelWaitingRoomDisconnect(roomCode);
                     if (updatedRoom?.isPublic === true) await retirePublicRoomListing(roomCode);
                     if (updatedRoom?.status === 'cancelled') {
                         setOnlineStatus('La sala expiró y se cerró automáticamente.');
@@ -1533,6 +1567,7 @@
                         return;
                     }
                     clearWaitingRoomExpiryTimer();
+                    await cancelWaitingRoomDisconnect(roomCode);
                     if (onlineRoomData?.isPublic) await retirePublicRoomListing(roomCode);
                     await stopOnlinePresenceListener(true);
                     if (onlineListenerRef.current) {
@@ -3356,6 +3391,7 @@
 
                 // Limpia la presencia mientras la pertenencia todavía es válida.
                 // En especial, evita dejar IDs viejos al liberar el asiento invitado.
+                if (leavingOnlineGame && isRoomHost) await cancelWaitingRoomDisconnect(previousRoomCode);
                 if (leavingOnlineGame) await stopOnlinePresenceListener(true);
 
                 // El anfitrión cierra la espera; el invitado solo libera su asiento.
