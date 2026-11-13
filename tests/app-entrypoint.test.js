@@ -48,3 +48,18 @@ test('the browser entrypoint keeps its runtime dependencies in executable order'
     assert.ok(lifecycleIndex < entryIndex, 'room lifecycle helpers must load before the app');
     assert.ok(rulesIndex < entryIndex, 'game rules must load before the app');
 });
+
+test('startup watchdog reports failed scripts instead of leaving an infinite loader', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert.match(html, /MITSMarkAppReady/);
+    assert.match(html, /addEventListener\('error'/);
+    assert.match(html, /No se pudo cargar MIT’S/);
+    assert.match(html, /}, 12000\)/);
+});
+
+test('Firebase auth initialization waits for the deferred module to become ready', () => {
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert.match(html, /dispatchEvent\(new Event\('mits-firebase-ready'\)\)/);
+    assert.match(html, /addEventListener\('mits-firebase-ready', initializeAuth\)/);
+    assert.match(html, /removeEventListener\('mits-firebase-ready', initializeAuth\)/);
+});
