@@ -2008,6 +2008,9 @@
                 }
                 stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia:', error));
                 clearWaitingRoomExpiryTimer();
+                if (waitingRoomDisconnectRef.current?.code === code) {
+                    cancelWaitingRoomDisconnect(code).catch(error => console.warn('No se pudo cancelar el onDisconnect de la sala:', error));
+                }
                 if (isPublicRoom) retirePublicRoomListing(code);
                 setRoomCode('');
                 setOnlineRoomData(null);
