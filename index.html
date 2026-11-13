@@ -823,7 +823,6 @@
             const presenceGraceTimerRef = useRef(null);
             const waitingRoomExpiryTimerRef = useRef(null);
             const waitingRoomExpiryKeyRef = useRef(null);
-            const waitingRoomDisconnectRef = useRef(null);
             const publicRoomSyncVersionsRef = useRef(new Map());
             const bumpPublicRoomSyncVersion = code => {
                 if (!code) return 0;
@@ -1416,36 +1415,6 @@
                 return Promise.resolve();
             };
 
-            // La salida del anfitrión durante WAITING también queda registrada en
-            // el servidor. Así, cerrar pestaña/navegador o perder la conexión no
-            // depende de que el cliente consiga ejecutar código al salir.
-            const registerWaitingRoomDisconnect = async (code, uid = onlineUser?.uid) => {
-                if (!code || !uid || !window.MITSFirebase) return;
-                const firebase = window.MITSFirebase;
-                const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
-                const patch = MITSOnlineRoomLifecycle.waitingRoomDisconnectPatch({
-                    status: 'waiting',
-                    hostUid: uid
-                }, uid);
-                if (!patch) throw new Error('No se pudo preparar la desconexión de la sala.');
-                await firebase.onDisconnect(roomRef).update(patch);
-                waitingRoomDisconnectRef.current = { code, roomRef };
-            };
-
-            const cancelWaitingRoomDisconnect = async (code = waitingRoomDisconnectRef.current?.code) => {
-                if (!window.MITSFirebase || !code) return;
-                const ref = waitingRoomDisconnectRef.current?.code === code
-                    ? waitingRoomDisconnectRef.current.roomRef
-                    : window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
-                try {
-                    await window.MITSFirebase.onDisconnect(ref).cancel();
-                } finally {
-                    if (!waitingRoomDisconnectRef.current || waitingRoomDisconnectRef.current.code === code) {
-                        waitingRoomDisconnectRef.current = null;
-                    }
-                }
-            };
-
             const createOnlineRoom = async () => {
                 if (isCreatingRoomRef.current) return;
                 isCreatingRoomRef.current = true;
@@ -1462,9 +1431,6 @@
                     for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
                         code = generateRoomCode();
                         const roomRef = onlineRoomRef(code);
-                        // Armamos primero el onDisconnect en el servidor. Si esta
-                        // conexión muere justo después, la sala no queda huérfana.
-                        await registerWaitingRoomDisconnect(code, user.uid);
                         const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
                             if (current !== null) return;
                             return {
@@ -1477,7 +1443,6 @@
                                 winner: null
                             };
                         });
-                        if (!tx.committed) await cancelWaitingRoomDisconnect(code);
                         roomCreated = tx.committed;
                     }
                     if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
@@ -1510,7 +1475,6 @@
                         } catch (cleanupError) {
                             console.warn('No se pudo limpiar la sala creada parcialmente:', cleanupError);
                         }
-                        await cancelWaitingRoomDisconnect(createdRoomCode);
                         await stopOnlinePresenceListener(true);
                         setRoomCode('');
                         setOnlineRoomData(null);
@@ -1545,9 +1509,6 @@
                         return;
                     }
                     const updatedRoom = tx.snapshot?.val?.();
-                    if (tx.committed && updatedRoom?.status !== 'waiting') {
-                        await cancelWaitingRoomDisconnect(roomCode);
-                    }
                     if (updatedRoom?.isPublic === true) await retirePublicRoomListing(roomCode);
                     if (updatedRoom?.status === 'cancelled') {
                         setOnlineStatus('La sala expiró y se cerró automáticamente.');
@@ -1572,7 +1533,6 @@
                         return;
                     }
                     clearWaitingRoomExpiryTimer();
-                    await cancelWaitingRoomDisconnect(roomCode);
                     if (onlineRoomData?.isPublic) await retirePublicRoomListing(roomCode);
                     await stopOnlinePresenceListener(true);
                     if (onlineListenerRef.current) {
@@ -2008,9 +1968,6 @@
                 }
                 stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia:', error));
                 clearWaitingRoomExpiryTimer();
-                if (waitingRoomDisconnectRef.current?.code === code) {
-                    cancelWaitingRoomDisconnect(code).catch(error => console.warn('No se pudo cancelar el onDisconnect de la sala:', error));
-                }
                 if (isPublicRoom) retirePublicRoomListing(code);
                 setRoomCode('');
                 setOnlineRoomData(null);
@@ -3399,7 +3356,6 @@
 
                 // Limpia la presencia mientras la pertenencia todavía es válida.
                 // En especial, evita dejar IDs viejos al liberar el asiento invitado.
-                if (leavingOnlineGame && isRoomHost) await cancelWaitingRoomDisconnect(previousRoomCode);
                 if (leavingOnlineGame) await stopOnlinePresenceListener(true);
 
                 // El anfitrión cierra la espera; el invitado solo libera su asiento.
