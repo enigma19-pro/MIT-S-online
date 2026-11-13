@@ -1049,9 +1049,13 @@
                             // El anuncio no es la fuente de verdad: se contrasta con
                             // la sala real antes de mostrarlo como disponible.
                             const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
-                            const roomSnapshot = await firebase.get(roomRef);
+                            const hostPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player1`);
+                            const [roomSnapshot, hostPresenceSnapshot] = await Promise.all([
+                                firebase.get(roomRef),
+                                firebase.get(hostPresenceRef)
+                            ]);
                             const room = roomSnapshot.exists() ? roomSnapshot.val() : null;
-                            if (!MITSOnlineRoomLifecycle.isPublicRoomAvailable(
+                            if (!hostPresenceSnapshot.exists() || !MITSOnlineRoomLifecycle.isPublicRoomAvailable(
                                 listing, room, Date.now(), ONLINE_ROOM_TTL_MS
                             )) {
                                 await retirePublicRoomListing(code);
@@ -1856,11 +1860,14 @@
                     expiresAt: room.expiresAt,
                     status: room.status
                 };
-                const isAvailable = MITSOnlineRoomLifecycle.isPublicRoomAvailable(
+                const hostPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player1`);
+                const isAvailableByState = MITSOnlineRoomLifecycle.isPublicRoomAvailable(
                     listing, room, Date.now(), ONLINE_ROOM_TTL_MS
                 );
 
                 try {
+                    const hostPresenceSnapshot = await firebase.get(hostPresenceRef);
+                    const isAvailable = isAvailableByState && hostPresenceSnapshot.exists();
                     if (isAvailable) {
                         if (registerDisconnect) await firebase.onDisconnect(publicRef).remove();
                         await firebase.set(publicRef, listing);
