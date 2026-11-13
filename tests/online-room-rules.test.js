@@ -63,6 +63,16 @@ test('expired and stale public listings can be retired without opening room writ
 });
 
 
+
+test('room participants cannot spoof or erase the other player presence', () => {
+    const validate = room['.validate'];
+    assert.match(validate, /auth\.uid == data\.child\('hostUid'\)\.val\(\).*presence.*player2.*exists/);
+    assert.match(validate, /auth\.uid == data\.child\('guestUid'\)\.val\(\).*presence.*player1.*exists/);
+    assert.match(validate, /newData\.child\('presence'\)\.child\('player2'\)\.exists\(\) == data\.child\('presence'\)\.child\('player2'\)\.exists\(\)/);
+    assert.match(validate, /newData\.child\('presence'\)\.child\('player1'\)\.exists\(\) == data\.child\('presence'\)\.child\('player1'\)\.exists\(\)/);
+});
+
+
 test('disconnect-based player_left transitions require the missing opponent presence and a known reason', () => {
     const validate = room['.validate'];
     assert.match(validate, /closeReason.*disconnect/);
