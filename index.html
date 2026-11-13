@@ -1046,7 +1046,7 @@
                         hostUid: typeof room?.hostUid === 'string' ? room.hostUid : '',
                         createdAt: Number(room?.createdAt) || 0,
                         expiresAt: Number(room?.expiresAt) || 0,
-                        status: typeof room?.status === 'string' ? room.status : 'waiting'
+                        status: typeof room?.status === 'string' ? room.status : ''
                     })).filter(room =>
                         room.hostUid && room.hostUid !== onlineUser.uid && !room.guestUid &&
                         room.status === 'waiting' && isFreshPublicRoom(room)
@@ -1764,7 +1764,7 @@
                 }
             };
 
-            const exitClosedOnlineRoom = (code, message) => {
+            const exitClosedOnlineRoom = (code, message, isPublicRoom = false) => {
                 const firebase = window.MITSFirebase;
                 gameSessionRef.current += 1;
                 cancelGameTimers();
@@ -1786,7 +1786,7 @@
                 }
                 stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia:', error));
                 cancelOnlineDisconnect(code);
-                if (onlineRoomData?.isPublic === true) retirePublicRoomListing(code);
+                if (isPublicRoom) retirePublicRoomListing(code);
                 setRoomCode('');
                 setOnlineRoomData(null);
                 setIsRoomHost(false);
@@ -1888,7 +1888,7 @@
                                 : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
                                     ? getPlayerDisplayName(Number(room.disconnectedPlayer))
                                     : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
-                            exitClosedOnlineRoom(code, message);
+                            exitClosedOnlineRoom(code, message, room.isPublic === true);
                         }
                         return;
                     }
