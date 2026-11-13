@@ -1246,6 +1246,19 @@
                 return Array.from(bytes, byte => chars[byte % chars.length]).join('');
             };
 
+            const registerWaitingRoomDisconnect = async (code) => {
+                if (!code || !window.MITSFirebase) return;
+                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                // Mientras la sala está en espera, una desconexión del anfitrión
+                // debe cerrar la sala en el servidor, no depender de que el rival
+                // detecte la presencia varios segundos después.
+                await window.MITSFirebase.onDisconnect(roomRef).update({
+                    status: 'cancelled',
+                    closeReason: 'host_disconnect',
+                    closedBy: onlineUser?.uid || null
+                });
+            };
+
             const registerOnlineDisconnect = async (code, playerNum) => {
                 if (!code || !window.MITSFirebase) return;
                 const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
@@ -1404,6 +1417,7 @@
                     setDisconnectedPlayer(null);
                     // La presencia individual detecta cierres reales sin convertir
                     // una reconexión breve en una salida definitiva.
+                    await registerWaitingRoomDisconnect(code);
                     await registerOnlinePresence(code, 1);
                     subscribeToOnlineRoom(code, 1);
                 } catch (error) {
@@ -1430,6 +1444,7 @@
                         return;
                     }
                     if (onlineRoomData?.isPublic) await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
+                    await cancelOnlineDisconnect(roomCode);
                 } catch (error) {
                     console.error('No se pudo iniciar la sala:', error);
                     setOnlineStatus('Error al iniciar: ' + (error?.message || 'desconocido'));
@@ -1450,6 +1465,7 @@
                     }
                     if (onlineRoomData?.isPublic) await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
                     await stopOnlinePresenceListener(true);
+                    await cancelOnlineDisconnect(roomCode);
                     if (onlineListenerRef.current) {
                         window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                         if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) window.MITSFirebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
@@ -2998,13 +3014,19 @@
                     try {
                         const user = onlineUser || await window.MITSFirebase.ready;
                         const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${finishedRoomCode}`);
-                        await window.MITSFirebase.runTransaction(roomRef, current => {
-                            if (!current || current.status !== 'gameover') return;
+                        const snapshot = await window.MITSFirebase.get(roomRef);
+                        const current = snapshot.exists() ? snapshot.val() : null;
+                        if (current?.status === 'gameover') {
                             const playerNum = current.hostUid === user.uid ? 1
                                 : current.guestUid === user.uid ? 2 : null;
-                            if (!playerNum) return;
-                            return { ...current, status: 'player_left', disconnectedPlayer: playerNum, closeReason: 'gameover_exit' };
-                        });
+                            if (playerNum) {
+                                await window.MITSFirebase.update(roomRef, {
+                                    status: 'player_left',
+                                    disconnectedPlayer: playerNum,
+                                    closeReason: 'gameover_exit'
+                                });
+                            }
+                        }
                     } catch (error) {
                         console.warn('No se pudo cerrar la sala terminada:', error);
                     }
@@ -3085,6 +3107,7 @@
                         if (tx.committed && onlineRoomData?.isPublic) {
                             await retirePublicRoomListing(previousRoomCode);
                         }
+                        await cancelOnlineDisconnect(previousRoomCode);
                     } catch (error) {
                         console.warn('No se pudo notificar la salida de la sala:', error);
                     }
