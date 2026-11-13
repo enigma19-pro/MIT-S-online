@@ -613,6 +613,7 @@
         </div>
     </div>
 
+    <script src="./online-room-lifecycle.js"></script>
     <script src="./game-rules.js"></script>
     <script type="text/babel">
         const { useState, useEffect, useRef, useLayoutEffect } = React;
@@ -794,6 +795,8 @@
         ];
 
         function App() {
+            const ONLINE_ROOM_TTL_MS = 30 * 60 * 1000;
+            const ONLINE_PRESENCE_GRACE_MS = 6000;
             // Game State
             const [gameState, setGameState] = useState('MENU'); // MENU, BUILD, BATTLE, GAMEOVER
             const [gameMode, setGameMode] = useState('AI'); // 'AI' | 'LOCAL' | 'ONLINE'
@@ -1029,36 +1032,70 @@
 
             useEffect(() => {
                 if (gameState !== 'ONLINE_LOBBY' || !onlineUser || !window.MITSFirebase) return;
-                const PUBLIC_ROOM_TTL_MS = 30 * 60 * 1000;
-                const publicRef = window.MITSFirebase.ref(window.MITSFirebase.db, 'publicRooms');
-                const isFreshPublicRoom = room => {
-                    const createdAt = Number(room?.createdAt) || 0;
-                    const expiresAt = Number(room?.expiresAt) || (createdAt + PUBLIC_ROOM_TTL_MS);
-                    return createdAt > 0 && Date.now() < expiresAt && Date.now() - createdAt < PUBLIC_ROOM_TTL_MS;
-                };
+                const firebase = window.MITSFirebase;
+                const publicRef = firebase.ref(firebase.db, 'publicRooms');
+                let active = true;
+                let snapshotVersion = 0;
+
                 const handler = snapshot => {
-                    const value = snapshot.val() || {};
-                    const rooms = Object.entries(value).map(([code, room]) => ({
-                        code,
-                        name: typeof room?.name === 'string' ? room.name.slice(0, 40) : 'Sala pública',
-                        hostName: typeof room?.hostName === 'string' ? room.hostName.trim().replace(/\s+/g, ' ').slice(0, 24) : 'Anfitrión',
-                        guestUid: room?.guestUid || null,
-                        hostUid: typeof room?.hostUid === 'string' ? room.hostUid : '',
-                        createdAt: Number(room?.createdAt) || 0,
-                        expiresAt: Number(room?.expiresAt) || 0,
-                        status: typeof room?.status === 'string' ? room.status : ''
-                    })).filter(room =>
-                        room.hostUid && room.hostUid !== onlineUser.uid && !room.guestUid &&
-                        room.status === 'waiting' && isFreshPublicRoom(room)
-                    ).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
-                    setPublicRooms(rooms);
+                    const version = ++snapshotVersion;
+                    const entries = Object.entries(snapshot.val() || {});
+                    Promise.all(entries.map(async ([code, listing]) => {
+                        if (!listing || typeof listing !== 'object' || Array.isArray(listing)) {
+                            await retirePublicRoomListing(code);
+                            return null;
+                        }
+                        try {
+                            // El anuncio no es la fuente de verdad: se contrasta con
+                            // la sala real antes de mostrarlo como disponible.
+                            const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
+                            const roomSnapshot = await firebase.get(roomRef);
+                            const room = roomSnapshot.exists() ? roomSnapshot.val() : null;
+                            if (!MITSOnlineRoomLifecycle.isPublicRoomAvailable(
+                                listing, room, Date.now(), ONLINE_ROOM_TTL_MS
+                            )) {
+                                await retirePublicRoomListing(code);
+                                return null;
+                            }
+                            if (room.hostUid === onlineUser.uid) return null;
+                            return {
+                                code,
+                                name: typeof room.roomName === 'string' ? room.roomName.slice(0, 40) : 'Sala pública',
+                                hostName: typeof room.player1Name === 'string'
+                                    ? room.player1Name.trim().replace(/\s+/g, ' ').slice(0, 24)
+                                    : 'Anfitrión',
+                                guestUid: null,
+                                hostUid: room.hostUid,
+                                createdAt: room.createdAt,
+                                expiresAt: room.expiresAt,
+                                status: room.status
+                            };
+                        } catch (error) {
+                            const errorCode = String(error?.code || '').toUpperCase();
+                            const permissionDenied = errorCode.includes('PERMISSION_DENIED') ||
+                                errorCode.includes('PERMISSION-DENIED') ||
+                                /permission denied/i.test(String(error?.message || ''));
+                            if (permissionDenied) await retirePublicRoomListing(code);
+                            return null;
+                        }
+                    })).then(results => {
+                        if (!active || version !== snapshotVersion) return;
+                        setPublicRooms(results.filter(Boolean)
+                            .sort((a, b) => b.createdAt - a.createdAt)
+                            .slice(0, 30));
+                    }).catch(error => {
+                        console.warn('No se pudieron validar las salas públicas:', error);
+                    });
                 };
-                window.MITSFirebase.onValue(publicRef, handler);
+
+                firebase.onValue(publicRef, handler);
                 const expiryTimer = setInterval(() => {
-                    setPublicRooms(current => current.filter(room => isFreshPublicRoom(room)));
+                    setPublicRooms(current => current.filter(room => room.expiresAt > Date.now()));
                 }, 30000);
                 return () => {
-                    window.MITSFirebase.off(publicRef, 'value', handler);
+                    active = false;
+                    snapshotVersion += 1;
+                    firebase.off(publicRef, 'value', handler);
                     clearInterval(expiryTimer);
                 };
             }, [gameState, onlineUser]);
@@ -1246,44 +1283,10 @@
                 return Array.from(bytes, byte => chars[byte % chars.length]).join('');
             };
 
-            const registerWaitingRoomDisconnect = async (code) => {
-                if (!code || !window.MITSFirebase) return;
-                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
-                // Mientras la sala está en espera, una desconexión del anfitrión
-                // debe cerrar la sala en el servidor, no depender de que el rival
-                // detecte la presencia varios segundos después.
-                await window.MITSFirebase.onDisconnect(roomRef).update({
-                    status: 'cancelled',
-                    closeReason: 'host_disconnect',
-                    closedBy: onlineUser?.uid || null
-                });
-            };
-
-            const registerOnlineDisconnect = async (code, playerNum) => {
-                if (!code || !window.MITSFirebase) return;
-                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
-                // Si el navegador se cierra desde la pantalla de resultado, el rival
-                // también debe salir de la sala; el ganador se conserva.
-                await window.MITSFirebase.onDisconnect(roomRef).update({
-                    status: 'player_left',
-                    disconnectedPlayer: playerNum,
-                    closeReason: 'gameover_exit'
-                });
-            };
-
-            const cancelOnlineDisconnect = async (code = roomCode) => {
-                if (!code || !window.MITSFirebase) return;
-                try {
-                    const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
-                    await window.MITSFirebase.onDisconnect(roomRef).cancel();
-                } catch (error) {
-                    console.warn('No se pudo cancelar la salida automática:', error);
-                }
-            };
-
-            // Presencia por conexión: evita marcar una salida por una caída breve
-            // de red. Cada reconexión vuelve a registrar su limpieza en el servidor.
-            const registerOnlinePresence = async (code, playerNum) => {
+            // Presencia por conexión: una caída breve no cierra la sala.
+            // El rival espera una ventana de gracia y confirma la ausencia dentro
+            // de una transacción sobre la sala completa antes de cerrar nada.
+            const registerOnlinePresence = async (code, playerNum, uid = onlineUser?.uid) => {
                 if (!code || !window.MITSFirebase) throw new Error('No se pudo iniciar la presencia online.');
                 const firebase = window.MITSFirebase;
                 const previousPresence = onlinePresenceRef.current;
@@ -1332,12 +1335,27 @@
                                 if (disposed) return null;
                                 return firebase.set(connectionRef, true);
                             })
-                            .then(() => {
-                                registering = false;
+                            .then(async () => {
                                 if (disposed) {
+                                    registering = false;
                                     firebase.set(connectionRef, null).catch(() => {});
                                     return;
                                 }
+                                // El anuncio público se retira al desconectarse y se
+                                // reconstruye al reconectar, si la sala sigue disponible.
+                                if (playerNum === 1 && uid) {
+                                    try {
+                                        const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
+                                        const roomSnapshot = await firebase.get(roomRef);
+                                        const room = roomSnapshot.exists() ? roomSnapshot.val() : null;
+                                        if (room && room.hostUid === uid) {
+                                            await syncPublicRoomListing(code, room, true, uid);
+                                        }
+                                    } catch (error) {
+                                        console.warn('No se pudo sincronizar el anuncio público al reconectar:', error);
+                                    }
+                                }
+                                registering = false;
                                 if (firstRegistration) {
                                     firstRegistration = false;
                                     resolve();
