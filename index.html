@@ -2046,7 +2046,7 @@
                             }
                         } catch (error) {
                             console.warn('No se pudo cerrar la sala de espera expirada:', error);
-                            if (onlineListenerRef.current?.ref === roomRef) scheduleWaitingRoomExpiry(room, 5000);
+                            if (currentRoomStatus === 'waiting' && onlineListenerRef.current?.ref === roomRef) scheduleWaitingRoomExpiry(room, 5000);
                         }
                     }, delay);
                 };
