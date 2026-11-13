@@ -191,8 +191,8 @@ test('explicit exits do not end a room while another session of the same player 
         waitingRoom({ status: 'battle', presence: { player1: { host_tab_2: true } } }),
         HOST
     ), null);
-    assert.deepEqual(
-        Lifecycle.explicitExitPatch(waitingRoom({ status: 'battle', presence: { player2: { guest_tab_2: true } } }), HOST),
+    assert.equal(
+        Lifecycle.explicitExitPatch(waitingRoom({ status: 'battle', presence: { player2: { guest_tab_2: true } } }), GUEST),
         null
     );
 });
