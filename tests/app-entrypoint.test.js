@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { parse } = require('@babel/parser');
+const Babel = require('@babel/standalone');
 
 test('the complete browser entrypoint JSX parses before deployment', () => {
     const htmlPath = path.join(__dirname, '..', 'index.html');
@@ -13,13 +13,16 @@ test('the complete browser entrypoint JSX parses before deployment', () => {
 
     assert.equal(scripts.length, 1, 'index.html must contain exactly one Babel JSX entrypoint');
 
+    let compiled;
     assert.doesNotThrow(() => {
-        parse(scripts[0][1], {
-            sourceType: 'script',
-            sourceFilename: 'index.html#babel-entrypoint',
-            plugins: ['jsx']
+        compiled = Babel.transform(scripts[0][1], {
+            presets: ['react'],
+            filename: 'index.html#babel-entrypoint'
         });
-    }, 'the complete JSX entrypoint must be syntactically valid');
+    }, 'the complete JSX entrypoint must compile with Babel Standalone');
+
+    assert.ok(compiled?.code?.length > 0, 'Babel must produce executable JavaScript');
+    assert.doesNotMatch(compiled.code, /<\/?[A-Za-z][^>]*>/, 'compiled JavaScript must not retain JSX tags');
 });
 
 test('the browser entrypoint keeps its runtime dependencies in executable order', () => {
