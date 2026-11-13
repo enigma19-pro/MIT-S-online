@@ -1397,7 +1397,9 @@
                     const user = onlineUser || await window.MITSFirebase.ready;
                     let code = '';
                     let roomCreated = false;
+                    let createdRoomCode = '';
                     const createdAt = Date.now();
+                    const expiresAt = createdAt + ONLINE_ROOM_TTL_MS;
                     for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
                         code = generateRoomCode();
                         const roomRef = onlineRoomRef(code);
@@ -1406,7 +1408,7 @@
                             return {
                                 hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '', status: 'waiting',
                                 roomName: (roomName.trim() || 'Sala de combate').slice(0, 40),
-                                isPublic: roomVisibility === 'public', createdAt,
+                                isPublic: roomVisibility === 'public', createdAt, expiresAt,
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
                                 currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
                                 attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
@@ -1416,16 +1418,12 @@
                         roomCreated = tx.committed;
                     }
                     if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
-                    if (roomVisibility === 'public') {
-                        const publicRoomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`);
-                        await window.MITSFirebase.onDisconnect(publicRoomRef).remove();
-                        await window.MITSFirebase.set(publicRoomRef, {
-                            hostUid: user.uid, hostName: playerName,
-                            name: (roomName.trim() || 'Sala de combate').slice(0, 40),
-                            createdAt, expiresAt: createdAt + (30 * 60 * 1000), status: 'waiting'
-                        });
-                    }
-                    setOnlineRoomData({ hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '', roomName: (roomName.trim() || 'Sala de combate').slice(0, 40), isPublic: roomVisibility === 'public', status: 'waiting' });
+                    createdRoomCode = code;
+                    setOnlineRoomData({
+                        hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '',
+                        roomName: (roomName.trim() || 'Sala de combate').slice(0, 40),
+                        isPublic: roomVisibility === 'public', status: 'waiting', createdAt, expiresAt
+                    });
                     setRoomCode(code);
                     setIsRoomHost(true);
                     setGameMode('ONLINE');
@@ -1433,12 +1431,30 @@
                     setGameState('ONLINE_LOBBY');
                     setOnlineStatus('Comparte el código con tu rival.');
                     setDisconnectedPlayer(null);
-                    // La presencia individual detecta cierres reales sin convertir
-                    // una reconexión breve en una salida definitiva.
-                    await registerWaitingRoomDisconnect(code);
-                    await registerOnlinePresence(code, 1);
-                    subscribeToOnlineRoom(code, 1);
+                    // La presencia individual detecta desconexiones y permite
+                    // recuperar el anuncio público al reconectar.
+                    await registerOnlinePresence(code, 1, user.uid);
+                    subscribeToOnlineRoom(code, 1, user.uid);
                 } catch (error) {
+                    if (createdRoomCode && window.MITSFirebase) {
+                        try {
+                            const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${createdRoomCode}`);
+                            await window.MITSFirebase.runTransaction(roomRef, current => {
+                                if (!current || current.hostUid !== onlineUser?.uid && current.hostUid !== undefined) return;
+                                if (current.status !== 'waiting') return;
+                                return { ...current, status: 'cancelled', closeReason: 'host_setup_failed' };
+                            });
+                            await retirePublicRoomListing(createdRoomCode);
+                        } catch (cleanupError) {
+                            console.warn('No se pudo limpiar la sala creada parcialmente:', cleanupError);
+                        }
+                        await stopOnlinePresenceListener(true);
+                        setRoomCode('');
+                        setOnlineRoomData(null);
+                        setIsRoomHost(false);
+                        setGameMode('ONLINE');
+                        setGameState('ONLINE_LOBBY');
+                    }
                     if (error?.code !== 'PRESENCE_CANCELLED') {
                         console.error(error);
                         setOnlineStatus('Error al crear la sala: ' + error.message);
@@ -1461,8 +1477,7 @@
                         setOnlineStatus('No se pudo iniciar: falta el rival o la sala ya cambió de estado.');
                         return;
                     }
-                    if (onlineRoomData?.isPublic) await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
-                    await cancelOnlineDisconnect(roomCode);
+                    if (onlineRoomData?.isPublic) await retirePublicRoomListing(roomCode);
                 } catch (error) {
                     console.error('No se pudo iniciar la sala:', error);
                     setOnlineStatus('Error al iniciar: ' + (error?.message || 'desconocido'));
@@ -1481,9 +1496,8 @@
                         setOnlineStatus('La sala ya no se puede cancelar.');
                         return;
                     }
-                    if (onlineRoomData?.isPublic) await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${roomCode}`), null);
+                    if (onlineRoomData?.isPublic) await retirePublicRoomListing(roomCode);
                     await stopOnlinePresenceListener(true);
-                    await cancelOnlineDisconnect(roomCode);
                     if (onlineListenerRef.current) {
                         window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                         if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) window.MITSFirebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
@@ -1507,6 +1521,7 @@
                 isJoiningRoomRef.current = true;
                 setIsJoiningRoom(true);
                 let joinStep = 'autenticación';
+                let claimedRoomCode = '';
 
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
@@ -1559,6 +1574,10 @@
                             setOnlineStatus('La sala no admite jugadores. Estado actual: ' + String(initialRoom.status || 'SIN ESTADO') + '. Crea otra.');
                             return;
                         }
+                        if (MITSOnlineRoomLifecycle.isWaitingRoomExpired(initialRoom, Date.now())) {
+                            setOnlineStatus('La sala expiró. Pide al anfitrión que cree una nueva.');
+                            return;
+                        }
                     }
 
                     // Reserva atómica mediante update. Las reglas de RTDB solo permiten esta
@@ -1569,6 +1588,7 @@
                         guestUid: user.uid,
                         player2Name: playerName
                     });
+                    claimedRoomCode = code;
 
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al lobby.
                     joinStep = 'verificación de la reserva';
@@ -1581,7 +1601,8 @@
                         confirmedRoom.hostUid === user.uid ||
                         (initialRoom && confirmedRoom.hostUid !== initialRoom.hostUid) ||
                         confirmedRoom.guestUid !== user.uid ||
-                        !['waiting', 'building'].includes(confirmedRoom.status)
+                        !['waiting', 'building'].includes(confirmedRoom.status) ||
+                        MITSOnlineRoomLifecycle.isWaitingRoomExpired(confirmedRoom, Date.now())
                     ) {
                         console.warn('La sala no confirmó la reserva del invitado:', {
                             roomCode: code,
@@ -1603,9 +1624,23 @@
                     setOnlineStatus(confirmedRoom.status === 'building' ? 'Partida iniciada. Construye tus 2 MITs.' : 'Te uniste a la sala. Espera a que el anfitrión inicie la partida.');
                     setDisconnectedPlayer(null);
                     // Registra presencia antes de comenzar a construir/pelear.
-                    await registerOnlinePresence(code, 2);
-                    subscribeToOnlineRoom(code, 2);
+                    await registerOnlinePresence(code, 2, user.uid);
+                    subscribeToOnlineRoom(code, 2, user.uid);
                 } catch (error) {
+                    if (claimedRoomCode && window.MITSFirebase) {
+                        try {
+                            const claimedRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${claimedRoomCode}`);
+                            const releaseTx = await window.MITSFirebase.runTransaction(claimedRef, current => {
+                                const patch = MITSOnlineRoomLifecycle.explicitExitPatch(current, onlineUser?.uid || '');
+                                if (!patch) return;
+                                return { ...current, ...patch };
+                            });
+                            const afterRelease = releaseTx.snapshot?.val?.();
+                            if (afterRelease?.status !== 'waiting') await retirePublicRoomListing(claimedRoomCode);
+                        } catch (cleanupError) {
+                            console.warn('No se pudo liberar la reserva fallida:', cleanupError);
+                        }
+                    }
                     if (error?.code === 'PRESENCE_CANCELLED') return;
                     console.error('Error al entrar a la sala (' + joinStep + '):', error);
                     const errorCode = String(error?.code || '').toUpperCase();
