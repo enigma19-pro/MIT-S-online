@@ -1029,7 +1029,13 @@
 
             useEffect(() => {
                 if (gameState !== 'ONLINE_LOBBY' || !onlineUser || !window.MITSFirebase) return;
+                const PUBLIC_ROOM_TTL_MS = 30 * 60 * 1000;
                 const publicRef = window.MITSFirebase.ref(window.MITSFirebase.db, 'publicRooms');
+                const isFreshPublicRoom = room => {
+                    const createdAt = Number(room?.createdAt) || 0;
+                    const expiresAt = Number(room?.expiresAt) || (createdAt + PUBLIC_ROOM_TTL_MS);
+                    return createdAt > 0 && Date.now() < expiresAt && Date.now() - createdAt < PUBLIC_ROOM_TTL_MS;
+                };
                 const handler = snapshot => {
                     const value = snapshot.val() || {};
                     const rooms = Object.entries(value).map(([code, room]) => ({
@@ -1038,13 +1044,23 @@
                         hostName: typeof room?.hostName === 'string' ? room.hostName.trim().replace(/\s+/g, ' ').slice(0, 24) : 'Anfitrión',
                         guestUid: room?.guestUid || null,
                         hostUid: typeof room?.hostUid === 'string' ? room.hostUid : '',
-                        createdAt: Number(room?.createdAt) || 0
-                    })).filter(room => room.hostUid && room.hostUid !== onlineUser.uid && !room.guestUid)
-                      .sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
+                        createdAt: Number(room?.createdAt) || 0,
+                        expiresAt: Number(room?.expiresAt) || 0,
+                        status: typeof room?.status === 'string' ? room.status : 'waiting'
+                    })).filter(room =>
+                        room.hostUid && room.hostUid !== onlineUser.uid && !room.guestUid &&
+                        room.status === 'waiting' && isFreshPublicRoom(room)
+                    ).sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
                     setPublicRooms(rooms);
                 };
                 window.MITSFirebase.onValue(publicRef, handler);
-                return () => window.MITSFirebase.off(publicRef, 'value', handler);
+                const expiryTimer = setInterval(() => {
+                    setPublicRooms(current => current.filter(room => isFreshPublicRoom(room)));
+                }, 30000);
+                return () => {
+                    window.MITSFirebase.off(publicRef, 'value', handler);
+                    clearInterval(expiryTimer);
+                };
             }, [gameState, onlineUser]);
 
             // Players MIT List
@@ -1230,17 +1246,6 @@
                 return Array.from(bytes, byte => chars[byte % chars.length]).join('');
             };
 
-            const registerOnlineDisconnect = async (code, playerNum) => {
-                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
-                const disconnectAction = window.MITSFirebase.onDisconnect(roomRef);
-                // La salida posterior a GAMEOVER no debe modificar al ganador.
-                // Solo cambiamos el estado y quién se desconectó.
-                await disconnectAction.update({
-                    status: 'player_left',
-                    disconnectedPlayer: playerNum
-                });
-            };
-
             const cancelOnlineDisconnect = async (code = roomCode) => {
                 if (!code || !window.MITSFirebase) return;
                 try {
@@ -1349,6 +1354,7 @@
                     const user = onlineUser || await window.MITSFirebase.ready;
                     let code = '';
                     let roomCreated = false;
+                    const createdAt = Date.now();
                     for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
                         code = generateRoomCode();
                         const roomRef = onlineRoomRef(code);
@@ -1357,7 +1363,7 @@
                             return {
                                 hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '', status: 'waiting',
                                 roomName: (roomName.trim() || 'Sala de combate').slice(0, 40),
-                                isPublic: roomVisibility === 'public', createdAt: Date.now(),
+                                isPublic: roomVisibility === 'public', createdAt,
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
                                 currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
                                 attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
@@ -1369,10 +1375,12 @@
                     if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
                     if (roomVisibility === 'public') {
                         const publicRoomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`);
-                        await window.MITSFirebase.set(publicRoomRef, {
-                            hostUid: user.uid, hostName: playerName, name: (roomName.trim() || 'Sala de combate').slice(0, 40), createdAt: Date.now()
-                        });
                         await window.MITSFirebase.onDisconnect(publicRoomRef).remove();
+                        await window.MITSFirebase.set(publicRoomRef, {
+                            hostUid: user.uid, hostName: playerName,
+                            name: (roomName.trim() || 'Sala de combate').slice(0, 40),
+                            createdAt, expiresAt: createdAt + (30 * 60 * 1000), status: 'waiting'
+                        });
                     }
                     setOnlineRoomData({ hostUid: user.uid, guestUid: null, player1Name: playerName, player2Name: '', roomName: (roomName.trim() || 'Sala de combate').slice(0, 40), isPublic: roomVisibility === 'public', status: 'waiting' });
                     setRoomCode(code);
@@ -1422,7 +1430,7 @@
                     const roomRef = onlineRoomRef();
                     const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
                         if (!current || current.hostUid !== onlineUser.uid || current.status !== 'waiting') return;
-                        return { ...current, status: 'cancelled' };
+                        return { ...current, status: 'cancelled', closeReason: 'host_cancelled', closedBy: user.uid };
                     });
                     if (!tx.committed) {
                         setOnlineStatus('La sala ya no se puede cancelar.');
@@ -1437,6 +1445,8 @@
                     }
                     setRoomCode('');
                     setOnlineRoomData(null);
+                    setIsRoomHost(false);
+                    setGameMode('ONLINE');
                     setGameState('ONLINE_LOBBY');
                     setOnlineStatus('Sala cancelada.');
                 } catch (error) {
@@ -1537,6 +1547,7 @@
                         return;
                     }
 
+                    if (confirmedRoom.isPublic === true) await retirePublicRoomListing(code);
                     setRoomCode(code);
                     setOnlineRoomData(confirmedRoom);
                     setIsRoomHost(false);
@@ -1732,6 +1743,50 @@
                 return player === 1 || player === 2 ? player : null;
             };
 
+            const retirePublicRoomListing = async (code) => {
+                if (!code || !window.MITSFirebase) return;
+                try {
+                    await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`), null);
+                } catch (error) {
+                    console.warn('No se pudo retirar el anuncio público de la sala:', error);
+                }
+            };
+
+            const exitClosedOnlineRoom = (code, message) => {
+                const firebase = window.MITSFirebase;
+                gameSessionRef.current += 1;
+                cancelGameTimers();
+                isRollingRef.current = false;
+                setIsRolling(false);
+                setIsTurnProcessing(false);
+                aiTurnInProgressRef.current = false;
+                isSubmittingMitRef.current = false;
+                if (presenceGraceTimerRef.current !== null) {
+                    clearTimeout(presenceGraceTimerRef.current);
+                    presenceGraceTimerRef.current = null;
+                }
+                if (firebase && onlineListenerRef.current) {
+                    firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
+                    if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
+                        firebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                    }
+                    onlineListenerRef.current = null;
+                }
+                stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia:', error));
+                cancelOnlineDisconnect(code);
+                retirePublicRoomListing(code);
+                setRoomCode('');
+                setOnlineRoomData(null);
+                setIsRoomHost(false);
+                setGameMode('ONLINE');
+                setGameState('ONLINE_LOBBY');
+                setWinnerPlayer(null);
+                setDisconnectedPlayer(null);
+                setBerserkerRebuild(null);
+                berserkerBuildKeyRef.current = null;
+                setOnlineStatus(message);
+            };
+
             const subscribeToOnlineRoom = (code, localPlayerNum) => {
                 if (!window.MITSFirebase || !code) return;
                 if (onlineListenerRef.current) {
@@ -1750,8 +1805,12 @@
                 const opponentNum = localPlayerNum === 1 ? 2 : 1;
                 const opponentPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player${opponentNum}`);
                 let currentRoomStatus = null;
+                let currentRoomHasGuest = false;
                 let opponentPresenceKnown = false;
                 let opponentIsPresent = false;
+                const activeRoomStatuses = ['building', 'battle', 'berserker_build'];
+                const shouldMonitorOpponent = () => activeRoomStatuses.includes(currentRoomStatus) ||
+                    (currentRoomStatus === 'waiting' && currentRoomHasGuest);
 
                 const clearPresenceGraceTimer = () => {
                     if (presenceGraceTimerRef.current !== null) {
@@ -1761,25 +1820,26 @@
                 };
 
                 const schedulePresenceCheck = () => {
-                    if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus) || presenceGraceTimerRef.current !== null) return;
+                    if (!shouldMonitorOpponent() || presenceGraceTimerRef.current !== null) return;
                     presenceGraceTimerRef.current = setTimeout(async () => {
                         presenceGraceTimerRef.current = null;
                         try {
                             const [presenceSnapshot, roomSnapshot] = await Promise.all([
-                                firebase.get(opponentPresenceRef),
-                                firebase.get(roomRef)
+                                firebase.get(opponentPresenceRef), firebase.get(roomRef)
                             ]);
                             const latestRoom = roomSnapshot.exists() ? roomSnapshot.val() : null;
-                            if (!presenceSnapshot.exists() && ['building', 'battle', 'berserker_build'].includes(latestRoom?.status)) {
-                                // La transacción evita que ambos clientes sobrescriban
-                                // al mismo tiempo quién abandonó la partida.
+                            if (presenceSnapshot.exists() || !latestRoom) return;
+                            if (latestRoom.status === 'waiting' && latestRoom.guestUid) {
                                 await firebase.runTransaction(roomRef, current => {
-                                    if (!current || !['building', 'battle', 'berserker_build'].includes(current.status)) return;
+                                    if (!current || current.status !== 'waiting' || !current.guestUid) return;
+                                    return { ...current, status: 'cancelled', closeReason: 'presence_timeout', closedBy: opponentNum };
+                                });
+                            } else if (activeRoomStatuses.includes(latestRoom.status)) {
+                                await firebase.runTransaction(roomRef, current => {
+                                    if (!current || !activeRoomStatuses.includes(current.status)) return;
                                     return {
-                                        ...current,
-                                        status: 'player_left',
-                                        disconnectedPlayer: opponentNum,
-                                        ...(['battle', 'berserker_build'].includes(current.status) ? { winner: localPlayerNum } : {})
+                                        ...current, status: 'player_left', disconnectedPlayer: opponentNum,
+                                        ...(current.status === 'battle' || current.status === 'berserker_build' ? { winner: localPlayerNum } : {})
                                     };
                                 });
                             }
@@ -1792,11 +1852,8 @@
                 const presenceHandler = snapshot => {
                     opponentPresenceKnown = true;
                     opponentIsPresent = snapshot.exists();
-                    if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus) || opponentIsPresent) {
-                        clearPresenceGraceTimer();
-                    } else {
-                        schedulePresenceCheck();
-                    }
+                    if (!shouldMonitorOpponent() || opponentIsPresent) clearPresenceGraceTimer();
+                    else schedulePresenceCheck();
                 };
 
                 const handler = snapshot => {
@@ -1805,9 +1862,24 @@
 
                     const previousStatus = currentRoomStatus;
                     currentRoomStatus = room.status || null;
+                    currentRoomHasGuest = !!room.guestUid;
                     setOnlineRoomData(room);
 
-                    if (['gameover', 'player_left', 'cancelled'].includes(currentRoomStatus) && previousStatus !== currentRoomStatus) {
+                    if (['cancelled', 'player_left'].includes(currentRoomStatus)) {
+                        if (previousStatus !== currentRoomStatus) {
+                            const message = currentRoomStatus === 'cancelled'
+                                ? (room.closeReason === 'presence_timeout'
+                                    ? 'La sala se cerró porque uno de los Operadores perdió la conexión.'
+                                    : 'El anfitrión cerró la sala. Ya estás fuera de ella.')
+                                : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
+                                    ? getPlayerDisplayName(Number(room.disconnectedPlayer))
+                                    : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
+                            exitClosedOnlineRoom(code, message);
+                        }
+                        return;
+                    }
+
+                    if (currentRoomStatus === 'gameover' && previousStatus !== currentRoomStatus) {
                         gameSessionRef.current += 1;
                         cancelGameTimers();
                         isRollingRef.current = false;
@@ -1816,9 +1888,8 @@
                         aiTurnInProgressRef.current = false;
                     }
 
-                    if (!['building', 'battle', 'berserker_build'].includes(currentRoomStatus)) {
+                    if (!shouldMonitorOpponent() || opponentIsPresent) {
                         clearPresenceGraceTimer();
-                        if (['gameover', 'player_left'].includes(currentRoomStatus)) stopOnlinePresenceListener(true);
                     } else if (opponentPresenceKnown && !opponentIsPresent) {
                         schedulePresenceCheck();
                     } else if (!opponentPresenceKnown) {
@@ -1907,28 +1978,7 @@
                         setWinnerPlayer(normalizedWinner);
                         setBerserkerRebuild(null);
                         setGameState('GAMEOVER');
-                        registerOnlineDisconnect(code, localPlayerNum).catch(error => {
-                            console.warn('No se pudo preparar la notificación de salida:', error);
-                        });
-                    } else if (room.status === 'cancelled') {
-                        stopOnlinePresenceListener(true);
-                        if (onlineListenerRef.current) {
-                            firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
-                            if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) firebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
-                            onlineListenerRef.current = null;
-                        }
-                        setRoomCode('');
-                        setOnlineRoomData(null);
-                        setGameMode('ONLINE');
-                        setGameState('ONLINE_LOBBY');
-                        setOnlineStatus('El anfitrión canceló esta sala.');
-                    } else if (room.status === 'player_left') {
-                        setWinnerPlayer(normalizedWinner);
-                        setDisconnectedPlayer(normalizedDisconnectedPlayer);
-                        setBerserkerRebuild(null);
-                        setGameState('GAMEOVER');
-                        setIsTurnProcessing(false);
-                        setOnlineStatus((normalizedDisconnectedPlayer ? getPlayerDisplayName(normalizedDisconnectedPlayer) : 'Un jugador') + ' salió de la partida.');
+                        retirePublicRoomListing(code);
                     }
 
                     const invalidMitData = (
@@ -1939,13 +1989,7 @@
                         setOnlineStatus('La sala contiene datos de MIT inválidos. No se cargarán esas unidades; vuelve al lobby y crea una sala nueva.');
                     }
 
-                    // El anfitrión es responsable de retirar el anuncio público cuando
-                    // la sala se cancela o la partida termina, incluso si quedó un anuncio antiguo.
-                    if (localPlayerNum === 1 && room.isPublic === true &&
-                        (room.guestUid || ['gameover', 'player_left', 'cancelled'].includes(room.status))) {
-                        window.MITSFirebase.set(firebase.ref(firebase.db, `publicRooms/${code}`), null)
-                            .catch(error => console.warn('No se pudo retirar la sala del listado público:', error));
-                    }
+                    if (room.guestUid && room.isPublic === true) retirePublicRoomListing(code);
                 };
                 firebase.onValue(roomRef, handler);
                 firebase.onValue(opponentPresenceRef, presenceHandler);
@@ -2907,6 +2951,7 @@
 
             const returnToOnlineLobby = async () => {
                 playSound('click');
+                const finishedRoomCode = roomCode;
 
                 // Cierra por completo la sesión local anterior antes de mostrar el lobby.
                 // Así ningún timeout/animación de ese combate puede alterar el estado nuevo.
@@ -2929,11 +2974,11 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
-                // Volver al lobby es solo un cambio de pantalla local:
-                // dejamos activo onDisconnect para detectar una desconexión real
-                // si la conexión se pierde más adelante. El rival conserva GAMEOVER
-                // mientras esta conexión siga viva.
-                
+                // La partida ya terminó. Retira presencia y tareas de desconexión pendientes.
+                await stopOnlinePresenceListener(true);
+                await cancelOnlineDisconnect(finishedRoomCode);
+                await retirePublicRoomListing(finishedRoomCode);
+
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
                 setRoomCode('');
@@ -3055,37 +3100,7 @@
                 setIsTurnProcessing(false);
                 aiTurnInProgressRef.current = false;
 
-                // Notifica al rival usando la sala capturada, aunque el usuario ya
-                // haya vuelto al menú o iniciado otra sala mientras llega la respuesta.
-                if (leavingOnlineGame) {
-                    try {
-                        const user = onlineUser || await firebase.ready;
-                        const roomRef = firebase.ref(firebase.db, `rooms/${previousRoomCode}`);
-                        const snapshot = await firebase.get(roomRef);
-                        if (snapshot.exists()) {
-                            const room = snapshot.val();
-
-                            // También notificamos la salida después de GAMEOVER para que
-                            // el rival deje la pantalla de Victoria. En ese caso se conserva
-                            // el ganador original; nunca se le regala la partida al rival.
-                            if (room.status !== 'player_left') {
-                                const playerNum = room.hostUid === user.uid ? 1 : 2;
-                                const departureUpdate = {
-                                    status: 'player_left',
-                                    disconnectedPlayer: playerNum
-                                };
-                                if (room.status !== 'gameover') {
-                                    departureUpdate.winner = playerNum === 1 ? 2 : 1;
-                                }
-                                await firebase.update(roomRef, departureUpdate);
-                            }
-
-                            await cancelOnlineDisconnect(previousRoomCode);
-                        }
-                    } catch (error) {
-                        console.error('No se pudo notificar la salida al rival:', error);
-                    }
-                }
+                if (leavingOnlineGame) await cancelOnlineDisconnect(previousRoomCode);
             };
 
             return (
