@@ -8,5 +8,8 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.29.13"
   }
 }
