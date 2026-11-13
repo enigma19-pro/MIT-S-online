@@ -94,7 +94,7 @@ test('host presence timeout cancels the waiting room', () => {
     assert.deepEqual(Lifecycle.presenceTimeoutPatch(waitingRoom(), 2, 1), {
         status: 'cancelled',
         closeReason: 'host_disconnect',
-        closedBy: 'presence_timeout'
+        closedBy: GUEST
     });
 });
 
