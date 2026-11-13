@@ -104,6 +104,16 @@ function waitingRoomExpiryPatch(room, uid, now = Date.now()) {
     return { status: 'cancelled', closeReason: 'room_expired', closedBy: uid };
 }
 
+/**
+ * Patch queued on the room itself for the host's server-side disconnect.
+ * This is intentionally limited to an existing waiting room owned by the
+ * disconnecting host; it never touches an active match.
+ */
+function waitingRoomDisconnectPatch(room, uid) {
+    if (!room || room.status !== 'waiting' || typeof uid !== 'string' || !uid || room.hostUid !== uid) return null;
+    return { status: 'cancelled', closeReason: 'host_disconnect', closedBy: uid };
+}
+
 function isWaitingRoomExpired(room, now = Date.now()) {
     if (!room || room.status !== 'waiting') return false;
     const expiresAt = room.expiresAt;
@@ -132,7 +142,8 @@ const api = Object.freeze({
     isPublicRoomAvailable,
     isWaitingRoomExpired,
     presenceTimeoutPatch,
-    waitingRoomExpiryPatch
+    waitingRoomExpiryPatch,
+    waitingRoomDisconnectPatch
 });
 
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
