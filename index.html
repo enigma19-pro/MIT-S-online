@@ -3146,10 +3146,28 @@
                         const user = onlineUser || await window.MITSFirebase.ready;
                         const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${finishedRoomCode}`);
                         const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
-                            if (!current || current.status !== 'gameover') return;
+                            if (!current) return;
                             const patch = MITSOnlineRoomLifecycle.explicitExitPatch(current, user.uid);
-                            if (!patch || patch.status !== 'player_left') return;
-                            return { ...current, ...patch };
+                            if (patch?.status === 'player_left') return { ...current, ...patch };
+
+                            // El botón aparece al entrar localmente en GAMEOVER.
+                            // Si la transacción de resultado aún va en camino, esta
+                            // salida gana la carrera y conserva el ganador calculado.
+                            if (['battle', 'berserker_build'].includes(current.status)) {
+                                const playerNum = MITSOnlineRoomLifecycle.getPlayerNumber(current, user.uid);
+                                if (!playerNum) return;
+                                return {
+                                    ...current,
+                                    status: 'player_left',
+                                    disconnectedPlayer: playerNum,
+                                    closeReason: 'gameover_exit',
+                                    closedBy: user.uid,
+                                    winner: winnerPlayer === 1 || winnerPlayer === 2
+                                        ? winnerPlayer
+                                        : (playerNum === 1 ? 2 : 1)
+                                };
+                            }
+                            return;
                         });
                         const finalRoom = tx.snapshot?.val?.();
                         if (tx.committed && finalRoom?.isPublic === true) {
