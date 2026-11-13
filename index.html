@@ -1542,7 +1542,9 @@
                         return;
                     }
                     const updatedRoom = tx.snapshot?.val?.();
-                    await cancelWaitingRoomDisconnect(roomCode);
+                    if (tx.committed && updatedRoom?.status !== 'waiting') {
+                        await cancelWaitingRoomDisconnect(roomCode);
+                    }
                     if (updatedRoom?.isPublic === true) await retirePublicRoomListing(roomCode);
                     if (updatedRoom?.status === 'cancelled') {
                         setOnlineStatus('La sala expiró y se cerró automáticamente.');
