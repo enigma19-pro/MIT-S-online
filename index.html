@@ -3089,8 +3089,24 @@
                     text: `🏆 ¡FIN DE LA PARTIDA! ${getPlayerDisplayName(winnerPlayerNum)} ha ganado.`
                 }];
                 setCombatLog(victoryLog);
-                if (gameMode === 'ONLINE') {
-                    await syncOnline({ status: 'gameover', winner: winnerPlayerNum, combatLog: victoryLog });
+                if (gameMode === 'ONLINE' && roomCode && window.MITSFirebase) {
+                    try {
+                        const roomRef = onlineRoomRef(roomCode);
+                        // El cierre también es una transición atómica: si un jugador
+                        // ya abandonó, un write retrasado no puede resucitar GAMEOVER.
+                        await window.MITSFirebase.runTransaction(roomRef, current => {
+                            if (!current || !['battle', 'berserker_build'].includes(current.status)) return;
+                            return {
+                                ...current,
+                                status: 'gameover',
+                                winner: winnerPlayerNum,
+                                combatLog: victoryLog
+                            };
+                        });
+                    } catch (error) {
+                        console.error('No se pudo registrar el resultado online:', error);
+                        setOnlineStatus('No se pudo sincronizar el resultado de la partida.');
+                    }
                 }
             };
 
