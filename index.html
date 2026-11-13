@@ -1470,8 +1470,11 @@
                 if (!isRoomHost || !roomCode || !onlineUser) return;
                 try {
                     const roomRef = onlineRoomRef();
+                    const startAttemptAt = Date.now();
                     const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
-                        if (!current || current.hostUid !== onlineUser.uid || !current.guestUid || current.status !== 'waiting') return;
+                        if (!current || current.hostUid !== onlineUser.uid || !current.guestUid ||
+                            current.status !== 'waiting' ||
+                            MITSOnlineRoomLifecycle.isWaitingRoomExpired(current, startAttemptAt)) return;
                         return { ...current, status: 'building' };
                     });
                     if (!tx.committed) {
@@ -2302,7 +2305,8 @@
                         const user = onlineUser || await window.MITSFirebase.ready;
                         const roomRef = onlineRoomRef();
                         const tx = await window.MITSFirebase.runTransaction(roomRef, room => {
-                            if (!room || !['building', 'waiting'].includes(room.status)) return;
+                            if (!room || !['building', 'waiting'].includes(room.status) ||
+                                (room.status === 'waiting' && MITSOnlineRoomLifecycle.isWaitingRoomExpired(room, Date.now()))) return;
                             const playerKey = room.hostUid === user.uid ? 'p1Mits'
                                 : room.guestUid === user.uid ? 'p2Mits' : null;
                             if (!playerKey) return;
