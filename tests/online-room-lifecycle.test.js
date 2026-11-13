@@ -103,6 +103,7 @@ test('presence timeout during a battle records the remaining player as winner', 
         status: 'player_left',
         disconnectedPlayer: 2,
         closeReason: 'disconnect',
+        closedBy: HOST,
         winner: 1
     });
 });
@@ -111,7 +112,8 @@ test('presence timeout during gameover closes the result without replacing its w
     assert.deepEqual(Lifecycle.presenceTimeoutPatch(waitingRoom({ status: 'gameover', winner: 2 }), 1, 2), {
         status: 'player_left',
         disconnectedPlayer: 2,
-        closeReason: 'gameover_disconnect'
+        closeReason: 'gameover_disconnect',
+        closedBy: HOST
     });
 });
 
