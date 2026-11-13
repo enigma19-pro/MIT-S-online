@@ -1537,6 +1537,7 @@
                 let joinStep = 'autenticación';
                 let claimedRoomCode = '';
                 let claimedRoomUid = '';
+                let enteredLocalRoom = false;
 
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
@@ -1626,12 +1627,15 @@
                             status: confirmedRoom.status || null,
                             guestMatches: confirmedRoom.guestUid === user.uid
                         });
-                        setOnlineStatus('Firebase no confirmó tu lugar en la sala. Vuelve al listado y prueba con una sala nueva.');
-                        return;
+                        throw Object.assign(
+                            new Error('Firebase no confirmó tu lugar en la sala. Vuelve al listado y prueba con una sala nueva.'),
+                            { code: 'ROOM_RESERVATION_INVALID' }
+                        );
                     }
 
                     if (confirmedRoom.isPublic === true) await retirePublicRoomListing(code);
                     setRoomCode(code);
+                    enteredLocalRoom = true;
                     setOnlineRoomData(confirmedRoom);
                     setIsRoomHost(false);
                     setGameMode('ONLINE');
@@ -1657,6 +1661,14 @@
                             console.warn('No se pudo liberar la reserva fallida:', cleanupError);
                         }
                     }
+                    if (enteredLocalRoom) {
+                        await stopOnlinePresenceListener(true);
+                        setRoomCode('');
+                        setOnlineRoomData(null);
+                        setIsRoomHost(false);
+                        setGameMode('ONLINE');
+                        setGameState('ONLINE_LOBBY');
+                    }
                     if (error?.code === 'PRESENCE_CANCELLED') return;
                     console.error('Error al entrar a la sala (' + joinStep + '):', error);
                     const errorCode = String(error?.code || '').toUpperCase();
@@ -1671,7 +1683,9 @@
                     } else if (permissionDenied) {
                         setOnlineStatus('Firebase denegó el acceso durante ' + joinStep + '. Revisa las reglas de lectura de /rooms/$roomId.');
                     } else {
-                        setOnlineStatus('Error al entrar: ' + (errorMessage || 'Error desconocido.'));
+                        setOnlineStatus(error?.code === 'ROOM_RESERVATION_INVALID'
+                            ? error.message
+                            : 'Error al entrar: ' + (errorMessage || 'Error desconocido.'));
                     }
                 } finally {
                     isJoiningRoomRef.current = false;
