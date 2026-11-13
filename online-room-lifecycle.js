@@ -84,7 +84,8 @@ function presenceTimeoutPatch(room, localPlayerNum, opponentPlayerNum) {
     const patch = {
         status: 'player_left',
         disconnectedPlayer: opponentPlayerNum,
-        closeReason: room.status === 'gameover' ? 'gameover_disconnect' : 'disconnect'
+        closeReason: room.status === 'gameover' ? 'gameover_disconnect' : 'disconnect',
+        closedBy: localPlayerNum === 1 ? room.hostUid : room.guestUid
     };
     if (room.status === 'battle' || room.status === 'berserker_build') {
         patch.winner = localPlayerNum;
