@@ -176,3 +176,52 @@ test('waiting rooms without an expiry are considered expired', () => {
     assert.equal(Lifecycle.isWaitingRoomExpired(waitingRoom({ expiresAt: 10_001 }), 10_000), false);
     assert.equal(Lifecycle.isWaitingRoomExpired(waitingRoom({ status: 'battle', expiresAt: 1 }), 10_000), false);
 });
+
+
+test('explicit exits do not end a room while another session of the same player is present', () => {
+    const room = waitingRoom({
+        presence: {
+            player1: { host_tab_2: true },
+            player2: { guest_tab_2: true }
+        }
+    });
+    assert.equal(Lifecycle.explicitExitPatch(room, HOST), null);
+    assert.equal(Lifecycle.explicitExitPatch(room, GUEST), null);
+    assert.equal(Lifecycle.explicitExitPatch(
+        waitingRoom({ status: 'battle', presence: { player1: { host_tab_2: true } } }),
+        HOST
+    ), null);
+    assert.deepEqual(
+        Lifecycle.explicitExitPatch(waitingRoom({ status: 'battle', presence: { player2: { guest_tab_2: true } } }), HOST),
+        null
+    );
+});
+
+test('waiting-room expiry is host-only and produces a terminal cancellation', () => {
+    const room = waitingRoom({ guestUid: null, expiresAt: 10_000 });
+    assert.equal(Lifecycle.waitingRoomExpiryPatch(room, HOST, 9_999), null);
+    assert.equal(Lifecycle.waitingRoomExpiryPatch(room, GUEST, 10_000), null);
+    assert.deepEqual(Lifecycle.waitingRoomExpiryPatch(room, HOST, 10_000), {
+        status: 'cancelled',
+        closeReason: 'room_expired',
+        closedBy: HOST
+    });
+    assert.deepEqual(Lifecycle.waitingRoomExpiryPatch(
+        waitingRoom({ expiresAt: undefined }), HOST, 10_000
+    ), {
+        status: 'cancelled',
+        closeReason: 'room_expired',
+        closedBy: HOST
+    });
+    assert.equal(Lifecycle.waitingRoomExpiryPatch(
+        waitingRoom({ status: 'battle', expiresAt: 1 }), HOST, 10_000
+    ), null);
+});
+
+test('waiting host disconnect report identifies the connected guest as reporter', () => {
+    assert.deepEqual(Lifecycle.presenceTimeoutPatch(waitingRoom(), 2, 1), {
+        status: 'cancelled',
+        closeReason: 'host_disconnect',
+        closedBy: GUEST
+    });
+});
