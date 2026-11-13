@@ -3166,6 +3166,9 @@
                     presenceGraceTimerRef.current = null;
                 }
 
+                // Limpia la presencia mientras la pertenencia todavía es válida.
+                await stopOnlinePresenceListener(true);
+
                 // La transacción evita que dos salidas simultáneas sobrescriban
                 // el estado final o que una lectura antigua resucite la partida.
                 if (finishedRoomCode && window.MITSFirebase) {
@@ -3204,8 +3207,6 @@
                         console.warn('No se pudo cerrar la sala terminada:', error);
                     }
                 }
-
-                await stopOnlinePresenceListener(true);
 
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
@@ -3262,6 +3263,10 @@
                     presenceGraceTimerRef.current = null;
                 }
 
+                // Limpia la presencia mientras la pertenencia todavía es válida.
+                // En especial, evita dejar IDs viejos al liberar el asiento invitado.
+                if (leavingOnlineGame) await stopOnlinePresenceListener(true);
+
                 // El anfitrión cierra la espera; el invitado solo libera su asiento.
                 // En una partida activa, salir termina la sala para ambos.
                 if (leavingOnlineGame) {
@@ -3281,8 +3286,6 @@
                         console.warn('No se pudo notificar la salida de la sala:', error);
                     }
                 }
-
-                await stopOnlinePresenceListener(true);
 
                 // El reinicio local no debe depender de la latencia de Firebase.
                 setGameState('MENU');
