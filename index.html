@@ -3095,8 +3095,7 @@
                 playSound('click');
                 const finishedRoomCode = roomCode;
 
-                // Cierra por completo la sesión local anterior antes de mostrar el lobby.
-                // Así ningún timeout/animación de ese combate puede alterar el estado nuevo.
+                // Desactiva la sesión local y sus listeners antes de publicar la salida.
                 gameSessionRef.current += 1;
                 cancelGameTimers();
                 isRollingRef.current = false;
@@ -3116,31 +3115,29 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
-                // Cerrar la pantalla de resultado cierra la sala para ambos jugadores.
+
+                // La transacción evita que dos salidas simultáneas sobrescriban
+                // el estado final o que una lectura antigua resucite la partida.
                 if (finishedRoomCode && window.MITSFirebase) {
                     try {
                         const user = onlineUser || await window.MITSFirebase.ready;
                         const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${finishedRoomCode}`);
-                        const snapshot = await window.MITSFirebase.get(roomRef);
-                        const current = snapshot.exists() ? snapshot.val() : null;
-                        if (current?.status === 'gameover') {
-                            const playerNum = current.hostUid === user.uid ? 1
-                                : current.guestUid === user.uid ? 2 : null;
-                            if (playerNum) {
-                                await window.MITSFirebase.update(roomRef, {
-                                    status: 'player_left',
-                                    disconnectedPlayer: playerNum,
-                                    closeReason: 'gameover_exit'
-                                });
-                            }
+                        const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
+                            if (!current || current.status !== 'gameover') return;
+                            const patch = MITSOnlineRoomLifecycle.explicitExitPatch(current, user.uid);
+                            if (!patch || patch.status !== 'player_left') return;
+                            return { ...current, ...patch };
+                        });
+                        const finalRoom = tx.snapshot?.val?.();
+                        if (tx.committed && finalRoom?.isPublic === true) {
+                            await retirePublicRoomListing(finishedRoomCode);
                         }
                     } catch (error) {
                         console.warn('No se pudo cerrar la sala terminada:', error);
                     }
                 }
+
                 await stopOnlinePresenceListener(true);
-                await cancelOnlineDisconnect(finishedRoomCode);
-                if (onlineRoomData?.isPublic === true) await retirePublicRoomListing(finishedRoomCode);
 
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
@@ -3183,44 +3180,8 @@
                 cancelGameTimers();
                 isSubmittingMitRef.current = false;
 
-                // Publica el cierre antes de salir. Sin esto, al reiniciar desde una sala
-                // de espera no había transición de estado y el rival quedaba atrapado.
-                if (leavingOnlineGame) {
-                    try {
-                        const user = onlineUser || await firebase.ready;
-                        const roomRef = firebase.ref(firebase.db, `rooms/${previousRoomCode}`);
-                        const tx = await firebase.runTransaction(roomRef, current => {
-                            if (!current || !['waiting', 'building', 'battle', 'berserker_build'].includes(current.status)) return;
-                            const isHost = current.hostUid === user.uid;
-                            if (!isHost && current.guestUid !== user.uid) return;
-                            if (current.status === 'waiting') {
-                                return {
-                                    ...current, status: 'cancelled',
-                                    closeReason: isHost ? 'host_cancelled' : 'participant_exit',
-                                    closedBy: user.uid
-                                };
-                            }
-                            const playerNum = isHost ? 1 : 2;
-                            const opponentNum = playerNum === 1 ? 2 : 1;
-                            return {
-                                ...current,
-                                status: 'player_left',
-                                disconnectedPlayer: playerNum,
-                                ...(current.status === 'battle' || current.status === 'berserker_build'
-                                    ? { winner: opponentNum }
-                                    : {})
-                            };
-                        });
-                        if (tx.committed && onlineRoomData?.isPublic) {
-                            await retirePublicRoomListing(previousRoomCode);
-                        }
-                        await cancelOnlineDisconnect(previousRoomCode);
-                    } catch (error) {
-                        console.warn('No se pudo notificar la salida de la sala:', error);
-                    }
-                }
-
-                // Desuscribe primero al jugador que reinicia: player_left es para el rival.
+                // Se desuscribe antes de modificar la pertenencia: el invitado que
+                // libera su asiento no debe procesar su propia salida como expulsión.
                 if (leavingOnlineGame && onlineListenerRef.current) {
                     firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
@@ -3232,6 +3193,27 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
+
+                // El anfitrión cierra la espera; el invitado solo libera su asiento.
+                // En una partida activa, salir termina la sala para ambos.
+                if (leavingOnlineGame) {
+                    try {
+                        const user = onlineUser || await firebase.ready;
+                        const roomRef = firebase.ref(firebase.db, `rooms/${previousRoomCode}`);
+                        const tx = await firebase.runTransaction(roomRef, current => {
+                            const patch = MITSOnlineRoomLifecycle.explicitExitPatch(current, user.uid);
+                            if (!patch) return;
+                            return { ...current, ...patch };
+                        });
+                        const finalRoom = tx.snapshot?.val?.();
+                        if (tx.committed && finalRoom?.isPublic === true && finalRoom.status !== 'waiting') {
+                            await retirePublicRoomListing(previousRoomCode);
+                        }
+                    } catch (error) {
+                        console.warn('No se pudo notificar la salida de la sala:', error);
+                    }
+                }
+
                 await stopOnlinePresenceListener(true);
 
                 // El reinicio local no debe depender de la latencia de Firebase.
