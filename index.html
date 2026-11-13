@@ -1647,6 +1647,7 @@
                     await registerOnlinePresence(code, 2, user.uid);
                     subscribeToOnlineRoom(code, 2, user.uid);
                 } catch (error) {
+                    if (enteredLocalRoom) await stopOnlinePresenceListener(true);
                     if (claimedRoomCode && window.MITSFirebase) {
                         try {
                             const claimedRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${claimedRoomCode}`);
@@ -1662,7 +1663,6 @@
                         }
                     }
                     if (enteredLocalRoom) {
-                        await stopOnlinePresenceListener(true);
                         setRoomCode('');
                         setOnlineRoomData(null);
                         setIsRoomHost(false);
