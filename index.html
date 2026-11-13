@@ -1246,6 +1246,18 @@
                 return Array.from(bytes, byte => chars[byte % chars.length]).join('');
             };
 
+            const registerOnlineDisconnect = async (code, playerNum) => {
+                if (!code || !window.MITSFirebase) return;
+                const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${code}`);
+                // Si el navegador se cierra desde la pantalla de resultado, el rival
+                // también debe salir de la sala; el ganador se conserva.
+                await window.MITSFirebase.onDisconnect(roomRef).update({
+                    status: 'player_left',
+                    disconnectedPlayer: playerNum,
+                    closeReason: 'gameover_exit'
+                });
+            };
+
             const cancelOnlineDisconnect = async (code = roomCode) => {
                 if (!code || !window.MITSFirebase) return;
                 try {
@@ -1980,6 +1992,11 @@
                         setWinnerPlayer(normalizedWinner);
                         setBerserkerRebuild(null);
                         setGameState('GAMEOVER');
+                        if (previousStatus !== 'gameover') {
+                            registerOnlineDisconnect(code, localPlayerNum).catch(error => {
+                                console.warn('No se pudo preparar el cierre de la sala terminada:', error);
+                            });
+                        }
                         if (room.isPublic === true) retirePublicRoomListing(code);
                     }
 
@@ -2976,7 +2993,22 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
-                // La partida ya terminó. Retira presencia y tareas de desconexión pendientes.
+                // Cerrar la pantalla de resultado cierra la sala para ambos jugadores.
+                if (finishedRoomCode && window.MITSFirebase) {
+                    try {
+                        const user = onlineUser || await window.MITSFirebase.ready;
+                        const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${finishedRoomCode}`);
+                        await window.MITSFirebase.runTransaction(roomRef, current => {
+                            if (!current || current.status !== 'gameover') return;
+                            const playerNum = current.hostUid === user.uid ? 1
+                                : current.guestUid === user.uid ? 2 : null;
+                            if (!playerNum) return;
+                            return { ...current, status: 'player_left', disconnectedPlayer: playerNum, closeReason: 'gameover_exit' };
+                        });
+                    } catch (error) {
+                        console.warn('No se pudo cerrar la sala terminada:', error);
+                    }
+                }
                 await stopOnlinePresenceListener(true);
                 await cancelOnlineDisconnect(finishedRoomCode);
                 await retirePublicRoomListing(finishedRoomCode);
