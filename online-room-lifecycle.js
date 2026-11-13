@@ -104,47 +104,4 @@ function waitingRoomExpiryPatch(room, uid, now = Date.now()) {
     return { status: 'cancelled', closeReason: 'room_expired', closedBy: uid };
 }
 
-/**
- * Patch queued on the room itself for the host's server-side disconnect.
- * This is intentionally limited to an existing waiting room owned by the
- * disconnecting host; it never touches an active match.
- */
-function waitingRoomDisconnectPatch(room, uid) {
-    if (!room || room.status !== 'waiting' || typeof uid !== 'string' || !uid || room.hostUid !== uid) return null;
-    return { status: 'cancelled', closeReason: 'host_disconnect', closedBy: uid };
-}
 
-function isWaitingRoomExpired(room, now = Date.now()) {
-    if (!room || room.status !== 'waiting') return false;
-    const expiresAt = room.expiresAt;
-    return typeof expiresAt !== 'number' || !Number.isFinite(expiresAt) || expiresAt <= now;
-}
-
-function isPublicRoomAvailable(listing, room, now = Date.now(), ttlMs = 30 * 60 * 1000) {
-    if (!listing || !room || typeof listing !== 'object' || typeof room !== 'object') return false;
-    if (listing.status !== 'waiting' || room.status !== 'waiting' || room.isPublic !== true) return false;
-    if (listing.guestUid || room.guestUid) return false;
-    if (typeof listing.hostUid !== 'string' || !listing.hostUid || listing.hostUid !== room.hostUid) return false;
-    if (typeof room.createdAt !== 'number' || !Number.isSafeInteger(room.createdAt) || room.createdAt <= 0) return false;
-    if (typeof room.expiresAt !== 'number' || !Number.isSafeInteger(room.expiresAt)) return false;
-    if (typeof listing.createdAt !== 'number' || listing.createdAt !== room.createdAt) return false;
-    if (typeof listing.expiresAt !== 'number' || listing.expiresAt !== room.expiresAt) return false;
-    if (room.createdAt > now || room.expiresAt <= now) return false;
-    if (room.expiresAt <= room.createdAt || room.expiresAt > room.createdAt + ttlMs) return false;
-    return true;
-}
-
-const api = Object.freeze({
-    ACTIVE_ROOM_STATUSES,
-    explicitExitPatch,
-    getPlayerNumber,
-    hasPlayerPresence,
-    isPublicRoomAvailable,
-    isWaitingRoomExpired,
-    presenceTimeoutPatch,
-    waitingRoomExpiryPatch,
-    waitingRoomDisconnectPatch
-});
-
-if (typeof module !== 'undefined' && module.exports) module.exports = api;
-if (typeof window !== 'undefined') window.MITSOnlineRoomLifecycle = api;
