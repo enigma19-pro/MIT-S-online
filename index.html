@@ -1462,6 +1462,9 @@
                     for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
                         code = generateRoomCode();
                         const roomRef = onlineRoomRef(code);
+                        // Armamos primero el onDisconnect en el servidor. Si esta
+                        // conexión muere justo después, la sala no queda huérfana.
+                        await registerWaitingRoomDisconnect(code, user.uid);
                         const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
                             if (current !== null) return;
                             return {
@@ -1474,6 +1477,7 @@
                                 winner: null
                             };
                         });
+                        if (!tx.committed) await cancelWaitingRoomDisconnect(code);
                         roomCreated = tx.committed;
                     }
                     if (!roomCreated) throw new Error('No se pudo generar un código de sala disponible.');
@@ -1491,9 +1495,7 @@
                     setOnlineStatus('Comparte el código con tu rival.');
                     setDisconnectedPlayer(null);
                     // La presencia individual detecta desconexiones y permite
-                    // recuperar el anuncio público al reconectar. El cierre de la
-                    // sala de espera queda además armado directamente en Firebase.
-                    await registerWaitingRoomDisconnect(code, user.uid);
+                    // recuperar el anuncio público al reconectar.
                     await registerOnlinePresence(code, 1, user.uid);
                     subscribeToOnlineRoom(code, 1, user.uid);
                 } catch (error) {
@@ -1508,6 +1510,7 @@
                         } catch (cleanupError) {
                             console.warn('No se pudo limpiar la sala creada parcialmente:', cleanupError);
                         }
+                        await cancelWaitingRoomDisconnect(createdRoomCode);
                         await stopOnlinePresenceListener(true);
                         setRoomCode('');
                         setOnlineRoomData(null);
