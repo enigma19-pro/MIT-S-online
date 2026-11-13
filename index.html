@@ -1430,7 +1430,7 @@
                     const roomRef = onlineRoomRef();
                     const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
                         if (!current || current.hostUid !== onlineUser.uid || current.status !== 'waiting') return;
-                        return { ...current, status: 'cancelled', closeReason: 'host_cancelled', closedBy: user.uid };
+                        return { ...current, status: 'cancelled', closeReason: 'host_cancelled', closedBy: onlineUser.uid };
                     });
                     if (!tx.committed) {
                         setOnlineStatus('La sala ya no se puede cancelar.');
@@ -1774,7 +1774,7 @@
                 }
                 stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia:', error));
                 cancelOnlineDisconnect(code);
-                retirePublicRoomListing(code);
+                if (onlineRoomData?.isPublic === true) retirePublicRoomListing(code);
                 setRoomCode('');
                 setOnlineRoomData(null);
                 setIsRoomHost(false);
@@ -1870,7 +1870,9 @@
                             const message = currentRoomStatus === 'cancelled'
                                 ? (room.closeReason === 'presence_timeout'
                                     ? 'La sala se cerró porque uno de los Operadores perdió la conexión.'
-                                    : 'El anfitrión cerró la sala. Ya estás fuera de ella.')
+                                    : room.closeReason === 'host_cancelled'
+                                        ? 'El anfitrión cerró la sala. Ya estás fuera de ella.'
+                                        : 'Un jugador salió mientras la sala estaba en espera. Regresaste al lobby.')
                                 : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
                                     ? getPlayerDisplayName(Number(room.disconnectedPlayer))
                                     : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
@@ -1978,7 +1980,7 @@
                         setWinnerPlayer(normalizedWinner);
                         setBerserkerRebuild(null);
                         setGameState('GAMEOVER');
-                        retirePublicRoomListing(code);
+                        if (room.isPublic === true) retirePublicRoomListing(code);
                     }
 
                     const invalidMitData = (
@@ -3031,7 +3033,11 @@
                             const isHost = current.hostUid === user.uid;
                             if (!isHost && current.guestUid !== user.uid) return;
                             if (current.status === 'waiting') {
-                                return { ...current, status: 'cancelled' };
+                                return {
+                                    ...current, status: 'cancelled',
+                                    closeReason: isHost ? 'host_cancelled' : 'participant_exit',
+                                    closedBy: user.uid
+                                };
                             }
                             const playerNum = isHost ? 1 : 2;
                             const opponentNum = playerNum === 1 ? 2 : 1;
@@ -3044,8 +3050,8 @@
                                     : {})
                             };
                         });
-                        if (tx.committed && isRoomHost && onlineRoomData?.isPublic) {
-                            await firebase.set(firebase.ref(firebase.db, `publicRooms/${previousRoomCode}`), null);
+                        if (tx.committed && onlineRoomData?.isPublic) {
+                            await retirePublicRoomListing(previousRoomCode);
                         }
                     } catch (error) {
                         console.warn('No se pudo notificar la salida de la sala:', error);
