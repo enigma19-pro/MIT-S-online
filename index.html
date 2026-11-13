@@ -790,6 +790,12 @@
         class AppErrorBoundary extends React.Component {
             state = { hasError: false, errorMessage: '' };
 
+            componentDidMount() {
+                // El watchdog solo se desactiva cuando React ya montó la app
+                // o su pantalla de error controlada.
+                window.MITSMarkAppReady?.();
+            }
+
             static getDerivedStateFromError(error) {
                 return {
                     hasError: true,
@@ -1320,10 +1326,6 @@
                     active = false;
                     window.removeEventListener('mits-firebase-ready', initializeAuth);
                 };
-            }, []);
-
-            useEffect(() => {
-                window.MITSMarkAppReady?.();
             }, []);
 
             // Limpieza final al desmontar la aplicación: evita timers y listeners
