@@ -821,6 +821,13 @@
             const onlineListenerRef = useRef(null);
             const onlinePresenceRef = useRef(null);
             const presenceGraceTimerRef = useRef(null);
+            const waitingRoomExpiryTimerRef = useRef(null);
+            const waitingRoomExpiryKeyRef = useRef(null);
+            const clearWaitingRoomExpiryTimer = () => {
+                if (waitingRoomExpiryTimerRef.current !== null) clearTimeout(waitingRoomExpiryTimerRef.current);
+                waitingRoomExpiryTimerRef.current = null;
+                waitingRoomExpiryKeyRef.current = null;
+            };
             const [soundEnabled, setSoundEnabled] = useState(true);
             // Sandbox de movimiento: estado independiente del combate y de Firebase.
             const [showMovementTest, setShowMovementTest] = useState(false);
@@ -1254,6 +1261,7 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
+                clearWaitingRoomExpiryTimer();
                 const firebase = window.MITSFirebase;
                 if (firebase && onlineListenerRef.current) {
                     firebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
@@ -1453,7 +1461,7 @@
                             const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${createdRoomCode}`);
                             await window.MITSFirebase.runTransaction(roomRef, current => {
                                 if (!current || current.hostUid !== createdRoomHostUid || current.status !== 'waiting') return;
-                                return { ...current, status: 'cancelled', closeReason: 'host_setup_failed' };
+                                return { ...current, status: 'cancelled', closeReason: 'host_setup_failed', closedBy: createdRoomHostUid };
                             });
                             await retirePublicRoomListing(createdRoomCode);
                         } catch (cleanupError) {
@@ -1482,16 +1490,22 @@
                     const roomRef = onlineRoomRef();
                     const startAttemptAt = Date.now();
                     const tx = await window.MITSFirebase.runTransaction(roomRef, current => {
-                        if (!current || current.hostUid !== onlineUser.uid || !current.guestUid ||
-                            current.status !== 'waiting' ||
-                            MITSOnlineRoomLifecycle.isWaitingRoomExpired(current, startAttemptAt)) return;
+                        if (!current || current.hostUid !== onlineUser.uid || current.status !== 'waiting') return;
+                        const expiryPatch = MITSOnlineRoomLifecycle.waitingRoomExpiryPatch(current, onlineUser.uid, startAttemptAt);
+                        if (expiryPatch) return { ...current, ...expiryPatch };
+                        if (!current.guestUid) return;
                         return { ...current, status: 'building' };
                     });
                     if (!tx.committed) {
                         setOnlineStatus('No se pudo iniciar: falta el rival o la sala ya cambió de estado.');
                         return;
                     }
-                    if (onlineRoomData?.isPublic) await retirePublicRoomListing(roomCode);
+                    const updatedRoom = tx.snapshot?.val?.();
+                    if (updatedRoom?.isPublic === true) await retirePublicRoomListing(roomCode);
+                    if (updatedRoom?.status === 'cancelled') {
+                        setOnlineStatus('La sala expiró y se cerró automáticamente.');
+                        return;
+                    }
                 } catch (error) {
                     console.error('No se pudo iniciar la sala:', error);
                     setOnlineStatus('Error al iniciar: ' + (error?.message || 'desconocido'));
@@ -1510,6 +1524,7 @@
                         setOnlineStatus('La sala ya no se puede cancelar.');
                         return;
                     }
+                    clearWaitingRoomExpiryTimer();
                     if (onlineRoomData?.isPublic) await retirePublicRoomListing(roomCode);
                     await stopOnlinePresenceListener(true);
                     if (onlineListenerRef.current) {
@@ -1924,6 +1939,7 @@
                     onlineListenerRef.current = null;
                 }
                 stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia:', error));
+                clearWaitingRoomExpiryTimer();
                 if (isPublicRoom) retirePublicRoomListing(code);
                 setRoomCode('');
                 setOnlineRoomData(null);
@@ -1949,6 +1965,7 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
+                clearWaitingRoomExpiryTimer();
 
                 const firebase = window.MITSFirebase;
                 const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
@@ -1969,6 +1986,41 @@
                         clearTimeout(presenceGraceTimerRef.current);
                         presenceGraceTimerRef.current = null;
                     }
+                };
+
+                const scheduleWaitingRoomExpiry = (room, retryDelay = null) => {
+                    if (localPlayerNum !== 1 || room?.hostUid !== localUid || room?.status !== 'waiting') {
+                        clearWaitingRoomExpiryTimer();
+                        return;
+                    }
+                    const validExpiry = typeof room.expiresAt === 'number' && Number.isFinite(room.expiresAt);
+                    const expiryKey = `${code}:${validExpiry ? room.expiresAt : 'invalid'}`;
+                    if (waitingRoomExpiryKeyRef.current === expiryKey && waitingRoomExpiryTimerRef.current !== null) return;
+                    clearWaitingRoomExpiryTimer();
+                    waitingRoomExpiryKeyRef.current = expiryKey;
+                    const dueAt = validExpiry ? room.expiresAt : Date.now();
+                    const delay = retryDelay === null
+                        ? Math.min(2147483647, Math.max(0, dueAt - Date.now()))
+                        : retryDelay;
+                    waitingRoomExpiryTimerRef.current = setTimeout(async () => {
+                        waitingRoomExpiryTimerRef.current = null;
+                        waitingRoomExpiryKeyRef.current = null;
+                        try {
+                            const checkedAt = Date.now();
+                            const tx = await firebase.runTransaction(roomRef, current => {
+                                const patch = MITSOnlineRoomLifecycle.waitingRoomExpiryPatch(current, localUid, checkedAt);
+                                if (!patch) return;
+                                return { ...current, ...patch };
+                            });
+                            const latestRoom = tx.snapshot?.val?.();
+                            if (!tx.committed && latestRoom?.status === 'waiting' && latestRoom.hostUid === localUid) {
+                                scheduleWaitingRoomExpiry(latestRoom);
+                            }
+                        } catch (error) {
+                            console.warn('No se pudo cerrar la sala de espera expirada:', error);
+                            if (onlineListenerRef.current?.ref === roomRef) scheduleWaitingRoomExpiry(room, 5000);
+                        }
+                    }, delay);
                 };
 
                 const schedulePresenceCheck = () => {
@@ -2034,6 +2086,11 @@
                         return;
                     }
 
+                    if (currentRoomStatus === 'waiting' && localPlayerNum === 1 && room.hostUid === localUid) {
+                        scheduleWaitingRoomExpiry(room);
+                    } else {
+                        clearWaitingRoomExpiryTimer();
+                    }
                     setOnlineRoomData(room);
 
                     if (['cancelled', 'player_left'].includes(currentRoomStatus)) {
@@ -2043,7 +2100,9 @@
                                     ? 'El anfitrión cerró la sala. Ya estás fuera de ella.'
                                     : room.closeReason === 'host_disconnect'
                                         ? 'El anfitrión perdió la conexión. La sala se cerró y regresaste al lobby.'
-                                        : 'La sala de espera se cerró. Regresaste al lobby.')
+                                        : room.closeReason === 'room_expired'
+                                            ? 'La sala superó su tiempo límite y se cerró. Regresaste al lobby.'
+                                            : 'La sala de espera se cerró. Regresaste al lobby.')
                                 : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
                                     ? getPlayerDisplayName(Number(room.disconnectedPlayer))
                                     : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
@@ -3167,6 +3226,7 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
+                clearWaitingRoomExpiryTimer();
 
                 // Limpia la presencia mientras la pertenencia todavía es válida.
                 await stopOnlinePresenceListener(true);
@@ -3264,6 +3324,7 @@
                     clearTimeout(presenceGraceTimerRef.current);
                     presenceGraceTimerRef.current = null;
                 }
+                clearWaitingRoomExpiryTimer();
 
                 // Limpia la presencia mientras la pertenencia todavía es válida.
                 // En especial, evita dejar IDs viejos al liberar el asiento invitado.
