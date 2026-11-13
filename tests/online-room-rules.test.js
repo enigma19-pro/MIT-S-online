@@ -48,8 +48,8 @@ test('player_left transitions identify the reporter and distinguish voluntary ex
     assert.match(validate, /closedBy.*auth\.uid/);
     assert.match(validate, /closeReason.*player_exit/);
     assert.match(validate, /gameover_exit/);
-    assert.match(validate, /gameover_disconnect/);
     assert.match(validate, /disconnectedPlayer/);
+    assert.match(validate, /auth\.uid.*disconnectedPlayer|disconnectedPlayer.*auth\.uid/);
 });
 
 test('expired and stale public listings can be retired without opening room writes', () => {
