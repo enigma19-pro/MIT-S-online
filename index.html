@@ -2122,20 +2122,22 @@
                     setOnlineRoomData(room);
 
                     if (['cancelled', 'player_left'].includes(currentRoomStatus)) {
-                        if (previousStatus !== currentRoomStatus) {
-                            const message = currentRoomStatus === 'cancelled'
-                                ? (room.closeReason === 'host_cancelled'
-                                    ? 'El anfitrión cerró la sala. Ya estás fuera de ella.'
-                                    : room.closeReason === 'host_disconnect'
-                                        ? 'El anfitrión perdió la conexión. La sala se cerró y regresaste al lobby.'
-                                        : room.closeReason === 'room_expired'
-                                            ? 'La sala superó su tiempo límite y se cerró. Regresaste al lobby.'
-                                            : 'La sala de espera se cerró. Regresaste al lobby.')
-                                : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
-                                    ? getPlayerDisplayName(Number(room.disconnectedPlayer))
-                                    : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
-                            exitClosedOnlineRoom(code, message, room.isPublic === true);
-                        }
+                        // Un estado terminal es definitivo. No depende de detectar
+                        // un cambio previo en el cliente: si este listener arranca
+                        // tarde, se reconecta o recibe el mismo snapshot de nuevo,
+                        // la sala sigue cerrada y debemos salir igualmente.
+                        const message = currentRoomStatus === 'cancelled'
+                            ? (room.closeReason === 'host_cancelled'
+                                ? 'El anfitrión cerró la sala. Ya estás fuera de ella.'
+                                : room.closeReason === 'host_disconnect'
+                                    ? 'El anfitrión perdió la conexión. La sala se cerró y regresaste al lobby.'
+                                    : room.closeReason === 'room_expired'
+                                        ? 'La sala superó su tiempo límite y se cerró. Regresaste al lobby.'
+                                        : 'La sala de espera se cerró. Regresaste al lobby.')
+                            : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
+                                ? getPlayerDisplayName(Number(room.disconnectedPlayer))
+                                : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
+                        exitClosedOnlineRoom(code, message, room.isPublic === true);
                         return;
                     }
 
