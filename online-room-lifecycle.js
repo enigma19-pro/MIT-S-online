@@ -128,6 +128,7 @@ const api = Object.freeze({
     ACTIVE_ROOM_STATUSES,
     explicitExitPatch,
     getPlayerNumber,
+    hasPlayerPresence,
     isPublicRoomAvailable,
     isWaitingRoomExpired,
     presenceTimeoutPatch,
