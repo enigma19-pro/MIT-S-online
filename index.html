@@ -1393,8 +1393,10 @@
                 if (isCreatingRoomRef.current) return;
                 isCreatingRoomRef.current = true;
                 setIsCreatingRoom(true);
+                let createdRoomHostUid = '';
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
+                    createdRoomHostUid = user.uid;
                     let code = '';
                     let roomCreated = false;
                     let createdRoomCode = '';
@@ -1440,8 +1442,7 @@
                         try {
                             const roomRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${createdRoomCode}`);
                             await window.MITSFirebase.runTransaction(roomRef, current => {
-                                if (!current || current.hostUid !== onlineUser?.uid && current.hostUid !== undefined) return;
-                                if (current.status !== 'waiting') return;
+                                if (!current || current.hostUid !== createdRoomHostUid || current.status !== 'waiting') return;
                                 return { ...current, status: 'cancelled', closeReason: 'host_setup_failed' };
                             });
                             await retirePublicRoomListing(createdRoomCode);
@@ -1522,6 +1523,7 @@
                 setIsJoiningRoom(true);
                 let joinStep = 'autenticación';
                 let claimedRoomCode = '';
+                let claimedRoomUid = '';
 
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
@@ -1589,6 +1591,7 @@
                         player2Name: playerName
                     });
                     claimedRoomCode = code;
+                    claimedRoomUid = user.uid;
 
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al lobby.
                     joinStep = 'verificación de la reserva';
@@ -1631,7 +1634,7 @@
                         try {
                             const claimedRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${claimedRoomCode}`);
                             const releaseTx = await window.MITSFirebase.runTransaction(claimedRef, current => {
-                                const patch = MITSOnlineRoomLifecycle.explicitExitPatch(current, onlineUser?.uid || '');
+                                const patch = MITSOnlineRoomLifecycle.explicitExitPatch(current, claimedRoomUid);
                                 if (!patch) return;
                                 return { ...current, ...patch };
                             });
@@ -3250,7 +3253,6 @@
                 setIsTurnProcessing(false);
                 aiTurnInProgressRef.current = false;
 
-                if (leavingOnlineGame) await cancelOnlineDisconnect(previousRoomCode);
             };
 
             return (
