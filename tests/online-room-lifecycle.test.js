@@ -121,7 +121,8 @@ test('presence timeout during building does not invent a winner', () => {
     assert.deepEqual(Lifecycle.presenceTimeoutPatch(waitingRoom({ status: 'building' }), 1, 2), {
         status: 'player_left',
         disconnectedPlayer: 2,
-        closeReason: 'disconnect'
+        closeReason: 'disconnect',
+        closedBy: HOST
     });
 });
 
