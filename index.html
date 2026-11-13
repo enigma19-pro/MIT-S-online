@@ -796,7 +796,7 @@
 
         function App() {
             const ONLINE_ROOM_TTL_MS = 30 * 60 * 1000;
-            const ONLINE_PRESENCE_GRACE_MS = 6000;
+            const ONLINE_PRESENCE_GRACE_MS = 2500;
             // Game State
             const [gameState, setGameState] = useState('MENU'); // MENU, BUILD, BATTLE, GAMEOVER
             const [gameMode, setGameMode] = useState('AI'); // 'AI' | 'LOCAL' | 'ONLINE'
@@ -2121,22 +2121,35 @@
                     }
                     setOnlineRoomData(room);
 
-                    if (['cancelled', 'player_left'].includes(currentRoomStatus)) {
-                        // Un estado terminal es definitivo. No depende de detectar
-                        // un cambio previo en el cliente: si este listener arranca
-                        // tarde, se reconecta o recibe el mismo snapshot de nuevo,
-                        // la sala sigue cerrada y debemos salir igualmente.
-                        const message = currentRoomStatus === 'cancelled'
-                            ? (room.closeReason === 'host_cancelled'
-                                ? 'El anfitrión cerró la sala. Ya estás fuera de ella.'
-                                : room.closeReason === 'host_disconnect'
-                                    ? 'El anfitrión perdió la conexión. La sala se cerró y regresaste al lobby.'
-                                    : room.closeReason === 'room_expired'
-                                        ? 'La sala superó su tiempo límite y se cerró. Regresaste al lobby.'
-                                        : 'La sala de espera se cerró. Regresaste al lobby.')
-                            : `${room.disconnectedPlayer === 1 || room.disconnectedPlayer === 2
-                                ? getPlayerDisplayName(Number(room.disconnectedPlayer))
-                                : 'Un jugador'} salió. La sala se cerró y regresaste al lobby.`;
+                    if (currentRoomStatus === 'player_left') {
+                        // La salida durante BUILD/BATTLE debe mostrarse en la pantalla
+                        // actual; no expulsamos al jugador que permanece conectado.
+                        const departedPlayer = sanitizeOnlinePlayerNumber(room.disconnectedPlayer);
+                        setDisconnectedPlayer(departedPlayer);
+                        setWinnerPlayer(sanitizeOnlinePlayerNumber(room.winner));
+                        setOnlineStatus(`${departedPlayer ? getPlayerDisplayName(departedPlayer) : 'Un jugador'} salió de la partida.`);
+                        clearPresenceGraceTimer();
+                        clearWaitingRoomExpiryTimer();
+                        if (onlineListenerRef.current?.ref === roomRef) {
+                            firebase.off(roomRef, 'value', handler);
+                            if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
+                                firebase.off(onlineListenerRef.current.presenceRef, 'value', onlineListenerRef.current.presenceHandler);
+                            }
+                            onlineListenerRef.current = null;
+                        }
+                        stopOnlinePresenceListener(true).catch(error => console.warn('No se pudo limpiar la presencia tras la salida:', error));
+                        if (room.isPublic === true) retirePublicRoomListing(code);
+                        return;
+                    }
+
+                    if (currentRoomStatus === 'cancelled') {
+                        const message = room.closeReason === 'host_cancelled'
+                            ? 'El anfitrión cerró la sala. Ya estás fuera de ella.'
+                            : room.closeReason === 'host_disconnect'
+                                ? 'El anfitrión perdió la conexión. La sala se cerró y regresaste al lobby.'
+                                : room.closeReason === 'room_expired'
+                                    ? 'La sala superó su tiempo límite y se cerró. Regresaste al lobby.'
+                                    : 'La sala de espera se cerró. Regresaste al lobby.';
                         exitClosedOnlineRoom(code, message, room.isPublic === true);
                         return;
                     }
@@ -3946,7 +3959,16 @@
                         {/* 2. MIT BUILDER SCREEN */}
                         {gameState === 'BUILD' && (
                             <div className="build-screen max-w-4xl mx-auto w-full glass-panel rounded-3xl p-6 space-y-6">
-                                <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4">
+                                {gameMode === 'ONLINE' && disconnectedPlayer && (
+                                    <div className="disconnect-screen w-full rounded-2xl p-6 text-center border border-rose-500/40 bg-rose-950/30 space-y-3">
+                                        <div className="text-4xl">🚪</div>
+                                        <h2 className="text-xl font-black text-rose-300 font-mono-custom">JUGADOR DESCONECTADO</h2>
+                                        <p className="text-slate-200">{getPlayerDisplayName(disconnectedPlayer)} salió de la partida.</p>
+                                        <p className="text-sm text-slate-400">La fase de configuración ha terminado.</p>
+                                        <button onClick={returnToOnlineLobby} className="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-bold uppercase tracking-wider">Regresar al lobby</button>
+                                    </div>
+                                )}
+                                {!disconnectedPlayer && <div className="flex flex-wrap justify-between items-center border-b border-slate-800 pb-4">
                                     <div>
                                         <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
                                             Fase de Configuración del Núcleo
@@ -3960,10 +3982,10 @@
                                     )}
                                     <div className="text-sm font-mono-custom text-slate-400">
                                         MITs Listos: <span className="text-cyan-400 font-bold">{gameMode === 'ONLINE' ? (isRoomHost ? p1Mits.length : p2Mits.length) : (builderPlayer === 1 ? p1Mits.length : p2Mits.length)} / 2</span>
-                                    </div>
+                                    </div>}
                                 </div>
 
-                                <div className="build-layout grid grid-cols-1 lg:grid-cols-12 gap-6">
+                                {!disconnectedPlayer && <div className="build-layout grid grid-cols-1 lg:grid-cols-12 gap-6">
                                     {/* Class Selection */}
                                     <div className="build-class-section lg:col-span-7 space-y-3">
                                         <label className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Elige una Clase base</label>
@@ -4061,7 +4083,7 @@
                                         >
                                             {berserkerRebuild ? (gameMode === 'ONLINE' && (isRoomHost ? 1 : 2) !== berserkerRebuild.playerNum ? 'Esperando al rival...' : 'Confirmar segunda fase') : 'Confirmar MIT'}
                                         </button>
-                                    </div>
+                                    </div>}
                                 </div>
                             </div>
                         )}
