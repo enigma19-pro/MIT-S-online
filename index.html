@@ -823,6 +823,14 @@
             const presenceGraceTimerRef = useRef(null);
             const waitingRoomExpiryTimerRef = useRef(null);
             const waitingRoomExpiryKeyRef = useRef(null);
+            const publicRoomSyncVersionsRef = useRef(new Map());
+            const bumpPublicRoomSyncVersion = code => {
+                if (!code) return 0;
+                const versions = publicRoomSyncVersionsRef.current;
+                const nextVersion = (versions.get(code) || 0) + 1;
+                versions.set(code, nextVersion);
+                return nextVersion;
+            };
             const clearWaitingRoomExpiryTimer = () => {
                 if (waitingRoomExpiryTimerRef.current !== null) clearTimeout(waitingRoomExpiryTimerRef.current);
                 waitingRoomExpiryTimerRef.current = null;
@@ -1616,13 +1624,16 @@
                     // transición si el hueco sigue libre y el nuevo guestUid coincide con auth.uid.
                     // Si dos invitados compiten, Firebase acepta uno y rechaza el otro.
                     joinStep = 'reserva del lugar';
+                    // Marca el intento antes de enviar el write: si el servidor lo
+                    // acepta pero se pierde el ACK, el catch aún puede liberar solo
+                    // la reserva creada por esta sesión.
+                    claimedRoomCode = code;
+                    claimedRoomUid = user.uid;
+                    reservationCreatedByThisJoin = initialRoom?.guestUid !== user.uid;
                     await window.MITSFirebase.update(roomRef, {
                         guestUid: user.uid,
                         player2Name: playerName
                     });
-                    claimedRoomCode = code;
-                    claimedRoomUid = user.uid;
-                    reservationCreatedByThisJoin = initialRoom?.guestUid !== user.uid;
 
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al lobby.
                     joinStep = 'verificación de la reserva';
@@ -1873,6 +1884,7 @@
 
             const retirePublicRoomListing = async (code) => {
                 if (!code || !window.MITSFirebase) return;
+                bumpPublicRoomSyncVersion(code);
                 try {
                     await window.MITSFirebase.set(window.MITSFirebase.ref(window.MITSFirebase.db, `publicRooms/${code}`), null);
                 } catch (error) {
@@ -1884,34 +1896,50 @@
                 if (!code || !room || !window.MITSFirebase || room.hostUid !== ownerUid || !ownerUid) return false;
                 const firebase = window.MITSFirebase;
                 const publicRef = firebase.ref(firebase.db, `publicRooms/${code}`);
+                const syncVersion = bumpPublicRoomSyncVersion(code);
                 if (room.isPublic !== true) {
                     if (registerDisconnect) await firebase.onDisconnect(publicRef).cancel();
+                    if (publicRoomSyncVersionsRef.current.get(code) !== syncVersion) return false;
+                    await retirePublicRoomListing(code);
                     return false;
                 }
 
-                const listing = {
-                    hostUid: room.hostUid,
-                    hostName: typeof room.player1Name === 'string' ? room.player1Name : 'Anfitrión',
-                    name: typeof room.roomName === 'string' ? room.roomName : 'Sala de combate',
-                    createdAt: room.createdAt,
-                    expiresAt: room.expiresAt,
-                    status: room.status
-                };
-                const hostPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player1`);
-                const isAvailableByState = MITSOnlineRoomLifecycle.isPublicRoomAvailable(
-                    listing, room, Date.now(), ONLINE_ROOM_TTL_MS
-                );
-
                 try {
-                    const hostPresenceSnapshot = await firebase.get(hostPresenceRef);
-                    const isAvailable = isAvailableByState && hostPresenceSnapshot.exists();
+                    // No se confía en el snapshot que disparó esta llamada: pudo
+                    // quedar viejo mientras se esperaba la lectura de presencia.
+                    const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
+                    const hostPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player1`);
+                    const [roomSnapshot, hostPresenceSnapshot] = await Promise.all([
+                        firebase.get(roomRef),
+                        firebase.get(hostPresenceRef)
+                    ]);
+                    const latestRoom = roomSnapshot.exists() ? roomSnapshot.val() : null;
+                    const listing = latestRoom ? {
+                        hostUid: latestRoom.hostUid,
+                        hostName: typeof latestRoom.player1Name === 'string' ? latestRoom.player1Name : 'Anfitrión',
+                        name: typeof latestRoom.roomName === 'string' ? latestRoom.roomName : 'Sala de combate',
+                        createdAt: latestRoom.createdAt,
+                        expiresAt: latestRoom.expiresAt,
+                        status: latestRoom.status
+                    } : null;
+                    const isAvailable = !!listing &&
+                        latestRoom.hostUid === ownerUid &&
+                        latestRoom.isPublic === true &&
+                        MITSOnlineRoomLifecycle.isPublicRoomAvailable(
+                            listing, latestRoom, Date.now(), ONLINE_ROOM_TTL_MS
+                        ) &&
+                        hostPresenceSnapshot.exists();
+                    if (publicRoomSyncVersionsRef.current.get(code) !== syncVersion) return false;
                     if (isAvailable) {
                         if (registerDisconnect) await firebase.onDisconnect(publicRef).remove();
+                        if (publicRoomSyncVersionsRef.current.get(code) !== syncVersion) return false;
                         await firebase.set(publicRef, listing);
                         return true;
                     }
                     if (registerDisconnect) await firebase.onDisconnect(publicRef).cancel();
-                    await retirePublicRoomListing(code);
+                    if (publicRoomSyncVersionsRef.current.get(code) === syncVersion) {
+                        await retirePublicRoomListing(code);
+                    }
                 } catch (error) {
                     console.warn('No se pudo sincronizar el anuncio público:', error);
                 }
@@ -3427,7 +3455,8 @@
                             {gameState !== 'MENU' && !berserkerRebuild && !(gameMode === 'ONLINE' && gameState === 'GAMEOVER') && (
                                 <button 
                                     onClick={resetGame}
-                                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition"
+                                    disabled={isCreatingRoom || isJoiningRoom}
+                                    className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-sm font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed"
                                 >
                                     Reiniciar
                                 </button>
@@ -3876,8 +3905,8 @@
                                         </div>
                                         {isRoomHost ? (
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                <button onClick={startOnlineMatch} disabled={!onlineRoomData?.guestUid || onlineRoomData?.status !== 'waiting'} className="py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black disabled:opacity-40">▶ INICIAR PARTIDA</button>
-                                                <button onClick={cancelOnlineRoom} className="py-3 rounded-xl bg-rose-950 border border-rose-500/40 text-rose-300 font-bold">✕ CANCELAR SALA</button>
+                                                <button onClick={startOnlineMatch} disabled={isCreatingRoom || isJoiningRoom || !onlineRoomData?.guestUid || onlineRoomData?.status !== 'waiting'} className="py-3 rounded-xl bg-gradient-to-r from-emerald-400 to-cyan-500 text-slate-950 font-black disabled:opacity-40">▶ INICIAR PARTIDA</button>
+                                                <button onClick={cancelOnlineRoom} disabled={isCreatingRoom || isJoiningRoom} className="py-3 rounded-xl bg-rose-950 border border-rose-500/40 text-rose-300 font-bold">✕ CANCELAR SALA</button>
                                             </div>
                                         ) : <p className="text-center text-sm text-amber-300">Esperando a que el anfitrión inicie la partida…</p>}
                                     </div>
@@ -3902,7 +3931,7 @@
                                             {publicRooms.length === 0 ? <p className="text-sm text-slate-500">No hay salas públicas disponibles ahora.</p> : publicRooms.map(room => (
                                                 <div key={room.code} className="flex items-center justify-between gap-3 rounded-xl border border-slate-800 p-3">
                                                     <div className="min-w-0"><div className="font-bold text-white truncate">{room.name}</div><div className="text-xs text-slate-500">Anfitrión: {room.hostName} · 1/2 jugadores</div></div>
-                                                    <button onClick={() => joinOnlineRoom(room.code)} className="px-3 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-sm font-bold">Unirse</button>
+                                                    <button onClick={() => joinOnlineRoom(room.code)} disabled={isJoiningRoom} className="px-3 py-2 rounded-lg bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-sm font-bold">Unirse</button>
                                                 </div>
                                             ))}
                                         </div>
