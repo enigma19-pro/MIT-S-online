@@ -1036,10 +1036,11 @@
                 const publicRef = firebase.ref(firebase.db, 'publicRooms');
                 let active = true;
                 let snapshotVersion = 0;
+                let latestListings = {};
 
-                const handler = snapshot => {
+                const refreshPublicRooms = () => {
                     const version = ++snapshotVersion;
-                    const entries = Object.entries(snapshot.val() || {});
+                    const entries = Object.entries(latestListings);
                     Promise.all(entries.map(async ([code, listing]) => {
                         if (!listing || typeof listing !== 'object' || Array.isArray(listing)) {
                             await retirePublicRoomListing(code);
@@ -1047,7 +1048,7 @@
                         }
                         try {
                             // El anuncio no es la fuente de verdad: se contrasta con
-                            // la sala real antes de mostrarlo como disponible.
+                            // la sala real y con la presencia del anfitrión.
                             const roomRef = firebase.ref(firebase.db, `rooms/${code}`);
                             const hostPresenceRef = firebase.ref(firebase.db, `rooms/${code}/presence/player1`);
                             const [roomSnapshot, hostPresenceSnapshot] = await Promise.all([
@@ -1092,15 +1093,20 @@
                     });
                 };
 
+                const handler = snapshot => {
+                    latestListings = snapshot.val() || {};
+                    refreshPublicRooms();
+                };
+
                 firebase.onValue(publicRef, handler);
-                const expiryTimer = setInterval(() => {
-                    setPublicRooms(current => current.filter(room => room.expiresAt > Date.now()));
-                }, 30000);
+                // Vuelve a comprobar los anuncios incluso si una baja antigua no
+                // generó el evento esperado en publicRooms.
+                const revalidationTimer = setInterval(refreshPublicRooms, 15000);
                 return () => {
                     active = false;
                     snapshotVersion += 1;
                     firebase.off(publicRef, 'value', handler);
-                    clearInterval(expiryTimer);
+                    clearInterval(revalidationTimer);
                 };
             }, [gameState, onlineUser]);
 
