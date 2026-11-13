@@ -1537,6 +1537,7 @@
                 let joinStep = 'autenticación';
                 let claimedRoomCode = '';
                 let claimedRoomUid = '';
+                let reservationCreatedByThisJoin = false;
                 let enteredLocalRoom = false;
 
                 try {
@@ -1606,6 +1607,7 @@
                     });
                     claimedRoomCode = code;
                     claimedRoomUid = user.uid;
+                    reservationCreatedByThisJoin = initialRoom?.guestUid !== user.uid;
 
                     // Confirma que el servidor guardó la reserva para este usuario antes de entrar al lobby.
                     joinStep = 'verificación de la reserva';
@@ -1648,7 +1650,7 @@
                     subscribeToOnlineRoom(code, 2, user.uid);
                 } catch (error) {
                     if (enteredLocalRoom) await stopOnlinePresenceListener(true);
-                    if (claimedRoomCode && window.MITSFirebase) {
+                    if (reservationCreatedByThisJoin && claimedRoomCode && window.MITSFirebase) {
                         try {
                             const claimedRef = window.MITSFirebase.ref(window.MITSFirebase.db, `rooms/${claimedRoomCode}`);
                             const releaseTx = await window.MITSFirebase.runTransaction(claimedRef, current => {
