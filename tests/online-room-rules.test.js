@@ -67,8 +67,8 @@ test('disconnect-based player_left transitions require the missing opponent pres
     const validate = room['.validate'];
     assert.match(validate, /closeReason.*disconnect/);
     assert.match(validate, /gameover_disconnect/);
-    assert.match(validate, /newData\.child\('presence'\)\.child\('player1'\)\.exists\(\)/);
-    assert.match(validate, /newData\.child\('presence'\)\.child\('player2'\)\.exists\(\)/);
+    assert.match(validate, /!data\.child\('presence'\)\.child\('player1'\)\.exists\(\)/);
+    assert.match(validate, /!data\.child\('presence'\)\.child\('player2'\)\.exists\(\)/);
 });
 
 test('cancelled rooms require an authorized close reason and immutable terminal metadata', () => {
@@ -79,4 +79,12 @@ test('cancelled rooms require an authorized close reason and immutable terminal 
     assert.match(validate, /host_setup_failed/);
     assert.match(validate, /data\.child\('status'\)\.val\(\) == 'cancelled'/);
     assert.match(validate, /newData\.child\('closeReason'\)\.val\(\) == data\.child\('closeReason'\)\.val\(\)/);
+});
+
+
+test('a room cannot be marked expired before the Firebase server deadline', () => {
+    const validate = room['.validate'];
+    assert.match(validate, /closeReason.*room_expired/);
+    assert.match(validate, /data\.child\('expiresAt'\)\.val\(\) <= now/);
+    assert.match(validate, /!data\.child\('expiresAt'\)\.isNumber\(\)/);
 });
