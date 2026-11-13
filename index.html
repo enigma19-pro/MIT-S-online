@@ -3247,7 +3247,7 @@
                             // salida gana la carrera y conserva el ganador calculado.
                             if (['battle', 'berserker_build'].includes(current.status)) {
                                 const playerNum = MITSOnlineRoomLifecycle.getPlayerNumber(current, user.uid);
-                                if (!playerNum) return;
+                                if (!playerNum || MITSOnlineRoomLifecycle.hasPlayerPresence(current, playerNum)) return;
                                 return {
                                     ...current,
                                     status: 'player_left',
