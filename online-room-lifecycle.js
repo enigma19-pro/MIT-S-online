@@ -17,9 +17,14 @@ function getPlayerNumber(room, uid) {
  * Returns the minimal room patch for a member deliberately leaving.
  * A waiting guest releases their seat; only the host closes a waiting room.
  */
+function hasPlayerPresence(room, playerNum) {
+    const presence = room?.presence?.[`player${playerNum}`];
+    return !!presence && typeof presence === 'object' && !Array.isArray(presence) && Object.keys(presence).length > 0;
+}
+
 function explicitExitPatch(room, uid) {
     const playerNum = getPlayerNumber(room, uid);
-    if (!playerNum) return null;
+    if (!playerNum || hasPlayerPresence(room, playerNum)) return null;
 
     if (room.status === 'waiting') {
         if (playerNum === 1) {
@@ -73,7 +78,7 @@ function presenceTimeoutPatch(room, localPlayerNum, opponentPlayerNum) {
             return {
                 status: 'cancelled',
                 closeReason: 'host_disconnect',
-                closedBy: 'presence_timeout'
+                closedBy: localPlayerNum === 1 ? room.hostUid : room.guestUid
             };
         }
         return null;
@@ -91,6 +96,12 @@ function presenceTimeoutPatch(room, localPlayerNum, opponentPlayerNum) {
         patch.winner = localPlayerNum;
     }
     return patch;
+}
+
+function waitingRoomExpiryPatch(room, uid, now = Date.now()) {
+    if (!room || room.status !== 'waiting' || typeof uid !== 'string' || !uid || room.hostUid !== uid) return null;
+    if (!isWaitingRoomExpired(room, now)) return null;
+    return { status: 'cancelled', closeReason: 'room_expired', closedBy: uid };
 }
 
 function isWaitingRoomExpired(room, now = Date.now()) {
@@ -119,7 +130,8 @@ const api = Object.freeze({
     getPlayerNumber,
     isPublicRoomAvailable,
     isWaitingRoomExpired,
-    presenceTimeoutPatch
+    presenceTimeoutPatch,
+    waitingRoomExpiryPatch
 });
 
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
