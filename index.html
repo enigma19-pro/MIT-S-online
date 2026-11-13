@@ -3011,7 +3011,7 @@
                 }
                 await stopOnlinePresenceListener(true);
                 await cancelOnlineDisconnect(finishedRoomCode);
-                await retirePublicRoomListing(finishedRoomCode);
+                if (onlineRoomData?.isPublic === true) await retirePublicRoomListing(finishedRoomCode);
 
                 setGameState('ONLINE_LOBBY');
                 setGameMode('ONLINE');
