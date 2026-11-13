@@ -1394,12 +1394,12 @@
                 isCreatingRoomRef.current = true;
                 setIsCreatingRoom(true);
                 let createdRoomHostUid = '';
+                let createdRoomCode = '';
                 try {
                     const user = onlineUser || await window.MITSFirebase.ready;
                     createdRoomHostUid = user.uid;
                     let code = '';
                     let roomCreated = false;
-                    let createdRoomCode = '';
                     const createdAt = Date.now();
                     const expiresAt = createdAt + ONLINE_ROOM_TTL_MS;
                     for (let attempt = 0; attempt < 8 && !roomCreated; attempt++) {
