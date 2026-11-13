@@ -61,3 +61,22 @@ test('expired and stale public listings can be retired without opening room writ
     assert.match(write, /createdAt/);
     assert.match(write, /hostUid/);
 });
+
+
+test('disconnect-based player_left transitions require the missing opponent presence and a known reason', () => {
+    const validate = room['.validate'];
+    assert.match(validate, /closeReason.*disconnect/);
+    assert.match(validate, /gameover_disconnect/);
+    assert.match(validate, /newData\.child\('presence'\)\.child\('player1'\)\.exists\(\)/);
+    assert.match(validate, /newData\.child\('presence'\)\.child\('player2'\)\.exists\(\)/);
+});
+
+test('cancelled rooms require an authorized close reason and immutable terminal metadata', () => {
+    const validate = room['.validate'];
+    assert.match(validate, /host_cancelled/);
+    assert.match(validate, /host_disconnect/);
+    assert.match(validate, /room_expired/);
+    assert.match(validate, /host_setup_failed/);
+    assert.match(validate, /data\.child\('status'\)\.val\(\) == 'cancelled'/);
+    assert.match(validate, /newData\.child\('closeReason'\)\.val\(\) == data\.child\('closeReason'\)\.val\(\)/);
+});
