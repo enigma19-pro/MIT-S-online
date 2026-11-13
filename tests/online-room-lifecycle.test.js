@@ -225,3 +225,15 @@ test('waiting host disconnect report identifies the connected guest as reporter'
         closedBy: GUEST
     });
 });
+
+
+test('server-side waiting-room disconnect closes only the host-owned waiting room', () => {
+    assert.deepEqual(Lifecycle.waitingRoomDisconnectPatch(waitingRoom(), HOST), {
+        status: 'cancelled',
+        closeReason: 'host_disconnect',
+        closedBy: HOST
+    });
+    assert.equal(Lifecycle.waitingRoomDisconnectPatch(waitingRoom(), GUEST), null);
+    assert.equal(Lifecycle.waitingRoomDisconnectPatch(waitingRoom({ status: 'battle' }), HOST), null);
+    assert.equal(Lifecycle.waitingRoomDisconnectPatch(waitingRoom({ hostUid: 'other-host' }), HOST), null);
+});
