@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="robots" content="noindex">
-  <meta http-equiv="refresh" content="0;url=./index.html">
   <title>MIT'S — Volver al inicio</title>
   <script>
     (function () {
-      var target = './index.html' + location.search + location.hash;
-      location.replace(target);
+      var path = location.pathname;
+      var marker = '/MIT-S-online/';
+      var base = path.indexOf(marker) !== -1 ? marker : '/';
+      location.replace(base + location.search + location.hash);
     }());
   </script>
 </head>
