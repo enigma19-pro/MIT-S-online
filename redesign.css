@@ -580,3 +580,283 @@ input { color: var(--mits-text) !important; }
     scroll-behavior: auto !important;
   }
 }
+
+
+/* =========================================================
+   SISTEMA VISUAL GLOBAL — todas las pantallas hablan el mismo
+   lenguaje LINK que el menú y la batalla.
+   No modifica lógica, estados ni mecánicas.
+   ========================================================= */
+
+/* Superficies secundarias: mismo material que los paneles de batalla. */
+.menu-screen,
+.lobby-screen,
+.build-screen,
+.mits-class-guide-panel,
+.berserker-panel,
+.disconnect-screen,
+.app-shell > div.fixed form {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: rgba(98, 230, 239, .24) !important;
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(30, 146, 163, .10), transparent 38%),
+    linear-gradient(145deg, rgba(14, 27, 40, .98), rgba(7, 14, 23, .98) 74%) !important;
+  box-shadow:
+    0 24px 70px rgba(0,0,0,.34),
+    inset 0 1px rgba(255,255,255,.045) !important;
+}
+
+.menu-screen::after,
+.lobby-screen::after,
+.build-screen::after,
+.mits-class-guide-panel::after,
+.berserker-panel::after,
+.disconnect-screen::after,
+.app-shell > div.fixed form::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 320px;
+  height: 220px;
+  right: -110px;
+  top: -130px;
+  pointer-events: none;
+  background: radial-gradient(ellipse, rgba(98,230,239,.10), transparent 68%);
+}
+
+/* Cabeceras de sección: pequeños rótulos técnicos, como en combate. */
+.build-screen > div:first-child,
+.lobby-screen > div:first-child,
+.mits-class-guide-panel > div:first-child {
+  position: relative;
+}
+
+.build-screen > div:first-child::after,
+.lobby-screen > div:first-child::after {
+  content: "LINK / CONFIGURATION";
+  position: absolute;
+  right: 0;
+  top: 0;
+  color: rgba(145,188,204,.30);
+  font: 800 8px 'JetBrains Mono', monospace;
+  letter-spacing: .18em;
+  pointer-events: none;
+}
+
+.lobby-screen > div:first-child::after {
+  content: "LINK / MATCHMAKING";
+}
+
+/* Todos los controles importantes comparten geometría, borde y respuesta. */
+.lobby-screen button,
+.build-screen button,
+.mits-class-guide-panel button,
+.berserker-panel button,
+.disconnect-screen button,
+.app-shell > div.fixed form button {
+  border-radius: 13px !important;
+  transition:
+    transform .16s ease,
+    filter .16s ease,
+    border-color .16s ease,
+    box-shadow .16s ease,
+    background .16s ease;
+}
+
+.lobby-screen button:hover:not(:disabled),
+.build-screen button:hover:not(:disabled),
+.mits-class-guide-panel button:hover:not(:disabled),
+.berserker-panel button:hover:not(:disabled),
+.disconnect-screen button:hover:not(:disabled),
+.app-shell > div.fixed form button:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.lobby-screen button:active:not(:disabled),
+.build-screen button:active:not(:disabled),
+.mits-class-guide-panel button:active:not(:disabled),
+.berserker-panel button:active:not(:disabled),
+.disconnect-screen button:active:not(:disabled),
+.app-shell > div.fixed form button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Inputs: mismo fondo profundo y foco cian de la arena. */
+.lobby-screen input,
+.app-shell > div.fixed form input {
+  color: #e8f1f7 !important;
+  border: 1px solid rgba(119,162,183,.28) !important;
+  border-radius: 13px !important;
+  background:
+    linear-gradient(145deg, rgba(4,12,20,.94), rgba(8,20,31,.88)) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+
+.lobby-screen input::placeholder,
+.app-shell > div.fixed form input::placeholder {
+  color: #62798a !important;
+}
+
+.lobby-screen input:focus,
+.app-shell > div.fixed form input:focus {
+  border-color: rgba(98,230,239,.72) !important;
+  box-shadow: 0 0 0 3px rgba(98,230,239,.09), 0 0 24px rgba(34,211,238,.06) !important;
+}
+
+/* Tarjetas internas del lobby: dejan de parecer elementos sueltos. */
+.lobby-screen .rounded-2xl.border,
+.lobby-screen .rounded-xl.border {
+  border-color: rgba(121,158,179,.18) !important;
+  background:
+    linear-gradient(145deg, rgba(16,31,44,.84), rgba(6,15,24,.84)) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+
+.lobby-screen .rounded-2xl.border:hover,
+.lobby-screen .rounded-xl.border:hover {
+  border-color: rgba(98,230,239,.30) !important;
+}
+
+/* Indicadores de estado. */
+.lobby-screen .text-emerald-400,
+.lobby-screen .text-emerald-300 {
+  text-shadow: 0 0 14px rgba(117,229,182,.10);
+}
+
+.lobby-screen .tracking-widest,
+.build-screen .tracking-wider,
+.build-screen .tracking-widest {
+  letter-spacing: .16em;
+}
+
+/* Manual de núcleos: mismo contraste, profundidad y jerarquía que batalla. */
+.mits-class-guide-panel > div:first-child {
+  background:
+    linear-gradient(110deg, rgba(14,31,44,.98), rgba(7,15,24,.98) 62%, rgba(24,18,42,.82)) !important;
+  border-bottom-color: rgba(121,158,179,.18) !important;
+}
+
+.mits-class-guide-list {
+  background: rgba(6,15,24,.56) !important;
+  border-color: rgba(121,158,179,.16) !important;
+}
+
+.mits-class-guide-list > div:first-child {
+  border-color: rgba(98,230,239,.20) !important;
+  border-radius: 15px !important;
+  background: rgba(9,31,42,.54) !important;
+}
+
+.mits-class-guide-list button {
+  border-color: rgba(121,158,179,.17) !important;
+  background: linear-gradient(145deg, rgba(16,31,44,.88), rgba(7,16,25,.90)) !important;
+}
+
+.mits-class-guide-list button[class*="border-cyan-400"] {
+  border-color: rgba(98,230,239,.68) !important;
+  background: linear-gradient(145deg, rgba(12,63,76,.68), rgba(7,23,33,.96)) !important;
+  box-shadow: inset 0 0 28px rgba(34,211,238,.05), 0 10px 28px rgba(0,0,0,.20);
+}
+
+.mits-class-guide-details {
+  background:
+    radial-gradient(ellipse at 100% 0%, rgba(34,211,238,.07), transparent 38%),
+    linear-gradient(145deg, rgba(7,15,24,.98), rgba(6,13,22,.98)) !important;
+}
+
+.mits-class-guide-details > .grid > div,
+.mits-class-guide-details > div:last-child,
+.mits-class-guide-details > div:first-child {
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+
+/* Transformación Berserker: naranja de estado, pero dentro del mismo chasis. */
+.berserker-panel {
+  border-color: rgba(255,198,109,.34) !important;
+}
+
+.berserker-panel::after {
+  background: radial-gradient(ellipse, rgba(255,126,76,.12), transparent 68%);
+}
+
+.berserker-panel .grid > div {
+  border-radius: 15px !important;
+  background: linear-gradient(145deg, rgba(30,29,35,.84), rgba(10,17,25,.92)) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.025);
+}
+
+/* Nombre inicial: deja de sentirse como un modal genérico. */
+.app-shell > div.fixed form {
+  width: min(100%, 460px) !important;
+  border-radius: 24px !important;
+  padding: clamp(24px, 5vw, 38px) !important;
+}
+
+.app-shell > div.fixed form > div:first-child {
+  filter: drop-shadow(0 0 14px rgba(34,211,238,.18));
+}
+
+.app-shell > div.fixed form h2 {
+  letter-spacing: -.025em;
+}
+
+.app-shell > div.fixed form p {
+  color: #91a8b8 !important;
+  line-height: 1.7;
+}
+
+.app-shell > div.fixed form button[type="submit"] {
+  min-height: 52px;
+  border: 1px solid rgba(98,230,239,.30) !important;
+  box-shadow: 0 10px 28px rgba(34,211,238,.10);
+}
+
+/* Pantalla de error: también pertenece al sistema LINK. */
+.min-h-screen > .glass-panel {
+  border-color: rgba(255,120,136,.30) !important;
+  border-radius: 22px !important;
+  background: linear-gradient(145deg, rgba(29,19,29,.98), rgba(8,14,23,.98)) !important;
+  box-shadow: 0 26px 80px rgba(0,0,0,.50), inset 0 1px rgba(255,255,255,.04);
+}
+
+/* Footer como barra técnica, no como texto separado del resto de la UI. */
+.app-footer {
+  position: relative;
+  border-top-color: rgba(121,158,179,.14) !important;
+  color: #62798a !important;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.app-footer::before {
+  content: "●";
+  margin-right: 8px;
+  color: rgba(98,230,239,.58);
+  text-shadow: 0 0 10px rgba(98,230,239,.35);
+}
+
+/* El fondo de overlays mantiene la misma lectura que la pantalla de victoria. */
+.mits-class-guide-overlay,
+.berserker-overlay {
+  background: rgba(3,9,15,.90) !important;
+  backdrop-filter: blur(16px);
+}
+
+/* Responsive: conservar la identidad sin convertirla en una interfaz pesada. */
+@media (max-width: 620px) {
+  .build-screen > div:first-child::after,
+  .lobby-screen > div:first-child::after {
+    display: none;
+  }
+
+  .mits-class-guide-details > .grid > div {
+    border-radius: 15px !important;
+  }
+
+  .app-shell > div.fixed form {
+    width: min(100%, 460px) !important;
+    border-radius: 21px !important;
+  }
+}
