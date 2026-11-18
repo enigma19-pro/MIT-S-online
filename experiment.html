@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MIT'S // CORE SHIFT — Experimental Build</title>
+<style>
+:root{--bg:#070a10;--panel:#0d131d;--panel2:#111a27;--line:#263548;--text:#e7eef7;--muted:#8190a5;--cyan:#4de3ff;--cyan2:#0ba8c7;--red:#ff5d72;--amber:#ffc857;--green:#54e39b;--violet:#ad8cff}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -20%,#152b3d 0,#080c13 42%,#05070b 100%);color:var(--text);font:14px Inter,system-ui,sans-serif;min-height:100vh}button{font:inherit;color:inherit}button:disabled{opacity:.35;cursor:not-allowed}
+.shell{width:min(1380px,100%);margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);background:rgba(8,13,20,.84);backdrop-filter:blur(12px);padding:12px 16px;border-radius:16px;position:sticky;top:10px;z-index:10}.brand{font:800 15px ui-monospace,monospace;letter-spacing:.16em}.brand b{color:var(--cyan)}.tag{color:var(--muted);font:700 10px ui-monospace,monospace;letter-spacing:.14em}
+.screen{display:none}.screen.active{display:block}.hero{max-width:1050px;margin:9vh auto 0}.kicker{color:var(--cyan);font:800 11px ui-monospace,monospace;letter-spacing:.22em}.hero h1{font-size:clamp(42px,8vw,94px);line-height:.88;margin:14px 0;letter-spacing:-.06em}.hero h1 span{color:transparent;-webkit-text-stroke:1px #7feaff}.hero p{max-width:650px;color:#9aabc0;font-size:16px;line-height:1.7}.grid{display:grid;gap:14px}.cores{grid-template-columns:repeat(4,1fr);margin-top:28px}.core{background:linear-gradient(145deg,#101927,#0b111a);border:1px solid var(--line);border-radius:18px;padding:17px;text-align:left;cursor:pointer;transition:.18s;min-height:150px}.core:hover,.core.selected{transform:translateY(-3px);border-color:var(--cyan);box-shadow:0 0 0 1px #1b9bb4,0 16px 45px #0008}.core .sig{font:800 24px ui-monospace,monospace}.core small{display:block;color:var(--muted);margin-top:8px;line-height:1.5}.core .stat{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}.pill{border:1px solid #33465c;background:#0b121c;border-radius:99px;padding:4px 7px;font:700 9px ui-monospace,monospace;color:#aebdd0}
+.cta{margin-top:22px;display:flex;gap:10px;flex-wrap:wrap}.btn{border:1px solid #35516b;background:#111c2a;border-radius:11px;padding:12px 17px;font-weight:800;cursor:pointer}.btn.primary{background:var(--cyan);color:#031016;border-color:var(--cyan)}.btn.danger{border-color:#70303c}.btn:hover:not(:disabled){filter:brightness(1.12);transform:translateY(-1px)}
+.deploy{max-width:1100px;margin:34px auto}.section-title{display:flex;justify-content:space-between;align-items:end;margin-bottom:16px}.section-title h2{margin:0;font-size:28px}.section-title span{color:var(--muted);font:700 10px ui-monospace,monospace}.loadout{grid-template-columns:1fr 1fr}.load-card{border:1px solid var(--line);background:#0b1119;border-radius:18px;padding:18px}.load-card h3{margin:0 0 14px}.selected-core{display:flex;align-items:center;gap:14px;border:1px solid #2d4c60;border-radius:13px;padding:13px;background:#0d1823}.core-orb{width:54px;height:54px;border:1px solid #4de3ff88;border-radius:16px;display:grid;place-items:center;background:radial-gradient(circle,#4de3ff66,#0c1722 60%);box-shadow:0 0 24px #4de3ff22}.faces{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-top:14px}.face{padding:10px 0;border:1px solid #2a3a4d;background:#0b121b;border-radius:9px;text-align:center;cursor:pointer;font-weight:900}.face.attack{border-color:#6c3844;background:#25151a}.face.evade{border-color:#345d52;background:#11231e}.face.locked{opacity:.28;cursor:not-allowed}.hint{color:var(--muted);line-height:1.5;font-size:12px;margin-top:10px}
+.arena{margin-top:22px;display:grid;grid-template-columns:270px minmax(0,1fr) 270px;gap:12px;align-items:stretch}.side{border:1px solid var(--line);background:#0b1119;border-radius:18px;padding:16px}.side h3{margin:0}.unit{margin-top:12px;border:1px solid #26374b;border-radius:13px;padding:12px;background:#0c141f;cursor:pointer}.unit.active{border-color:var(--cyan);box-shadow:inset 3px 0 var(--cyan)}.unit.down{opacity:.3}.unit-head{display:flex;justify-content:space-between;font-weight:900}.class{font:700 9px ui-monospace,monospace;color:var(--muted);letter-spacing:.1em}.hp{height:6px;border-radius:99px;background:#1c2836;margin-top:10px;overflow:hidden}.hp i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));width:100%}.enemy .hp i{background:linear-gradient(90deg,var(--red),#ff9a9a)}
+.battle{min-height:620px;border:1px solid var(--line);border-radius:18px;overflow:hidden;background:radial-gradient(circle at 50% 45%,#163143 0,#0b1722 35%,#080d14 72%);position:relative}.battle:before{content:"";position:absolute;inset:0;opacity:.17;background-image:linear-gradient(#7893a522 1px,transparent 1px),linear-gradient(90deg,#7893a522 1px,transparent 1px);background-size:42px 42px}.turn{position:absolute;top:14px;left:50%;transform:translateX(-50%);z-index:2;border:1px solid #365368;background:#081019e8;border-radius:99px;padding:7px 12px;font:800 9px ui-monospace,monospace;letter-spacing:.14em;color:var(--cyan)}
+.combatant{position:absolute;width:170px;text-align:center}.combatant.enemy{top:22%;right:12%}.combatant.player{bottom:23%;left:12%}.machine{width:120px;height:100px;margin:auto;position:relative;filter:drop-shadow(0 14px 20px #0009)}.machine .body{position:absolute;inset:18px 12px 10px;border:2px solid #8feefa;border-radius:24px;background:linear-gradient(145deg,#4ca4b4,#122b3b 65%);clip-path:polygon(18% 0,82% 0,100% 30%,92% 90%,70% 100%,30% 100%,8% 90%,0 30%)}.machine .core{position:absolute;width:38px;height:38px;border-radius:50%;left:41px;top:31px;background:radial-gradient(circle,#fff 0,#4de3ff 20%,#0b3e50 68%);box-shadow:0 0 24px #4de3ff99}.machine .leg{position:absolute;width:16px;height:32px;background:#203849;border:2px solid #6d9dab;bottom:0;border-radius:7px}.machine .leg.a{left:28px}.machine .leg.b{right:28px}.enemy .machine .body{border-color:#ff7f91;background:linear-gradient(145deg,#b34e63,#351522 65%)}.enemy .machine .core{background:radial-gradient(circle,#fff 0,#ff6a7e 20%,#571829 68%);box-shadow:0 0 24px #ff526a99}.name{margin-top:8px;font-weight:900}.sub{font:700 9px ui-monospace,monospace;color:var(--muted);margin-top:4px}.vs{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font:900 24px ui-monospace,monospace;color:#ffffff1f}
+.actionbar{position:absolute;bottom:0;left:0;right:0;padding:14px;background:linear-gradient(transparent,#070c12 32%);z-index:3}.actions{display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:8px;max-width:700px;margin:auto}.act{border:1px solid #33485c;background:#101b28eF;border-radius:12px;padding:13px;font-weight:900;cursor:pointer}.act strong{display:block;color:var(--cyan)}.act small{display:block;color:var(--muted);margin-top:3px}.act.attack{border-color:#2d91a5}.act.over{border-color:#735b2b}.act.repair{border-color:#27644d}.act:hover{background:#152638}
+.log{height:92px;max-width:700px;margin:8px auto 0;border:1px solid #1f2e3e;border-radius:10px;background:#060a0fcc;padding:8px 10px;overflow:auto;font:10px ui-monospace,monospace;color:#8ea0b4}.log div{padding:2px 0}.log .hit{color:#7ef1b6}.log .miss{color:#ff8998}.log .sys{color:#7ddcf0}
+.overlay{position:fixed;inset:0;background:#02050add;backdrop-filter:blur(12px);display:none;align-items:center;justify-content:center;z-index:30;padding:18px}.overlay.show{display:flex}.modal{width:min(620px,100%);border:1px solid #39536b;border-radius:22px;background:#0b121b;box-shadow:0 30px 100px #000c;padding:24px}.roll{font:900 82px ui-monospace,monospace;text-align:center;color:var(--cyan);margin:15px 0}.result{font-size:17px;line-height:1.6;text-align:center}.footer{margin:20px 0;color:#536276;text-align:center;font:9px ui-monospace,monospace;letter-spacing:.12em}
+@media(max-width:900px){.cores{grid-template-columns:repeat(2,1fr)}.arena{grid-template-columns:1fr}.side{display:grid;grid-template-columns:1fr 1fr;gap:8px}.side h3{grid-column:1/-1}.unit{margin:0}.battle{min-height:590px}.loadout{grid-template-columns:1fr}}@media(max-width:520px){.shell{padding:10px}.top{position:static}.cores{grid-template-columns:1fr}.hero{margin-top:5vh}.hero h1{font-size:54px}.arena{margin-top:12px}.battle{min-height:560px}.combatant{transform:scale(.82)}.combatant.enemy{top:20%;right:3%}.combatant.player{bottom:25%;left:3%}.actions{grid-template-columns:1fr}.side{grid-template-columns:1fr}.log{height:64px}}
+</style>
+</head>
+<body>
+<div class="shell">
+<header class="top"><div class="brand">MIT'S <b>// CORE SHIFT</b></div><div class="tag">EXPERIMENTAL BUILD · 17.11.2026</div></header>
+
+<section id="menu" class="screen active">
+<div class="hero">
+<div class="kicker">REPLANTEAMIENTO DE COMBATE</div>
+<h1>EL NÚCLEO<br><span>ES EL MIT.</span></h1>
+<p>Una versión experimental centrada en una sola idea: cada turno debe obligarte a elegir entre asegurar daño, buscar una jugada de alto riesgo o preparar tu siguiente turno. Menos interfaz. Más lectura del rival.</p>
+<div class="grid cores" id="coreGrid"></div>
+<div class="cta"><button class="btn primary" id="startBtn">INICIAR SIMULACIÓN</button><button class="btn" id="randomBtn">NÚCLEO ALEATORIO</button></div>
+</div>
+</section>
+
+<section id="deploy" class="screen">
+<div class="deploy">
+<div class="section-title"><div><span>FASE 01</span><h2>Configura tu núcleo</h2></div><span>6 CARAS · 2 ROLES</span></div>
+<div class="grid loadout">
+<div class="load-card"><h3 id="deployName"></h3><div class="selected-core"><div class="core-orb" id="deployOrb">CORE</div><div><b id="deployClass"></b><div class="class" id="deployPassive"></div></div></div><p class="hint">Asigna las caras del dado a ataque o evasión. Cada cara solo puede pertenecer a un rol.</p><div class="faces" id="faces"></div></div>
+<div class="load-card"><h3>Filosofía de la versión</h3><div class="hint" style="font-size:14px;line-height:1.8">El dado deja de ser un resultado aislado y pasa a ser tu configuración. Un buen núcleo no gana por tener más números: gana porque sus números encajan con su pasiva.</div><div style="margin-top:20px"><div class="pill">ATAQUE = DAÑO DEL ROLLO</div><div class="pill">EVASIÓN = REDUCE EL DAÑO POR EL ROLLO</div><div class="pill">OVERDRIVE = GASTA CARGA, CAMBIA EL RIESGO</div></div><div class="cta"><button class="btn primary" id="deployBtn">DESPLEGAR</button><button class="btn" id="backBtn">VOLVER</button></div></div>
+</div>
+</div>
+</section>
+
+<section id="game" class="screen">
+<div class="arena">
+<aside class="side" id="playerSide"><h3>TU ESCUADRÓN</h3></aside>
+<main class="battle"><div class="turn" id="turnLabel">TU TURNO</div><div class="vs">VS</div>
+<div class="combatant enemy"><div class="machine"><div class="body"></div><div class="core"></div><div class="leg a"></div><div class="leg b"></div></div><div class="name" id="enemyName"></div><div class="sub" id="enemySub"></div></div>
+<div class="combatant player"><div class="machine"><div class="body"></div><div class="core"></div><div class="leg a"></div><div class="leg b"></div></div><div class="name" id="playerName"></div><div class="sub" id="playerSub"></div></div>
+<div class="actionbar"><div class="actions"><button class="act attack" id="attackBtn"><strong>ATAQUE</strong><small>Riesgo estándar</small></button><button class="act over" id="overBtn"><strong>OVERDRIVE</strong><small>2 cargas · +1 daño</small></button><button class="act repair" id="repairBtn"><strong>RECONFIGURAR</strong><small>Cambia una cara</small></button></div><div class="log" id="log"></div></div></main>
+<aside class="side enemy" id="enemySide"><h3>RIVAL</h3></aside>
+</div>
+<div class="footer">CORE SHIFT — PROTOTIPO DE DISEÑO · LA PARTIDA TERMINA AL DESTRUIR LOS DOS NÚCLEOS</div>
+</section>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal"><div class="kicker">RESOLUCIÓN</div><div class="roll" id="roll"></div><div class="result" id="result"></div><div class="cta" style="justify-content:center"><button class="btn primary" id="continueBtn">CONTINUAR</button></div></div></div>
+
+<script>
+const CORES=[
+{id:'AGIL',name:'ÁGIL',hp:16,d:2,a:4,color:'#4de3ff',passive:'SOMBRA · tras atacar, puede anular el siguiente golpe rival',desc:'Movilidad y supervivencia.'},
+{id:'NORMAL',name:'NORMAL',hp:20,d:3,a:3,color:'#a7b7c9',passive:'EQUILIBRIO · el primer daño recibido por turno se reduce en 1',desc:'El punto de referencia.'},
+{id:'TECNICO',name:'TÉCNICO',hp:18,d:4,a:2,color:'#ad8cff',passive:'PRECISIÓN · una vez por ronda puede repetir un dado',desc:'Pocas evasiones, mucha amenaza.'},
+{id:'RESISTENTE',name:'MURALLA',hp:26,d:2,a:2,color:'#54e39b',passive:'BLINDAJE · después de resistir 2 ataques, reduce 2 de daño',desc:'Lento, difícil de derribar.'},
+{id:'DANO',name:'BERSERKER',hp:17,d:3,a:3,color:'#ff5d72',passive:'FRENESÍ · por debajo de 40% de vida gana +1 daño',desc:'El peligro aumenta al dañarlo.'},
+{id:'VERSATIL',name:'VERSÁTIL',hp:19,d:3,a:3,color:'#ffc857',passive:'ADAPTACIÓN · al iniciar ronda puede cambiar una cara',desc:'Nunca tiene una configuración fija.'},
+{id:'DESTRUCTOR',name:'DESTRUCTOR',hp:22,d:4,a:2,color:'#ff8a55',passive:'IMPACTO · los ataques que golpean ignoran 1 de reducción',desc:'Daño frontal y consistente.'},
+{id:'DUELISTA',name:'DUELISTA',hp:18,d:3,a:3,color:'#ef9cff',passive:'CONTRA · si esquiva por 4+, prepara un contraataque',desc:'Castiga al rival que se precipita.'}
+];
+let selected=CORES[0],player,enemy,turn='player',log=[],pending=null,faces={1:'attack',2:'attack',3:'attack',4:'evade',5:'evade',6:'evade'},over=false;
+const $=id=>document.getElementById(id);
+function coreCard(c){return '<button class="core '+(selected.id===c.id?'selected':'')+'" data-id="'+c.id+'"><div class="sig" style="color:'+c.color+'">'+c.name+'</div><small>'+c.desc+'</small><div class="stat"><span class="pill">V '+c.hp+'</span><span class="pill">D '+c.d+'</span><span class="pill">A '+c.a+'</span></div></button>'}
+function renderCores(){ $('coreGrid').innerHTML=CORES.map(coreCard).join('');document.querySelectorAll('.core').forEach(b=>b.onclick=()=>{selected=CORES.find(c=>c.id===b.dataset.id);renderCores();});}
+function renderFaces(){ $('faces').innerHTML=[1,2,3,4,5,6].map(n=>'<button class="face '+faces[n]+'" data-face="'+n+'">'+n+'<br><small>'+faces[n].toUpperCase()+'</small></button>').join('');document.querySelectorAll('.face').forEach(b=>b.onclick=()=>{faces[b.dataset.face]=faces[b.dataset.face]==='attack'?'evade':'attack';renderFaces();});}
+function show(s){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));$(s).classList.add('active');}
+function makeUnit(c,owner){let f={...faces};return {c,hp:c.hp,max:c.hp,owner,faces:f,charges:2,guard:0,repeat:false,counter:false,shadow:false}}
+function write(msg,type='sys'){log.unshift({msg,type});$('log').innerHTML=log.slice(0,7).map(x=>'<div class="'+x.type+'">› '+x.msg+'</div>').join('');}
+function sideHTML(u){let pct=Math.max(0,u.hp/u.max*100);return '<div class="unit '+(u===activeUnit()?'active ':'')+(u.hp<=0?'down':'')+'"><div class="unit-head"><span>'+u.c.name+'</span><span>'+Math.max(0,u.hp)+'/'+u.max+'</span></div><div class="class">'+u.c.passive+'</div><div class="hp"><i style="width:'+pct+'%"></i></div></div>'}
+function renderSides(){ $('playerSide').innerHTML='<h3>TU ESCUADRÓN</h3>'+sideHTML(player);$('enemySide').innerHTML='<h3>RIVAL</h3>'+sideHTML(enemy);$('playerName').textContent=player.c.name;$('playerSub').textContent=player.c.passive;$('enemyName').textContent=enemy.c.name;$('enemySub').textContent=enemy.c.passive;$('turnLabel').textContent=turn==='player'?'TU TURNO':'TURNO DEL RIVAL';}
+function activeUnit(){return turn==='player'?player:enemy}
+function roll(){return 1+Math.floor(Math.random()*6)}
+function attack(att,def,boost=false){let r=roll(),hit=att.faces[r]==='attack';let dmg=hit?r+(boost?1:0):0;if(hit){if(def.c.id==='RESISTENTE'&&def.guard>=2)dmg=Math.max(0,dmg-2);if(def.c.id==='DESTRUCTOR')dmg+=1;if(def.c.id==='DANO'&&att.hp/att.max<.4)dmg+=1;let reduction=0;let dr=roll();if(def.faces[dr]==='evade'){reduction=dr;if(def.c.id==='DESTRUCTOR')reduction=Math.max(0,reduction-1);if(def.c.id==='RESISTENTE')def.guard++;if(def.c.id==='DUELISTA'&&dr>=4)def.counter=true}def.hp=Math.max(0,def.hp-Math.max(0,dmg-reduction));write(att.c.name+' lanzó '+r+' y conectó: '+Math.max(0,dmg-reduction)+' daño','hit')}else{write(att.c.name+' lanzó '+r+' y falló','miss')}return {r,hit,dmg}}
+function enemyAI(){if(enemy.hp<=0||over)return;let use=enemy.charges>0&&enemy.hp/enemy.max<.55&&Math.random()<.45;let res=attack(enemy,player,use);if(use)enemy.charges--;renderSides();if(player.hp<=0)return end(false);setTimeout(()=>{turn='player';renderSides();write('El rival terminó su turno');},650)}
+function end(win){over=true;setTimeout(()=>{$('roll').textContent=win?'VICTORIA':'DERROTA';$('result').textContent=win?'El núcleo rival colapsó. La configuración sobrevivió.':'Tu núcleo quedó fuera de línea. El experimento termina aquí.';$('overlay').classList.add('show');},450)}
+function playerAction(kind){if(turn!=='player'||over)return;if(kind==='repair'){let n=prompt('Cara a reconfigurar (1-6):','6');if(![1,2,3,4,5,6].includes(Number(n)))return;let f=Number(n);faces[f]=faces[f]==='attack'?'evade':'attack';player.faces={...faces};write('Reconfiguraste la cara '+f+' a '+faces[f]);renderFaces();renderSides();return}
+let boost=kind==='over';if(boost&&player.charges<=0){write('Sin cargas de Overdrive','miss');return}if(boost)player.charges--;let res=attack(player,enemy,boost);renderSides();pending=res;setTimeout(()=>{if(enemy.hp<=0){end(true);return}turn='enemy';renderSides();setTimeout(enemyAI,500)},500)}
+$('startBtn').onclick=()=>{show('deploy');$('deployName').textContent=selected.name;$('deployClass').textContent=selected.desc;$('deployPassive').textContent=selected.passive;$('deployOrb').textContent=selected.id.slice(0,3);renderFaces()};
+$('randomBtn').onclick=()=>{selected=CORES[Math.floor(Math.random()*CORES.length)];renderCores()};
+$('backBtn').onclick=()=>show('menu');
+$('deployBtn').onclick=()=>{player=makeUnit(selected,'player');enemy=makeUnit(CORES[Math.floor(Math.random()*CORES.length)],'enemy');enemy.faces={1:'attack',2:'attack',3:'attack',4:'evade',5:'evade',6:'evade'};turn='player';over=false;log=[];show('game');write('Simulación iniciada. Lee la configuración rival antes de gastar cargas.');renderSides()};
+$('attackBtn').onclick=()=>playerAction('attack');$('overBtn').onclick=()=>playerAction('over');$('repairBtn').onclick=()=>playerAction('repair');
+$('continueBtn').onclick=()=>{$('overlay').classList.remove('show');show('menu');renderCores()};
+renderCores();
+</script>
+</body>
+</html>
