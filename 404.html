@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>MIT'S — Volver al inicio</title>
+  <script>
+    (function () {
+      var path = location.pathname;
+      var marker = '/MIT-S-online/';
+      var base = path.indexOf(marker) !== -1 ? marker : '/';
+      location.replace(base + location.search + location.hash);
+    }());
+  </script>
+</head>
+<body>
+  <p>La ruta ya no existe. Volviendo a MIT'S…</p>
+</body>
+</html>
