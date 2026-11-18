@@ -298,6 +298,12 @@ button:focus-visible, input:focus-visible {
   letter-spacing: .17em;
 }
 .build-class-grid { gap: 10px !important; }
+
+/* El constructor usa una cuadrícula de dos columnas; anula los antiguos
+   col-span-7 / col-span-5 de la maquetación previa de doce columnas. */
+.build-layout > .build-class-section { grid-column: 1 / 2 !important; }
+.build-layout > .build-number-panel { grid-column: 2 / 3 !important; }
+
 .build-class-option {
   position: relative;
   isolation: isolate;
@@ -511,6 +517,9 @@ input { color: var(--mits-text) !important; }
 
 /* Tableta y móvil */
 @media (max-width: 900px) {
+  .build-layout > .build-class-section,
+  .build-layout > .build-number-panel { grid-column: auto / span 1 !important; }
+
   .app-shell { padding: 12px !important; gap: 12px; }
   .app-header { padding: 13px 15px !important; }
   .menu-screen { padding: 24px !important; }
