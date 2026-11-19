@@ -460,8 +460,11 @@
         .ability-test-node { min-height:64px;border-radius:14px;border:1px solid rgba(148,163,184,.2);background:rgba(30,41,59,.7);font-family:'JetBrains Mono',monospace;font-weight:900;color:#cbd5e1;transition:.16s; }
         .ability-test-node.active { border-color:rgba(167,139,250,.8);background:rgba(139,92,246,.16);color:#ede9fe;box-shadow:0 0 18px rgba(139,92,246,.12);transform:translateY(-1px); }
         .ability-test-node.done { border-color:rgba(16,185,129,.7);background:rgba(16,185,129,.12);color:#a7f3d0; }
-        .ability-test-overload { height:32px;border-radius:10px;background:#020617;border:1px solid rgba(148,163,184,.2);overflow:hidden; }
+        .ability-test-overload { position:relative;height:44px;border-radius:12px;background:#020617;border:1px solid rgba(148,163,184,.2);overflow:hidden; }
         .ability-test-overload > span { display:block;height:100%;background:linear-gradient(90deg,#10b981,#f59e0b,#f43f5e);transition:width .04s linear; }
+        .ability-test-overload-target { position:absolute;z-index:2;top:5px;bottom:5px;left:48%;width:20%;border:2px solid rgba(250,204,21,.9);background:rgba(250,204,21,.14);border-radius:7px;box-shadow:0 0 18px rgba(250,204,21,.14);pointer-events:none; }
+        .ability-test-overload-target::after { content:'ZONA ÓPTIMA';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);white-space:nowrap;font:900 8px/1 monospace;letter-spacing:.12em;color:#fde68a; }
+        .ability-test-overload-marker { position:absolute;z-index:3;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 10px rgba(255,255,255,.9);transform:translateX(-50%);pointer-events:none; }
         @keyframes ability-cursor { from { left:0%; } to { left:96%; } }
         @media(max-width:640px) {
             .ability-test-die { width:62px;height:62px;border-radius:15px; }
@@ -934,6 +937,7 @@
             const [abilityTestSequenceProgress, setAbilityTestSequenceProgress] = useState(0);
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
             const abilityTestOverloadRef = useRef(null);
+            const abilityTestOverloadValueRef = useRef(0);
             const abilityTestSequenceRef = useRef(null);
             const abilityTestTimingStartRef = useRef(0);
             const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
@@ -992,6 +996,7 @@
                 setAbilityTestSequence([]);
                 setAbilityTestSequenceProgress(0);
                 setAbilityTestOverload(0);
+                abilityTestOverloadValueRef.current = 0;
                 if (abilityTestOverloadRef.current) cancelAnimationFrame(abilityTestOverloadRef.current);
                 setAbilityTestMessage('Lanza el dado para buscar una oportunidad.');
             };
@@ -1077,6 +1082,7 @@
                 const started = performance.now();
                 const tick = (now) => {
                     const value = Math.min(100, ((now-started)/1800)*100);
+                    abilityTestOverloadValueRef.current = value;
                     setAbilityTestOverload(value);
                     if (value < 100 && abilityTestMinigame === 'overload') abilityTestOverloadRef.current = requestAnimationFrame(tick);
                 };
@@ -1085,7 +1091,7 @@
 
             const finishAbilityOverload = () => {
                 if (abilityTestOverloadRef.current) cancelAnimationFrame(abilityTestOverloadRef.current);
-                const value = abilityTestOverload;
+                const value = abilityTestOverloadValueRef.current;
                 const result = value >= 48 && value <= 68 ? 'perfecto' : value >= 35 && value <= 82 ? 'parcial' : 'fallo';
                 setAbilityTestResult(result);
                 setAbilityTestMinigame(null);
@@ -4020,8 +4026,22 @@
                                                 {abilityTestMinigame === 'overload' && (
                                                     <div className="space-y-5">
                                                         <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div><div className="mt-2 text-2xl font-black text-white">Carga el núcleo y suelta</div><div className="mt-2 text-xs text-slate-500">Zona óptima: 48–68%. Fuera de ella pierdes potencia.</div></div>
-                                                        <div className="ability-test-overload"><span style={{width:abilityTestOverload+'%'}} /></div>
-                                                        <button onPointerDown={startAbilityOverload} onPointerUp={finishAbilityOverload} onPointerCancel={finishAbilityOverload} className="w-full rounded-xl bg-rose-400 py-4 font-black text-slate-950">MANTENER / SOLTAR</button>
+                                                        <div className="ability-test-overload" aria-label="Medidor de sobrecarga">
+                                                            <div className="ability-test-overload-target" />
+                                                            <span style={{width:abilityTestOverload+'%'}} />
+                                                            <div className="ability-test-overload-marker" style={{left:abilityTestOverload+'%'}} />
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider">
+                                                            <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO 48–68%</span><span className="text-rose-300">CRÍTICO</span>
+                                                        </div>
+                                                        <button
+                                                            onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(); }}
+                                                            onPointerUp={e => { e.preventDefault(); finishAbilityOverload(); }}
+                                                            onPointerCancel={e => { e.preventDefault(); finishAbilityOverload(); }}
+                                                            onContextMenu={e => e.preventDefault()}
+                                                            style={{touchAction:'none',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+                                                            className="w-full rounded-xl bg-rose-400 py-4 font-black text-slate-950 select-none"
+                                                        >MANTENER / SOLTAR</button>
                                                     </div>
                                                 )}
                                             </div>
