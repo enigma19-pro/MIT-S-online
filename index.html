@@ -935,6 +935,7 @@
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
             const abilityTestOverloadRef = useRef(null);
             const abilityTestSequenceRef = useRef(null);
+            const abilityTestTimingStartRef = useRef(0);
             const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
             const [testPlayerFacing, setTestPlayerFacing] = useState(0);
             const [testIsMoving, setTestIsMoving] = useState(false);
@@ -1024,6 +1025,7 @@
                 setAbilityTestResult(null);
                 const data = ABILITY_TEST_DATA[abilityTestMit];
                 if (data.game === 'timing') {
+                    abilityTestTimingStartRef.current = performance.now();
                     setAbilityTestMinigame('timing');
                     setAbilityTestMessage('SINCRONIZACIÓN · detén el cursor dentro de la ventana.');
                 } else if (data.game === 'sequence') {
@@ -1041,8 +1043,9 @@
             };
 
             const finishAbilityTiming = () => {
-                const elapsed = (Date.now() % 1800) / 1800;
-                const distance = Math.abs(elapsed - .5);
+                const elapsed = ((performance.now() - abilityTestTimingStartRef.current) % 1800) / 1800;
+                const phase = elapsed <= 0.5 ? elapsed : 1 - elapsed;
+                const distance = Math.abs(phase - .5);
                 const result = distance < .09 ? 'perfecto' : distance < .2 ? 'parcial' : 'fallo';
                 setAbilityTestResult(result);
                 setAbilityTestMinigame(null);
