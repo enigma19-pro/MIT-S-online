@@ -366,6 +366,7 @@
             if (!hit) {
                 selectedRoll = Math.floor(safeRandom(random) * 6) + 1;
                 hit = isSuccessfulAttack(faces, selectedRoll);
+                damage = hit && selectedRoll !== null ? selectedRoll : 0;
                 events.push(hit
                     ? `Impulso Cinético repitió la tirada y acertó [${selectedRoll}]`
                     : `Impulso Cinético repitió la tirada y volvió a fallar [${selectedRoll}]`);
@@ -389,11 +390,16 @@
             damage = Math.min(Number.MAX_SAFE_INTEGER, 1 + bonus);
         }
 
-        if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
+        if (state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
             state.counterSequence?.phase === 'SECOND' && next.activeCounterBonus > 0) {
-            damage = Math.min(Number.MAX_SAFE_INTEGER, damage + next.activeCounterBonus);
-            events.push(`Réplica añadió +${next.activeCounterBonus} al segundo contraataque`);
+            const counterBonus = next.activeCounterBonus;
             next.activeCounterBonus = 0;
+            if (hit) {
+                damage = Math.min(Number.MAX_SAFE_INTEGER, damage + counterBonus);
+                events.push(`Réplica añadió +${counterBonus} al segundo contraataque`);
+            } else {
+                events.push('Réplica se consumió porque el segundo contraataque falló');
+            }
         }
 
         if (next.activeAttackBonus > 0) {
