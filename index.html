@@ -1143,6 +1143,35 @@
                 completeCombatAbility('cancelled');
             };
 
+            const getAttackAbilityId = (mit, roll, hit) => {
+                const id = mit?.classData?.id;
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                if (!hit) return null;
+                if (id === 'Normal1' && Number(roll) === Math.max(...(mit.attackNums || []))) return 'Normal1';
+                if (id === 'Resistente1' && Number(mit.currentHp) <= Number(mit.maxHp) / 2 && mit.attackNums?.includes(Number(roll))) return 'Resistente1';
+                const currentType = getFaceTypeForAbility(mit, roll, 'ATTACK');
+                if (id === 'Normal2' && state.activeAbilityPreviousFaceType && currentType &&
+                    state.activeAbilityPreviousFaceType !== currentType) return 'Normal2';
+                return null;
+            };
+
+            const getDefenseAbilityId = (mit, defenseResult, roll) => {
+                const id = mit?.classData?.id;
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                const currentType = getFaceTypeForAbility(mit, roll, 'DEFENSE');
+                if (id === 'Agil1' && defenseResult.isEvadeNumber && defenseResult.damage <= 1) return 'Agil1';
+                if (id === 'Agil2' && defenseResult.isEvadeNumber && defenseResult.damage === 0) return 'Agil2';
+                if (id === 'Resistente2' && defenseResult.damage > 0) return 'Resistente2';
+                if (id === 'Dano2' && defenseResult.damage <= 1 && !defenseResult.shadowNullified) return 'Dano2';
+                if (id === 'Normal2' && state.activeAbilityPreviousFaceType === 'D' && currentType === 'A') return 'Normal2';
+                return null;
+            };
+
+            const updateAbilityFaceHistory = (state, mit, roll, actionType) => ({
+                ...state,
+                activeAbilityPreviousFaceType: getFaceTypeForAbility(mit, roll, actionType)
+            });
+
             const startAbilityTest = () => {
                 if (!abilityTestReady || abilityTestMinigame) return;
                 setAbilityTestReady(false);
