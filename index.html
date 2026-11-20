@@ -1816,6 +1816,11 @@
             const [floatingEffect, setFloatingEffect] = useState(null);
             const floatingEffectTimerRef = useRef(null);
             const lastFloatingEffectIdRef = useRef(null);
+            // Los efectos de combate son eventos, no estado persistente. Se guarda
+            // un historial corto en Firebase para que dos actualizaciones rápidas
+            // no puedan sobrescribirse antes de que el rival las reciba.
+            const combatEventsSeenRef = useRef(new Set());
+            const combatEventsInitializedRef = useRef(false);
 
             const displayFloatingEffect = (effect) => {
                 if (!effect || !effect.id || lastFloatingEffectIdRef.current === effect.id) return;
@@ -2099,6 +2104,7 @@
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
                                 currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
                                 attackResult: null, combatAbilityLock: null,
+                                combatEvents: {},
                                 combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
                                 winner: null
                             };
@@ -2517,6 +2523,15 @@
                 };
             };
 
+            const sanitizeOnlineCombatEvents = value => {
+                if (!value || typeof value !== 'object' || Array.isArray(value)) return [];
+                return Object.values(value)
+                    .map(sanitizeOnlineFloatingEffect)
+                    .filter(Boolean)
+                    .sort((a, b) => a.createdAt - b.createdAt)
+                    .slice(-50);
+            };
+
             const sanitizeOnlineIndex = (value, mits) => {
                 if (typeof value !== 'number' && typeof value !== 'string') return 0;
                 if (typeof value === 'string' && value.trim() === '') return 0;
@@ -2643,6 +2658,8 @@
 
             const subscribeToOnlineRoom = (code, localPlayerNum, localUid = onlineUser?.uid) => {
                 if (!window.MITSFirebase || !code || !localUid) return;
+                combatEventsSeenRef.current.clear();
+                combatEventsInitializedRef.current = false;
                 if (onlineListenerRef.current) {
                     window.MITSFirebase.off(onlineListenerRef.current.ref, 'value', onlineListenerRef.current.handler);
                     if (onlineListenerRef.current.presenceRef && onlineListenerRef.current.presenceHandler) {
@@ -2854,6 +2871,7 @@
                         normalizedCombatPhase = 'ATTACK_ROLL';
                     }
                     const normalizedFloatingEffect = sanitizeOnlineFloatingEffect(room.floatingEffect);
+                    const normalizedCombatEvents = sanitizeOnlineCombatEvents(room.combatEvents);
                     const normalizedWinner = sanitizeOnlinePlayerNumber(room.winner);
                     const normalizedDisconnectedPlayer = sanitizeOnlinePlayerNumber(room.disconnectedPlayer);
                     const rebuildPlayer = sanitizeOnlinePlayerNumber(room.berserkerRebuild?.playerNum);
@@ -2890,7 +2908,24 @@
                     setAttackResult(normalizedAttackResult);
                     setCombatLog(normalizedCombatLog);
 
-                    if (normalizedFloatingEffect?.id && normalizedFloatingEffect.id !== lastFloatingEffectIdRef.current) {
+                    // Los eventos se procesan por ID. El primer snapshot solo
+                    // establece qué eventos ya existían para no reproducirlos al
+                    // entrar; después, cada evento nuevo llega a ambos jugadores.
+                    if (!combatEventsInitializedRef.current) {
+                        normalizedCombatEvents.forEach(event => combatEventsSeenRef.current.add(event.id));
+                        combatEventsInitializedRef.current = true;
+                    } else {
+                        normalizedCombatEvents.forEach(event => {
+                            if (combatEventsSeenRef.current.has(event.id)) return;
+                            combatEventsSeenRef.current.add(event.id);
+                            displayFloatingEffect(event);
+                        });
+                    }
+
+                    // Compatibilidad con salas creadas por una versión anterior.
+                    if (!normalizedCombatEvents.length && normalizedFloatingEffect?.id &&
+                        normalizedFloatingEffect.id !== lastFloatingEffectIdRef.current &&
+                        !combatEventsInitializedRef.current) {
                         displayFloatingEffect(normalizedFloatingEffect);
                     }
 
@@ -2964,7 +2999,27 @@
                     createdAt: Date.now()
                 };
                 displayFloatingEffect(event);
-                if (gameMode === 'ONLINE') syncOnline({ floatingEffect: event });
+
+                if (gameMode === 'ONLINE' && roomCode && window.MITSFirebase) {
+                    combatEventsSeenRef.current.add(event.id);
+                    const eventsRef = window.MITSFirebase.ref(
+                        window.MITSFirebase.db,
+                        `rooms/${roomCode}/combatEvents`
+                    );
+                    window.MITSFirebase.runTransaction(eventsRef, current => {
+                        const events = current && typeof current === 'object' && !Array.isArray(current)
+                            ? { ...current }
+                            : {};
+                        events[event.id] = event;
+                        const ids = Object.keys(events).sort((a, b) =>
+                            Number(events[a]?.createdAt || 0) - Number(events[b]?.createdAt || 0)
+                        );
+                        while (ids.length > 50) delete events[ids.shift()];
+                        return events;
+                    }).catch(error => {
+                        console.error('Firebase combat event sync:', error);
+                    });
+                }
             };
 
             // --- BUILDER ACTIONS ---
@@ -3122,6 +3177,7 @@
                                     currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL',
                                     activeP1Index: 0, activeP2Index: 0,
                                     currentRollValue: 1, attackResult: null,
+                                    combatEvents: {},
                                     combatLog: [{ type: 'system', text: '⚔️ ¡COMBATE ONLINE INICIADO!' }]
                                 } : {})
                             };
