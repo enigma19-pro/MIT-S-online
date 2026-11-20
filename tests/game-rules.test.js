@@ -994,6 +994,7 @@ test('Impulso Cinético perfect result retries one failed attack roll', () => {
     });
     assert.equal(attack.hit, true);
     assert.equal(attack.roll, 1);
+    assert.equal(attack.damage, 1);
     assert.equal(attack.state.activeAttackReroll, false);
 });
 
@@ -1062,4 +1063,31 @@ test('Réplica boosts only Duelista second counterattack', () => {
     const attack = resolvePassiveAttack({ attacker, roll: 2 });
     assert.equal(attack.damage, 4);
     assert.equal(attack.state.activeCounterBonus, 0);
+});
+
+
+test('Réplica is consumed even when Duelista misses its second counterattack', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.DUELISTA));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    const attacker = {
+        ...used,
+        attackNums: [2],
+        passiveState: { ...resolved.state, counterSequence: { phase: 'SECOND', opponentPlayer: 2 } }
+    };
+    const attack = resolvePassiveAttack({ attacker, roll: 5 });
+    assert.equal(attack.hit, false);
+    assert.equal(attack.state.activeCounterBonus, 0);
+});
+
+test('Móvil consumes the reroll even when the repeated roll misses', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.MOVIL));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    const attack = resolvePassiveAttack({
+        attacker: { ...used, passiveState: resolved.state, attackNums: [1] },
+        roll: 6,
+        random: () => 0.99
+    });
+    assert.equal(attack.hit, false);
+    assert.equal(attack.damage, 0);
+    assert.equal(attack.state.activeAttackReroll, false);
 });
