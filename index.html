@@ -937,6 +937,7 @@
             const [abilityTestSequenceProgress, setAbilityTestSequenceProgress] = useState(0);
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
             const abilityTestOverloadRef = useRef(null);
+            const abilityTestOverloadPointerRef = useRef(null);
             const abilityTestOverloadValueRef = useRef(0);
             const abilityTestSequenceRef = useRef(null);
             const abilityTestTimingStartRef = useRef(0);
@@ -998,6 +999,8 @@
                 setAbilityTestOverload(0);
                 abilityTestOverloadValueRef.current = 0;
                 if (abilityTestOverloadRef.current) cancelAnimationFrame(abilityTestOverloadRef.current);
+                abilityTestOverloadRef.current = null;
+                abilityTestOverloadPointerRef.current = null;
                 setAbilityTestMessage('Lanza el dado para buscar una oportunidad.');
             };
 
@@ -1077,20 +1080,38 @@
                 }
             };
 
-            const startAbilityOverload = () => {
+            const startAbilityOverload = (event) => {
                 if (abilityTestMinigame !== 'overload') return;
+                if (abilityTestOverloadPointerRef.current !== null) return;
+                if (event?.pointerId !== undefined) abilityTestOverloadPointerRef.current = event.pointerId;
+                if (abilityTestOverloadRef.current !== null) return;
                 const started = performance.now();
                 const tick = (now) => {
                     const value = Math.min(100, ((now-started)/1800)*100);
                     abilityTestOverloadValueRef.current = value;
                     setAbilityTestOverload(value);
-                    if (value < 100 && abilityTestMinigame === 'overload') abilityTestOverloadRef.current = requestAnimationFrame(tick);
+                    if (value < 100 && abilityTestMinigame === 'overload') {
+                        abilityTestOverloadRef.current = requestAnimationFrame(tick);
+                    } else {
+                        abilityTestOverloadRef.current = null;
+                    }
                 };
                 abilityTestOverloadRef.current = requestAnimationFrame(tick);
             };
 
-            const finishAbilityOverload = () => {
-                if (abilityTestOverloadRef.current) cancelAnimationFrame(abilityTestOverloadRef.current);
+            const finishAbilityOverload = (event) => {
+                if (
+                    event?.pointerId !== undefined &&
+                    abilityTestOverloadPointerRef.current !== null &&
+                    event.pointerId !== abilityTestOverloadPointerRef.current
+                ) return;
+                if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current);
+                abilityTestOverloadRef.current = null;
+                const pointerId = abilityTestOverloadPointerRef.current;
+                abilityTestOverloadPointerRef.current = null;
+                if (event?.currentTarget && pointerId !== null && event.currentTarget.hasPointerCapture?.(pointerId)) {
+                    try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
+                }
                 const value = abilityTestOverloadValueRef.current;
                 const result = value >= 48 && value <= 68 ? 'perfecto' : value >= 35 && value <= 82 ? 'parcial' : 'fallo';
                 setAbilityTestResult(result);
@@ -3933,7 +3954,7 @@
                                             <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · LABORATORIO</div>
                                             <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">PRUEBA DE HABILIDADES</h2>
                                         </div>
-                                        <button onClick={() => { setShowCombatTest(false); setAbilityTestMinigame(null); if (abilityTestOverloadRef.current) cancelAnimationFrame(abilityTestOverloadRef.current); playSound('click'); }} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">Salir ✕</button>
+                                        <button onClick={() => { setShowCombatTest(false); setAbilityTestMinigame(null); if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current); abilityTestOverloadRef.current = null; abilityTestOverloadPointerRef.current = null; playSound('click'); }} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">Salir ✕</button>
                                     </header>
 
                                     <div className="grid grid-cols-3 gap-2">
@@ -4035,9 +4056,10 @@
                                                             <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO 48–68%</span><span className="text-rose-300">CRÍTICO</span>
                                                         </div>
                                                         <button
-                                                            onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(); }}
-                                                            onPointerUp={e => { e.preventDefault(); finishAbilityOverload(); }}
-                                                            onPointerCancel={e => { e.preventDefault(); finishAbilityOverload(); }}
+                                                            onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(e); }}
+                                                            onPointerUp={e => { e.preventDefault(); finishAbilityOverload(e); }}
+                                                            onPointerCancel={e => { e.preventDefault(); finishAbilityOverload(e); }}
+                                                            onLostPointerCapture={finishAbilityOverload}
                                                             onContextMenu={e => e.preventDefault()}
                                                             style={{touchAction:'none',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
                                                             className="w-full rounded-xl bg-rose-400 py-4 font-black text-slate-950 select-none"
