@@ -628,7 +628,18 @@
         .effect-hit {
             box-shadow: 0 0 18px rgba(245, 158, 11, 0.5);
         }
-    </style>
+    
+        .active-skill-overlay { background:rgba(2,6,23,.96); }
+        .active-skill-panel { max-height:min(92vh,900px); overflow-y:auto; }
+        .active-skill-track,.active-skill-overload { position:relative; height:34px; border:1px solid rgba(148,163,184,.35); border-radius:12px; background:linear-gradient(90deg,rgba(15,23,42,.95),rgba(30,41,59,.95)); overflow:hidden; }
+        .active-skill-target,.active-skill-overload-target { position:absolute; z-index:1; top:0; bottom:0; left:42%; width:16%; background:rgba(250,204,21,.2); border-left:2px solid rgba(250,204,21,.8); border-right:2px solid rgba(250,204,21,.8); }
+        .active-skill-cursor { position:absolute; z-index:2; top:0; bottom:0; left:0; width:5px; background:#67e8f9; box-shadow:0 0 12px #22d3ee; animation:active-skill-scan 1.8s linear infinite; }
+        .active-skill-overload span { position:absolute; z-index:1; inset:0 auto 0 0; background:linear-gradient(90deg,rgba(244,63,94,.45),rgba(251,191,36,.65)); }
+        .active-skill-overload-marker { position:absolute; z-index:2; top:0; bottom:0; width:4px; transform:translateX(-50%); background:#fff; box-shadow:0 0 10px #fff; }
+        .active-skill-overload-target { left:48%; width:20%; border-left:2px solid #facc15; border-right:2px solid #facc15; background:rgba(250,204,21,.2); }
+        @keyframes active-skill-scan { 0% { left:0; } 50% { left:calc(100% - 5px); } 100% { left:0; } }
+        @media (prefers-reduced-motion: reduce) { .active-skill-cursor { animation-duration:3.6s; } }
+</style>
     <link rel="stylesheet" href="./redesign.css">
 </head>
 <body class="min-h-screen flex flex-col justify-between">
@@ -2713,7 +2724,7 @@
             );
             const availableMit = availableMitIndex === null ? null : currentTurnMits[availableMitIndex];
 
-            const canControlActiveAbility = gameMode !== 'ONLINE' || currentTurnPlayer === (isRoomHost ? 1 : 2);
+            const canControlActiveAbility = gameMode === 'AI' ? currentTurnPlayer === 1 : gameMode === 'ONLINE' ? currentTurnPlayer === (isRoomHost ? 1 : 2) : true;
             const currentActiveAbilityReady = currentAttacker?.passiveState?.activeAbilityReady || null;
             const activeAbilityIsBlocked = !!activeAbilitySession;
 
@@ -2864,6 +2875,7 @@
                 setActiveAbilityAnchorHits(hits);
                 if (activeAbilityAnchorHits >= 1) finishActiveAbilityMinigame(hits === 2 ? 'perfecto' : hits === 1 ? 'parcial' : 'fallo');
                 else if (!hit) finishActiveAbilityMinigame('fallo');
+                else activeAbilityTimingStartRef.current = performance.now();
             };
 
             const selectActiveAbilityPrecision = index => {
@@ -4588,6 +4600,169 @@
                                         )}
                                     </div>
                                 </div>
+
+                                {currentActiveAbilityReady && canControlActiveAbility && !activeAbilitySession && combatPhase === 'ATTACK_ROLL' && (
+                                    <section className="active-skill-prompt glass-panel rounded-2xl border border-violet-400/35 bg-violet-950/25 p-4 md:p-5">
+                                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <div className="text-[9px] font-mono-custom font-bold tracking-[.24em] text-violet-300">OPORTUNIDAD DE HABILIDAD · {currentAttacker.name}</div>
+                                                <h3 className="mt-1 text-lg md:text-xl font-black text-white">{ACTIVE_ABILITY_UI[currentActiveAbilityReady]?.name || 'Protocolo activo'}</h3>
+                                                <p className="mt-1 text-xs text-slate-400">El dado generó una oportunidad. Puedes gastarla ahora o descartarla; después continuarás con tu turno normal.</p>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2 shrink-0">
+                                                <button onClick={activateCurrentActiveAbility} className="rounded-xl bg-violet-400 px-4 py-3 text-xs font-black text-slate-950 hover:bg-violet-300">ACTIVAR</button>
+                                                <button onClick={discardCurrentActiveAbility} className="rounded-xl border border-slate-600 bg-slate-900 px-4 py-3 text-xs font-black text-slate-200 hover:border-rose-400/60">DESCARTAR</button>
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+
+                                {activeAbilityNotice && (
+                                    <div className="rounded-xl border border-cyan-400/25 bg-cyan-950/30 px-4 py-2 text-center text-[10px] font-mono-custom font-bold tracking-wider text-cyan-200" role="status">
+                                        {activeAbilityNotice}
+                                    </div>
+                                )}
+
+                                {activeAbilitySession && (
+                                    <div className="active-skill-overlay fixed inset-0 z-[130] flex items-center justify-center overflow-y-auto bg-slate-950/95 p-3 backdrop-blur-md md:p-6" role="dialog" aria-modal="true" aria-labelledby="active-skill-title">
+                                        <section className="active-skill-panel glass-panel w-full max-w-2xl rounded-3xl border border-violet-400/30 p-4 shadow-2xl md:p-6">
+                                            <header className="mb-5 flex items-start justify-between gap-3 border-b border-slate-700/70 pb-4">
+                                                <div className="min-w-0">
+                                                    <div className="text-[9px] font-mono-custom font-bold tracking-[.25em] text-violet-300">PROTOCOLO ACTIVO · {getPlayerDisplayName(activeAbilitySession.playerNum)}</div>
+                                                    <h3 id="active-skill-title" className="mt-1 text-xl font-black text-white md:text-2xl">{activeAbilitySession.name}</h3>
+                                                    <p className="mt-1 text-xs leading-relaxed text-slate-400">{activeAbilitySession.description}</p>
+                                                </div>
+                                                <span className="shrink-0 rounded-lg border border-violet-400/25 bg-violet-500/10 px-2 py-1 text-[9px] font-mono-custom text-violet-200">MINIJUEGO</span>
+                                            </header>
+
+                                            {activeAbilitySession.stage === 'choice' && activeAbilitySession.abilityId === 'reescritura_parametros' && (
+                                                <div className="space-y-3">
+                                                    <div className="text-center text-sm font-bold text-slate-200">Elige qué parámetro reescribir</div>
+                                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                        <button onClick={() => setActiveAbilityChoiceD('attack')} className={'rounded-xl border p-4 text-sm font-black ' + (activeAbilityChoiceD === 'attack' ? 'border-amber-300 bg-amber-500/20 text-amber-100' : 'border-slate-700 bg-slate-900 text-slate-300')}>+{activeAbilitySession.result === 'perfecto' ? 2 : 1} ATAQUE</button>
+                                                        <button onClick={() => setActiveAbilityChoiceD('defense')} className={'rounded-xl border p-4 text-sm font-black ' + (activeAbilityChoiceD === 'defense' ? 'border-cyan-300 bg-cyan-500/20 text-cyan-100' : 'border-slate-700 bg-slate-900 text-slate-300')}>−{activeAbilitySession.result === 'perfecto' ? 2 : 1} DAÑO RECIBIDO</button>
+                                                    </div>
+                                                    <button disabled={!activeAbilityChoiceD} onClick={completeActiveAbilityChoice} className="w-full rounded-xl bg-violet-400 py-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">CONFIRMAR PARÁMETRO</button>
+                                                </div>
+                                            )}
+
+                                            {activeAbilitySession.stage === 'choice' && activeAbilitySession.abilityId === 'cambio_protocolo' && (
+                                                <div className="space-y-4">
+                                                    <p className="text-center text-sm font-bold text-slate-200">Selecciona una cara D y una cara A para intercambiar</p>
+                                                    <div>
+                                                        <div className="mb-2 text-[9px] font-mono-custom font-bold tracking-widest text-amber-300">CARA D · ATAQUE</div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {activeAbilitySession.dFaces.map(face => <button key={'d'+face} onClick={() => setActiveAbilityChoiceD(String(face))} className={'h-11 min-w-11 rounded-lg border px-3 font-black ' + (activeAbilityChoiceD === String(face) ? 'border-amber-300 bg-amber-500/25 text-white' : 'border-slate-700 bg-slate-900 text-amber-200')}>{face}</button>)}
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="mb-2 text-[9px] font-mono-custom font-bold tracking-widest text-cyan-300">CARA A · ESQUIVE</div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {activeAbilitySession.aFaces.map(face => <button key={'a'+face} onClick={() => setActiveAbilityChoiceA(String(face))} className={'h-11 min-w-11 rounded-lg border px-3 font-black ' + (activeAbilityChoiceA === String(face) ? 'border-cyan-300 bg-cyan-500/25 text-white' : 'border-slate-700 bg-slate-900 text-cyan-200')}>{face}</button>)}
+                                                        </div>
+                                                    </div>
+                                                    <button disabled={activeAbilityChoiceD === '' || activeAbilityChoiceA === ''} onClick={completeActiveAbilityChoice} className="w-full rounded-xl bg-violet-400 py-3 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40">APLICAR INTERCAMBIO</button>
+                                                </div>
+                                            )}
+
+                                            {activeAbilitySession.stage !== 'choice' && (
+                                                <div className="space-y-5">
+                                                    {activeAbilitySession.game === 'timing' && (
+                                                        <>
+                                                            <div className="text-center text-lg font-black text-white">Detén el cursor dentro del objetivo</div>
+                                                            <div className="active-skill-track">
+                                                                <div className="active-skill-target" />
+                                                                <div className="active-skill-cursor" />
+                                                            </div>
+                                                            <button onClick={finishActiveAbilityTiming} className="w-full rounded-xl bg-cyan-400 py-4 text-sm font-black text-slate-950">DETENER CURSOR</button>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'directions' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">Secuencia: <strong className="text-cyan-200">{activeAbilitySequence.map(n => ['↑','→','↓','←'][n]).join('  ')}</strong></div>
+                                                            <div className="grid grid-cols-4 gap-2">
+                                                                {['↑','→','↓','←'].map((symbol,index) => <button key={symbol} onClick={() => pressActiveAbilitySequence(index)} className="rounded-xl border border-cyan-400/25 bg-cyan-950/30 py-5 text-2xl font-black text-cyan-100 active:scale-95">{symbol}</button>)}
+                                                            </div>
+                                                            <div className="text-center text-[10px] font-mono-custom text-slate-500">PASO {Math.min(activeAbilityProgress + 1, activeAbilitySequence.length)} / {activeAbilitySequence.length}</div>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'calibration' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">Secuencia de calibración: <strong className="text-violet-200">{activeAbilitySequence.map(n => n + 1).join('  →  ')}</strong></div>
+                                                            <div className="grid grid-cols-3 gap-3">
+                                                                {[0,1,2].map(index => <button key={index} onClick={() => pressActiveAbilitySequence(index)} className="rounded-xl border border-violet-400/25 bg-violet-950/30 py-6 text-2xl font-black text-violet-100">{index + 1}</button>)}
+                                                            </div>
+                                                            <div className="text-center text-[10px] font-mono-custom text-slate-500">NODO {Math.min(activeAbilityProgress + 1, 3)} / 3</div>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'memory' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">{activeAbilityVisible ? 'Memoriza esta secuencia' : 'Repite la secuencia'}</div>
+                                                            <div className="flex justify-center gap-3 text-2xl font-black text-violet-200">
+                                                                {(activeAbilityVisible ? activeAbilitySequence : [0,1,2,3]).map((n,index) => <span key={index} className="grid h-12 w-12 place-items-center rounded-xl border border-violet-400/25 bg-violet-950/30">{activeAbilityVisible ? n + 1 : '·'}</span>)}
+                                                            </div>
+                                                            {!activeAbilityVisible && <div className="grid grid-cols-3 gap-2">{[0,1,2].map(index => <button key={index} onClick={() => pressActiveAbilitySequence(index)} className="rounded-xl border border-violet-400/25 bg-violet-950/30 py-5 text-xl font-black text-violet-100">{index + 1}</button>)}</div>}
+                                                            <div className="text-center text-[10px] font-mono-custom text-slate-500">MEMORIA {activeAbilityProgress} / 4</div>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'overload' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">Zona óptima: <strong className="text-amber-300">48–68%</strong></div>
+                                                            <div className="active-skill-overload">
+                                                                <div className="active-skill-overload-target" />
+                                                                <span style={{ width: activeAbilityOverload + '%' }} />
+                                                                <div className="active-skill-overload-marker" style={{ left: activeAbilityOverload + '%' }} />
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider"><span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO</span><span className="text-rose-300">CRÍTICO</span></div>
+                                                            <button
+                                                                onPointerDown={event => { event.preventDefault(); event.currentTarget.setPointerCapture?.(event.pointerId); startActiveAbilityOverload(event); }}
+                                                                onPointerUp={event => { event.preventDefault(); finishActiveAbilityOverload(event); }}
+                                                                onPointerCancel={event => { event.preventDefault(); finishActiveAbilityOverload(event); }}
+                                                                onLostPointerCapture={finishActiveAbilityOverload}
+                                                                onContextMenu={event => event.preventDefault()}
+                                                                style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                                                                className="w-full select-none rounded-xl bg-rose-400 py-4 text-sm font-black text-slate-950"
+                                                            >MANTENER / SOLTAR</button>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'anchor' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">Aciertos de anclaje: <strong className="text-emerald-300">{activeAbilityAnchorHits} / 2</strong></div>
+                                                            <div className="active-skill-track"><div className="active-skill-target" /><div className="active-skill-cursor" /></div>
+                                                            <button onClick={pressActiveAbilityAnchor} className="w-full rounded-xl bg-emerald-400 py-4 text-sm font-black text-slate-950">CLAVAR ANCLAJE</button>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'precision' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">{activeAbilityVisible ? 'Memoriza el punto vulnerable' : 'Selecciona el punto vulnerable'}</div>
+                                                            <div className="grid grid-cols-5 gap-2">
+                                                                {[0,1,2,3,4].map(index => <button key={index} disabled={activeAbilitySession.stage === 'memorize'} onClick={() => selectActiveAbilityPrecision(index)} className={'rounded-xl border py-5 text-xl font-black ' + (activeAbilityVisible && activeAbilityTarget === index ? 'border-rose-300 bg-rose-500/25 text-white' : 'border-slate-700 bg-slate-900 text-slate-500')}>{activeAbilityVisible ? (index + 1) : '·'}</button>)}
+                                                            </div>
+                                                        </>
+                                                    )}
+
+                                                    {activeAbilitySession.game === 'reading' && (
+                                                        <>
+                                                            <div className="text-center text-xs text-slate-400">Patrón detectado · predice la señal siguiente</div>
+                                                            <div className="flex justify-center gap-3 text-3xl font-black text-amber-200">
+                                                                {activeAbilitySession.reading.pattern.map((value,index) => <span key={index} className="grid h-14 w-14 place-items-center rounded-xl border border-amber-400/25 bg-amber-950/30">{['↑','→','↓'][value]}</span>)}
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-2">{['↑','→','↓'].map((symbol,index) => <button key={symbol} onClick={() => selectActiveAbilityReading(index)} className="rounded-xl border border-amber-400/25 bg-amber-950/30 py-4 text-xl font-black text-amber-100">{symbol}</button>)}</div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            <div className="mt-5 border-t border-slate-800 pt-3 text-center text-[9px] font-mono-custom tracking-wider text-slate-500">EL RESULTADO DEL MINIJUEGO DETERMINA LA POTENCIA · EL DADO NO SE SUSTITUYE</div>
+                                        </section>
+                                    </div>
+                                )}
 
                                 {/* ACTION CONTROL & DICE DISPLAY */}
                                 {gameState === 'BATTLE' && (
