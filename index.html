@@ -3801,6 +3801,14 @@
                 const actorIndex = playerWhoJustActed === 1 ? p1Index : p2Index;
                 const actorMit = actorList[actorIndex];
                 const sequence = actorMit?.passiveState?.counterSequence;
+                const activeAbilityExtraTurn = actorMit?.passiveState?.activeAbilityExtraTurn === true;
+                if (activeAbilityExtraTurn) {
+                    actorList[actorIndex] = {
+                        ...actorMit,
+                        passiveState: { ...actorMit.passiveState, activeAbilityExtraTurn: false }
+                    };
+                    nextPlayer = playerWhoJustActed;
+                }
                 let nextLog = Array.isArray(logOverride) ? [...logOverride] : [...combatLog];
                 if (sequence?.phase === 'FIRST') {
                     const updatedActor = { ...actorMit, passiveState: { ...actorMit.passiveState, counterSequence: { ...sequence, phase: 'SECOND' } } };
