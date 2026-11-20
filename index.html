@@ -2922,10 +2922,12 @@
                         });
                     }
 
-                    // Compatibilidad con salas creadas por una versión anterior.
-                    if (!normalizedCombatEvents.length && normalizedFloatingEffect?.id &&
-                        normalizedFloatingEffect.id !== lastFloatingEffectIdRef.current &&
-                        !combatEventsInitializedRef.current) {
+                    // Compatibilidad con salas creadas por una versión anterior:
+                    // si no existe el nuevo historial de eventos, conserva el último
+                    // efecto disponible sin afectar a las salas nuevas.
+                    if (!Object.prototype.hasOwnProperty.call(room, 'combatEvents') &&
+                        normalizedFloatingEffect?.id &&
+                        normalizedFloatingEffect.id !== lastFloatingEffectIdRef.current) {
                         displayFloatingEffect(normalizedFloatingEffect);
                     }
 
@@ -3254,7 +3256,7 @@
                 }];
                 setCombatLog(initialLog);
                 if (gameMode === 'ONLINE') {
-                    syncOnline({ status: 'battle', p1Mits: p1, p2Mits: p2, activeP1Index: 0, activeP2Index: 0, currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1, attackResult: null, combatLog: initialLog, winner: null });
+                    syncOnline({ status: 'battle', p1Mits: p1, p2Mits: p2, activeP1Index: 0, activeP2Index: 0, currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1, attackResult: null, combatLog: initialLog, combatEvents: {}, winner: null });
                 }
             };
 
