@@ -3294,8 +3294,10 @@
                     const attackerAtTurnStart = { ...currentAttacker, passiveState: turnStart.state };
                     const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
                     const isHit = passiveAttack.hit;
+                    const attackStateWithHistory = updateAbilityFaceHistory(passiveAttack.state, attackerAtTurnStart, passiveAttack.roll, 'ATTACK');
                     const updatedAttackerMits = [...currentTurnMits];
-                    updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: attackStateWithHistory };
+                    const attackAbilityId = getAttackAbilityId({ ...attackerAtTurnStart, passiveState: attackStateWithHistory }, passiveAttack.roll, isHit);
                     turnStart.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     passiveAttack.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
