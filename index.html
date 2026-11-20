@@ -3454,6 +3454,19 @@
                     }
 
                     const defenseLog = [...combatLog, defenseLogEntry];
+                    const defenderIndexForHistory = defenderPlayerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                    const historyMit = { ...currentDefender, passiveState: defenseStateWithHistory };
+                    if (defenderPlayerNum === 1) {
+                        const next = [...p1MitsRef.current];
+                        next[defenderIndexForHistory] = historyMit;
+                        p1MitsRef.current = next;
+                        setP1Mits(next);
+                    } else {
+                        const next = [...p2MitsRef.current];
+                        next[defenderIndexForHistory] = historyMit;
+                        p2MitsRef.current = next;
+                        setP2Mits(next);
+                    }
                     const resumeDefense = () => {
                         const latestDefenderList = defenderPlayerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
                         const latestAttackerList = currentTurnPlayer === 1 ? p1MitsRef.current : p2MitsRef.current;
