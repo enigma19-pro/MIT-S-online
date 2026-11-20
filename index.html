@@ -4678,7 +4678,10 @@
                                                         <div className="mt-5 rounded-3xl border border-violet-500/25 bg-violet-500/5 p-6 lg:p-8">
                                                             <div className="text-sm uppercase tracking-[0.2em] text-violet-300 font-bold">✦ HABILIDAD</div>
                                                             <h5 className="text-xl md:text-2xl font-black text-white mt-3">{ACTIVE_ABILITY_DATA[guideClass.id]?.ability || 'Protocolo activo'}</h5>
-                                                            <p className="text-base md:text-lg leading-7 text-slate-200 mt-3 max-w-5xl">{ACTIVE_ABILITY_DATA[guideClass.id]?.effect || 'Sin descripción disponible.'}</p>
+                                                            <p className="text-xs uppercase tracking-widest text-violet-300 font-bold mt-4">CONDICIÓN DE ACTIVACIÓN</p>
+                                                            <p className="text-base md:text-lg leading-7 text-slate-200 mt-1 max-w-5xl">{ACTIVE_ABILITY_DATA[guideClass.id]?.trigger || 'Sin condición disponible.'}</p>
+                                                            <p className="text-xs uppercase tracking-widest text-violet-300 font-bold mt-4">EFECTO</p>
+                                                            <p className="text-base md:text-lg leading-7 text-slate-200 mt-1 max-w-5xl">{ACTIVE_ABILITY_DATA[guideClass.id]?.effect || 'Sin descripción disponible.'}</p>
                                                         </div>
                                                         <div className="mt-7 rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
                                                             <div className="text-xs font-bold tracking-widest text-cyan-300 mb-2">SOBRE LOS PROTOCOLOS</div>
