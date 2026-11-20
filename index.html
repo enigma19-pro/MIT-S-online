@@ -4434,84 +4434,56 @@
                                 <div className="ability-test-shell mx-auto flex flex-col gap-3 md:gap-4">
                                     <header className="glass-panel flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 px-4 py-3 md:px-5">
                                         <div className="min-w-0">
-                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · LABORATORIO</div>
-                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">PRUEBA DE HABILIDADES</h2>
+                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · HABILIDAD ACTIVA</div>
+                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">{abilityTestCurrent.ability}</h2>
+                                            <p className="mt-1 text-[10px] text-slate-500">Dado → oportunidad → ejecución</p>
                                         </div>
-                                        <button onClick={() => { setShowCombatTest(false); setAbilityTestMinigame(null); if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current); abilityTestOverloadRef.current = null; abilityTestOverloadPointerRef.current = null; playSound('click'); }} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">Salir ✕</button>
+                                        <button onClick={cancelCombatAbility} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">NO USAR</button>
                                     </header>
 
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {Object.entries(ABILITY_TEST_DATA).map(([id,data]) => (
-                                            <button key={id} onClick={() => { setAbilityTestHp(data.hp); resetAbilityTest(id); }} className={'rounded-2xl border p-3 text-left transition ' + (abilityTestMit===id ? 'border-cyan-400/70 bg-cyan-500/10' : 'border-slate-800 bg-slate-950/50 hover:border-slate-600')}>
-                                                <div className="text-[9px] font-mono-custom tracking-widest text-slate-500">NÚCLEO</div>
-                                                <div className="mt-1 text-sm md:text-base font-black text-slate-100">{data.name}</div>
-                                                <div className="mt-1 text-[9px] font-mono-custom text-slate-400">D {data.d.join(' · ')} · A {data.a.join(' · ')}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-
                                     <section className="ability-test-card rounded-3xl border border-slate-800 p-4 md:p-6 shadow-2xl">
-                                        <div className="grid lg:grid-cols-[1fr_1.15fr] gap-5">
+                                        <div className="grid lg:grid-cols-[.9fr_1.1fr] gap-5">
                                             <div className="space-y-4">
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div>
-                                                        <div className="text-[9px] font-mono-custom tracking-[.22em] text-cyan-300">NÚCLEO SELECCIONADO</div>
+                                                        <div className="text-[9px] font-mono-custom tracking-[.22em] text-cyan-300">NÚCLEO EN EJECUCIÓN</div>
                                                         <h3 className="mt-1 text-2xl md:text-3xl font-black text-white">{abilityTestCurrent.name}</h3>
-                                                        <p className="mt-2 text-xs leading-relaxed text-slate-400">{abilityTestCurrent.ability}</p>
+                                                        <p className="mt-2 text-xs leading-relaxed text-slate-400">{abilityTestCurrent.trigger}</p>
                                                     </div>
                                                     <div className="ability-test-die shrink-0 text-3xl font-black font-mono-custom text-cyan-200">{abilityTestRoll ?? '—'}</div>
                                                 </div>
 
-                                                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-                                                    <div className="text-[9px] font-mono-custom uppercase tracking-widest text-slate-500">CONDICIÓN DE OPORTUNIDAD</div>
-                                                    <p className="mt-2 text-xs leading-relaxed text-slate-300">{abilityTestCurrent.trigger}</p>
+                                                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3">
+                                                    <div className="text-[9px] font-mono-custom uppercase tracking-widest text-emerald-300">OPORTUNIDAD DISPONIBLE</div>
+                                                    <p className="mt-1 text-xs text-emerald-100">{abilityTestMessage}</p>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <button disabled={!!abilityTestMinigame} onClick={() => rollAbilityTestDie('ATACAR')} className="ability-test-action rounded-xl px-3 py-3 text-xs font-black">LANZAR D · ATAQUE</button>
-                                                    <button disabled={!!abilityTestMinigame} onClick={() => rollAbilityTestDie('DEFENDER')} className="ability-test-action rounded-xl px-3 py-3 text-xs font-black">LANZAR A · DEFENSA</button>
-                                                </div>
-
-                                                {abilityTestMit === 'Resistente1' && (
-                                                    <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3">
-                                                        <div className="flex items-center justify-between text-[10px] font-mono-custom">
-                                                            <span className="text-slate-400">HP DE PRUEBA</span><span className="font-black text-rose-300">{abilityTestHp} / 20</span>
-                                                        </div>
-                                                        <button onClick={() => setAbilityTestHp(h => Math.max(1,h-2))} className="mt-2 w-full rounded-xl border border-rose-400/20 bg-rose-500/10 py-2 text-[10px] font-black text-rose-200">RECIBIR 2 DAÑO</button>
-                                                    </div>
-                                                )}
-
-                                                <div className={'rounded-2xl border p-3 text-xs leading-relaxed ' + (abilityTestReady ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200' : 'border-slate-800 bg-slate-950/50 text-slate-400')}>
-                                                    <div className="font-mono-custom text-[9px] tracking-widest uppercase">{abilityTestReady ? 'OPORTUNIDAD DISPONIBLE' : 'ESTADO DEL PROTOCOLO'}</div>
-                                                    <div className="mt-1">{abilityTestMessage}</div>
-                                                </div>
-
-                                                {abilityTestReady && (
+                                                {abilityTestReady && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
                                                     <button onClick={startAbilityTest} className="w-full rounded-xl bg-cyan-400 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300">ACTIVAR HABILIDAD · INICIAR PRUEBA</button>
                                                 )}
 
-                                                {abilityTestResult === 'perfecto' && abilityTestMit === 'Normal1' && (
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button onClick={() => setAbilityTestMessage('PARÁMETRO OFENSIVO REESCRITO · +2 ataque en el próximo dado.')} className="rounded-xl border border-amber-400/30 bg-amber-500/10 py-3 text-[10px] font-black text-amber-200">+2 ATAQUE</button>
-                                                        <button onClick={() => setAbilityTestMessage('BLINDAJE REESCRITO · -2 daño en el próximo impacto recibido.')} className="rounded-xl border border-violet-400/30 bg-violet-500/10 py-3 text-[10px] font-black text-violet-200">-2 DAÑO RECIBIDO</button>
+                                                {abilityTestChoice === 'pending' && (
+                                                    <div className="space-y-2">
+                                                        <div className="text-[9px] font-mono-custom tracking-widest text-violet-300 uppercase">REESCRITURA COMPLETADA</div>
+                                                        <button onClick={() => completeCombatAbility('perfecto','attack')} className="w-full rounded-xl border border-amber-400/30 bg-amber-500/10 py-3 text-xs font-black text-amber-200">+2 ATAQUE · PRÓXIMO DADO</button>
+                                                        <button onClick={() => completeCombatAbility('perfecto','defense')} className="w-full rounded-xl border border-violet-400/30 bg-violet-500/10 py-3 text-xs font-black text-violet-200">−2 DAÑO · PRÓXIMO IMPACTO</button>
                                                     </div>
                                                 )}
+
+                                                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-400">
+                                                    <span className="font-mono-custom text-[9px] tracking-widest text-slate-500">EFECTO:</span> {abilityTestCurrent.effect}
+                                                </div>
                                             </div>
 
-                                            <div className="rounded-3xl border border-slate-800 bg-slate-950/65 p-4 md:p-5 min-h-[280px] flex flex-col justify-center">
-                                                {!abilityTestMinigame && (
-                                                    <div className="text-center">
-                                                        <div className="text-[9px] font-mono-custom tracking-[.25em] text-slate-500">PRUEBA DE HABILIDAD</div>
-                                                        <div className="mt-3 text-xl font-black text-slate-200">{abilityTestReady ? 'Oportunidad lista' : 'Esperando resultado del dado'}</div>
-                                                        <p className="mt-2 text-xs text-slate-500">El minijuego solo aparece después de superar la condición de activación.</p>
-                                                    </div>
-                                                )}
-
+                                            <div className="rounded-3xl border border-slate-800 bg-slate-950/65 p-4 md:p-5 min-h-[300px] flex flex-col justify-center">
                                                 {abilityTestMinigame === 'timing' && (
                                                     <div className="space-y-5">
-                                                        <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div><div className="mt-2 text-2xl font-black text-white">Detén el cursor en el centro</div></div>
+                                                        <div className="text-center">
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Detén el cursor en la zona</div>
+                                                        </div>
                                                         <div className="ability-test-track">
-                                                            <div className="ability-test-target left-[42%] w-[16%]" />
+                                                            <div className="ability-test-target" style={{left: abilityTestTimingTarget.left + '%', width: abilityTestTimingTarget.width + '%'}} />
                                                             <div className="ability-test-cursor left-0 animate-[ability-cursor_1.8s_linear_infinite]" />
                                                         </div>
                                                         <button onClick={finishAbilityTiming} className="w-full rounded-xl bg-cyan-400 py-4 font-black text-slate-950">DETENER CURSOR</button>
@@ -4520,23 +4492,33 @@
 
                                                 {abilityTestMinigame === 'sequence' && (
                                                     <div className="space-y-5">
-                                                        <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div><div className="mt-2 text-2xl font-black text-white">Repite la secuencia</div><div className="mt-2 text-xs text-slate-500">Orden: {abilityTestSequence.map(n=>n+1).join(' → ')}</div></div>
-                                                        <div className="ability-test-seq">
-                                                            {[0,1,2].map(i => <button key={i} onClick={() => pressAbilitySequenceNode(i)} className={'ability-test-node ' + (i < abilityTestSequenceProgress ? 'done' : '')}>{i+1}</button>)}
+                                                        <div className="text-center">
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Repite la secuencia</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Orden: {abilityTestSequence.map(n => n + 1).join(' → ')}</div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {Array.from({length: abilityTestSequence.length || 3}, (_,i) => (
+                                                                <button key={i} onClick={() => pressAbilitySequenceNode(i)} className={'ability-test-node ' + (i < abilityTestSequenceProgress ? 'done' : '')}>{i + 1}</button>
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 )}
 
                                                 {abilityTestMinigame === 'overload' && (
                                                     <div className="space-y-5">
-                                                        <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div><div className="mt-2 text-2xl font-black text-white">Carga el núcleo y suelta</div><div className="mt-2 text-xs text-slate-500">Zona óptima: 48–68%. Fuera de ella pierdes potencia.</div></div>
+                                                        <div className="text-center">
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Carga el núcleo y suelta</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Zona óptima: 48–68%.</div>
+                                                        </div>
                                                         <div className="ability-test-overload" aria-label="Medidor de sobrecarga">
                                                             <div className="ability-test-overload-target" />
-                                                            <span style={{width:abilityTestOverload+'%'}} />
-                                                            <div className="ability-test-overload-marker" style={{left:abilityTestOverload+'%'}} />
+                                                            <span style={{width: abilityTestOverload + '%'}} />
+                                                            <div className="ability-test-overload-marker" style={{left: abilityTestOverload + '%'}} />
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider">
-                                                            <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO 48–68%</span><span className="text-rose-300">CRÍTICO</span>
+                                                            <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO</span><span className="text-rose-300">CRÍTICO</span>
                                                         </div>
                                                         <button
                                                             onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(e); }}
@@ -4549,21 +4531,46 @@
                                                         >MANTENER / SOLTAR</button>
                                                     </div>
                                                 )}
+
+                                                {abilityTestMinigame === 'rapid' && (
+                                                    <div className="space-y-5 text-center">
+                                                        <div>
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-amber-300">RUPTURA</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Rompe el blindaje</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Alcanza 8 pulsaciones en 1.2 segundos.</div>
+                                                        </div>
+                                                        <div className="text-5xl font-black font-mono-custom text-amber-300">{abilityTestRapidCount}<span className="text-slate-600 text-2xl"> / 8</span></div>
+                                                        <button onClick={pressAbilityRapid} className="w-full rounded-xl bg-amber-400 py-5 text-lg font-black text-slate-950 active:scale-95">IMPACTAR</button>
+                                                    </div>
+                                                )}
+
+                                                {abilityTestMinigame === 'prediction' && (
+                                                    <div className="space-y-5 text-center">
+                                                        <div>
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-purple-300">LECTURA</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Predice el canal rival</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Una de las tres señales es la respuesta correcta.</div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {[0,1,2].map(i => <button key={i} onClick={() => chooseAbilityPrediction(i)} className="ability-test-node py-5">CANAL {i + 1}</button>)}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {!abilityTestMinigame && abilityTestChoice !== 'pending' && (
+                                                    <div className="text-center">
+                                                        <div className="text-[9px] font-mono-custom tracking-[.25em] text-slate-500">PROTOCOLO</div>
+                                                        <div className="mt-3 text-xl font-black text-slate-200">Esperando ejecución</div>
+                                                        <p className="mt-2 text-xs text-slate-500">El combate permanece bloqueado mientras decides.</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-
-                                        <div className="mt-5 grid md:grid-cols-2 gap-2 text-[10px] font-mono-custom">
-                                            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-slate-400"><span className="text-slate-500">RESULTADO:</span> {abilityTestResult || '—'}</div>
-                                            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-slate-400"><span className="text-slate-500">EFECTO:</span> {abilityTestCurrent.effect}</div>
-                                            <div className="md:col-span-2 rounded-xl border border-amber-500/15 bg-amber-500/5 p-3 text-amber-200"><span className="text-amber-400">RIESGO:</span> {abilityTestCurrent.risk}</div>
-                                        </div>
                                     </section>
-                                    <p className="text-center text-[9px] md:text-[10px] font-mono-custom tracking-wider text-slate-500">PROTOTIPO AISLADO · NO MODIFICA LAS REGLAS DE COMBATE NI FIREBASE</p>
                                 </div>
                             </div>
                         )}
 
-}
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
                                 <div className="space-y-3">
