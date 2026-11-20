@@ -3311,7 +3311,7 @@
                     if (isHit) {
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
-                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: attackStateWithHistory, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
                         if (currentAttacker.passiveState?.counterSequence?.phase === 'FIRST') {
                             const defenderNum = currentTurnPlayer === 1 ? 2 : 1;
                             const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...currentAttacker, passiveState: passiveAttack.state }, defender: currentDefender, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
