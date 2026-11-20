@@ -4500,25 +4500,7 @@
                                         PROTOCOLO LINK · NÚCLEO MIT
                                     </div>
                                     <h2 className="text-3xl font-extrabold text-slate-100 font-mono-custom">CENTRAL DE OPERACIONES</h2>
-                                    <p className="text-slate-400 text-sm leading-relaxed">Los MIT no son el cuerpo que ves en la arena. Son núcleos artificiales capaces de interpretar órdenes, aprender de cada combate y adaptar sus propios protocolos. Tú eres el Operador.</p>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-left">
-                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                                        <div className="text-[10px] font-mono-custom font-bold text-cyan-300 uppercase tracking-widest">Núcleo</div>
-                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">La identidad del MIT. Aprende, se adapta y puede desarrollar nuevos protocolos.</p>
-                                    </div>
-                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                                        <div className="text-[10px] font-mono-custom font-bold text-purple-300 uppercase tracking-widest">Operador</div>
-                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">Toma las decisiones tácticas mediante la interfaz LINK y configura el núcleo antes de luchar.</p>
-                                    </div>
-                                    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                                        <div className="text-[10px] font-mono-custom font-bold text-amber-300 uppercase tracking-widest">Evolución</div>
-                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-400">Bajo condiciones extremas, un núcleo puede alterar su sistema para sobrevivir.</p>
-                                    </div>
-                                </div>
-
-                                <div className="space-y-3 pt-4">
+                                </div><div className="space-y-3 pt-4">
                                     <button
                                         onClick={() => { setGameMode('AI'); setGameState('BUILD'); playSound('click'); }}
                                         className="w-full p-4 rounded-2xl glass-panel-interactive border border-cyan-500/30 flex items-center justify-between group hover:border-cyan-400"
@@ -4529,7 +4511,6 @@
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-100">Operador vs Núcleo IA</div>
-                                                <div className="text-xs text-slate-400">Pon a prueba tu sincronización contra un núcleo controlado por IA</div>
                                             </div>
                                         </div>
                                         <span className="text-cyan-400 text-xl font-bold font-mono-custom">→</span>
@@ -4545,7 +4526,6 @@
                                             </div>
                                             <div>
                                                 <div className="font-bold text-slate-100">Operador vs Operador</div>
-                                                <div className="text-xs text-slate-400">Dos Operadores, dos núcleos, una misma arena</div>
                                             </div>
                                         </div>
                                         <span className="text-purple-400 text-xl font-bold font-mono-custom">→</span>
@@ -4560,7 +4540,6 @@
                                         <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">🕹️</div>
                                         <div>
                                             <div className="font-bold text-slate-100">Prueba</div>
-                                            <div className="text-xs text-slate-400">Simulación aislada de plataforma y control</div>
                                         </div>
                                     </div>
                                     <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
@@ -4577,7 +4556,6 @@
                                             <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 group-hover:scale-110 transition">🌐</div>
                                             <div>
                                                 <div className="font-bold text-slate-100">Enlace online entre Operadores</div>
-                                                <div className="text-xs text-slate-400">Conecta tu interfaz LINK a otro Operador</div>
                                             </div>
                                         </div>
                                         <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
@@ -4613,7 +4591,6 @@
                                                     <div className="text-left">
                                                         <div className="text-[10px] md:text-xs font-bold tracking-[0.3em] text-cyan-400 mb-2">ARCHIVO LINK · BASE DE DATOS MIT</div>
                                                         <h3 id="class-guide-title" className="text-2xl md:text-3xl lg:text-4xl font-black text-cyan-300 font-mono-custom tracking-wide">MANUAL DE NÚCLEOS</h3>
-                                                        <p className="text-sm md:text-base text-slate-400 mt-2">Arquitecturas adaptativas · Capacidades · Protocolos de combate</p>
                                                     </div>
                                                     <button onClick={() => setShowClassGuide(false)} className="shrink-0 rounded-lg px-3 py-2 bg-slate-800 hover:bg-rose-900/60 text-slate-200 font-bold" aria-label="Cerrar manual">✕ Cerrar</button>
                                                 </div>
@@ -4671,7 +4648,6 @@
                         {gameState === 'ONLINE_LOBBY' && (
                             <div className="lobby-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-5 text-center border border-emerald-500/20 shadow-2xl">
                                 <div>
-                                    <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Enlace online entre Operadores</span>
                                     <h2 className="text-3xl font-extrabold text-slate-100 mt-3 font-mono-custom">SALAS DE COMBATE</h2>
                                 </div>
 
@@ -4721,7 +4697,7 @@
                                         </div>
                                     </div>
                                 )}
-                                <p className="text-sm text-slate-400">{onlineStatus || (onlineUser ? 'Firebase conectado.' : 'Conectando con Firebase...')}</p>
+                                    {onlineStatus && <p className="text-sm text-slate-400">{onlineStatus}</p>}
                             </div>
                         )}
 
@@ -5027,11 +5003,10 @@
                                 {/* ACTION CONTROL & DICE DISPLAY */}
                                 {gameState === 'BATTLE' && combatAbilityLock && (
                                     <div className="battle-controls glass-panel rounded-3xl p-4 border border-violet-500/30 bg-violet-950/20 text-center">
-                                        <div className="text-[10px] font-mono-custom tracking-[.2em] text-violet-300 uppercase">PROTOCOLO EN EJECUCIÓN</div>
                                         <div className="mt-2 text-sm font-black text-slate-100">
                                             {combatAbilityLock.playerNum === localCombatPlayer()
-                                                ? 'Ejecuta la habilidad del núcleo.'
-                                                : 'El rival está ejecutando una habilidad.'}
+                                                 ? 'TU HABILIDAD'
+                                                 : 'HABILIDAD RIVAL'}
                                         </div>
                                     </div>
                                 )}
@@ -5135,7 +5110,7 @@
                                 {/* COMBAT LOG */}
                                 {gameState === 'BATTLE' && !disconnectedPlayer && (
                                 <div className="battle-log glass-panel rounded-2xl p-4 border border-slate-800">
-                                    <h4 className="text-xs font-bold font-mono-custom text-slate-400 uppercase tracking-widest mb-2">BITÁCORA DE COMBATE</h4>
+                                    <h4 className="text-xs font-bold font-mono-custom text-slate-400 uppercase tracking-widest mb-2">BITÁCORA</h4>
                                     <div ref={logContainerRef} className="battle-log-list h-32 overflow-y-auto space-y-1 text-xs font-mono-custom pr-2">
                                         {combatLog.map((log, index) => (
                                             <div 
