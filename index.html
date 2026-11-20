@@ -401,6 +401,24 @@
             }
         }
 
+        /* Active ability minigames inside the live combat flow. */
+        .active-ability-overlay { background:rgba(2,6,23,.94);backdrop-filter:blur(16px); }
+        .active-ability-panel { width:min(100%,760px);background:linear-gradient(145deg,rgba(15,23,42,.98),rgba(7,14,27,.98)); }
+        .active-ability-track { position:relative;height:58px;border-radius:14px;background:#020617;border:1px solid rgba(148,163,184,.22);overflow:hidden; }
+        .active-ability-target { position:absolute;top:7px;bottom:7px;border-radius:8px;border:2px solid rgba(250,204,21,.9);background:rgba(250,204,21,.14);box-shadow:0 0 18px rgba(250,204,21,.16);pointer-events:none; }
+        .active-ability-cursor { position:absolute;top:4px;bottom:4px;width:4px;border-radius:4px;background:#f8fafc;box-shadow:0 0 12px rgba(255,255,255,.9);animation:active-ability-cursor 3.6s linear infinite alternate; }
+        @keyframes active-ability-cursor { from { left:0%; } to { left:96%; } }
+        .active-ability-sequence { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }
+        .active-ability-node { min-height:58px;border-radius:14px;border:1px solid rgba(148,163,184,.2);background:rgba(30,41,59,.75);font-family:'JetBrains Mono',monospace;font-weight:900;color:#cbd5e1; }
+        .active-ability-node:disabled { opacity:.4;cursor:not-allowed; }
+        .active-ability-node.done { border-color:rgba(16,185,129,.7);background:rgba(16,185,129,.12);color:#a7f3d0; }
+        .active-ability-overload { position:relative;height:46px;border-radius:12px;background:#020617;border:1px solid rgba(148,163,184,.22);overflow:hidden; }
+        .active-ability-overload > span { display:block;height:100%;background:linear-gradient(90deg,#10b981,#f59e0b,#f43f5e);transition:width .04s linear; }
+        .active-ability-overload-target { position:absolute;z-index:2;top:5px;bottom:5px;left:48%;width:20%;border:2px solid rgba(250,204,21,.9);background:rgba(250,204,21,.14);border-radius:7px;pointer-events:none; }
+        .active-ability-overload-target::after { content:'ZONA ÓPTIMA';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);white-space:nowrap;font:900 8px/1 monospace;letter-spacing:.12em;color:#fde68a; }
+        .active-ability-overload-marker { position:absolute;z-index:3;top:0;bottom:0;width:2px;background:#fff;box-shadow:0 0 10px rgba(255,255,255,.9);transform:translateX(-50%);pointer-events:none; }
+        @media(max-width:520px) { .active-ability-track { height:52px; } .active-ability-sequence { gap:7px; } .active-ability-node { min-height:54px; } }
+
         /* Arena sandbox: presentación, terreno y personaje. */
         .movement-test-screen { overscroll-behavior:none; touch-action:none; user-select:none; -webkit-user-select:none; }
         .movement-test-shell { max-width:1600px; }
@@ -1172,6 +1190,18 @@
             const [currentRollValue, setCurrentRollValue] = useState(1);
             const lastRollValueRef = useRef(1);
             const [attackResult, setAttackResult] = useState(null);
+            const [activeAbilitySession, setActiveAbilitySession] = useState(null);
+            const activeAbilitySessionRef = useRef(null);
+            const activeAbilityFinishingRef = useRef(false);
+            const [activeAbilitySequence, setActiveAbilitySequence] = useState([]);
+            const [activeAbilitySequenceProgress, setActiveAbilitySequenceProgress] = useState(0);
+            const [activeAbilitySequenceVisible, setActiveAbilitySequenceVisible] = useState(false);
+            const activeAbilitySequenceTimerRef = useRef(null);
+            const activeAbilityTimingStartRef = useRef(0);
+            const [activeAbilityOverload, setActiveAbilityOverload] = useState(0);
+            const activeAbilityOverloadRafRef = useRef(null);
+            const activeAbilityOverloadPointerRef = useRef(null);
+            const activeAbilityOverloadValueRef = useRef(0);
             const [combatLog, setCombatLogRaw] = useState([]);
             // Todas las rutas de UI mantienen la bitácora acotada, incluidas las
             // actualizaciones funcionales que llegan desde animaciones y timers.
@@ -2314,6 +2344,23 @@
                 catch (error) { console.error('Firebase sync:', error); setOnlineStatus('Error de sincronización.'); }
             };
 
+            const commitCombatMit = (playerNum, index, updatedMit) => {
+                const source = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                if (!Array.isArray(source) || !Number.isInteger(index) || index < 0 || index >= source.length) return false;
+                const updated = [...source];
+                updated[index] = updatedMit;
+                if (playerNum === 1) {
+                    p1MitsRef.current = updated;
+                    setP1Mits(updated);
+                    if (gameMode === 'ONLINE') syncOnline({ p1Mits: updated });
+                } else {
+                    p2MitsRef.current = updated;
+                    setP2Mits(updated);
+                    if (gameMode === 'ONLINE') syncOnline({ p2Mits: updated });
+                }
+                return true;
+            };
+
             const publishFloatingEffect = (effect) => {
                 const event = {
                     ...effect,
@@ -2618,6 +2665,179 @@
                 currentTurnActiveIndex
             );
             const availableMit = availableMitIndex === null ? null : currentTurnMits[availableMitIndex];
+
+
+            const makeActiveAbilitySession = (playerNum, index, mit) => {
+                const classId = mit?.classData?.id;
+                const info = window.MITSGameRules.getActiveAbilityInfo(classId);
+                if (!info) return null;
+                const targetSize = classId === 'Dano1' ? 0.10
+                    : classId === 'Agil1' ? 0.16
+                    : classId === 'Agil2' ? 0.22
+                    : classId === 'Resistente2' ? 0.28
+                    : 0.18;
+                return {
+                    id: `active_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                    playerNum, index, classId, name: info.name,
+                    minigame: info.minigame, targetSize
+                };
+            };
+
+            const configureActiveAbilityMinigame = session => {
+                activeAbilityFinishingRef.current = false;
+                activeAbilitySessionRef.current = session;
+                setActiveAbilitySession(session);
+                setActiveAbilitySequenceProgress(0);
+                setActiveAbilitySequenceVisible(session?.minigame === 'sequence');
+                setActiveAbilityOverload(0);
+                activeAbilityOverloadValueRef.current = 0;
+                activeAbilityOverloadPointerRef.current = null;
+                if (activeAbilityOverloadRafRef.current !== null) cancelAnimationFrame(activeAbilityOverloadRafRef.current);
+                activeAbilityOverloadRafRef.current = null;
+                if (session?.minigame === 'sequence') {
+                    const length = session.classId === 'Normal1' ? 3 : 4;
+                    setActiveAbilitySequence(Array.from({ length }, () => Math.floor(Math.random() * 4)));
+                } else {
+                    setActiveAbilitySequence([]);
+                }
+                if (['timing', 'tracking', 'precision'].includes(session?.minigame)) {
+                    activeAbilityTimingStartRef.current = performance.now();
+                }
+            };
+
+            const startCombatAbility = () => {
+                if (gameState !== 'BATTLE' || combatPhase !== 'ATTACK_ROLL' ||
+                    isRollingRef.current || isTurnProcessing || activeAbilitySessionRef.current ||
+                    currentTurnPlayerRef.current !== currentTurnPlayer ||
+                    (gameMode === 'AI' && currentTurnPlayer === 2) ||
+                    (gameMode === 'ONLINE' && currentTurnPlayer !== (isRoomHost ? 1 : 2))) return;
+                const playerNum = currentTurnPlayer;
+                const index = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                const list = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = list[index];
+                const consumed = window.MITSGameRules.consumeActiveAbilityOpportunity(mit);
+                if (!consumed || !commitCombatMit(playerNum, index, consumed)) return;
+                const session = makeActiveAbilitySession(playerNum, index, consumed);
+                if (!session) return;
+                configureActiveAbilityMinigame(session);
+                playSound('click');
+            };
+
+            const finishCombatAbility = grade => {
+                const session = activeAbilitySessionRef.current;
+                if (!session || activeAbilityFinishingRef.current) return;
+                activeAbilityFinishingRef.current = true;
+                activeAbilitySessionRef.current = null;
+                setActiveAbilitySession(null);
+                setActiveAbilitySequenceVisible(false);
+                if (activeAbilitySequenceTimerRef.current !== null) {
+                    clearTimeout(activeAbilitySequenceTimerRef.current);
+                    activeAbilitySequenceTimerRef.current = null;
+                }
+                if (activeAbilityOverloadRafRef.current !== null) cancelAnimationFrame(activeAbilityOverloadRafRef.current);
+                activeAbilityOverloadRafRef.current = null;
+                activeAbilityOverloadPointerRef.current = null;
+
+                const list = session.playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = list[session.index];
+                if (!mit) return;
+                const outcome = window.MITSGameRules.resolveActiveAbilityResult(mit, grade);
+                if (!outcome) return;
+                commitCombatMit(session.playerNum, session.index, { ...mit, passiveState: outcome.state });
+
+                const resultLabel = grade === 'perfecto' ? 'PERFECTO' : grade === 'parcial' ? 'PARCIAL' : 'FALLO';
+                const nextLog = [...combatLog, {
+                    type: 'system',
+                    text: `⚡ ${getPlayerDisplayName(session.playerNum)} ejecutó ${session.name}: ${resultLabel}.`
+                }];
+                outcome.events.forEach(event => nextLog.push({ type: 'system', text: event }));
+                setCombatLog(nextLog);
+                if (gameMode === 'ONLINE') syncOnline({ combatLog: nextLog });
+                outcome.events.forEach(event => publishFloatingEffect({ player: session.playerNum, text: event, type: 'hit' }));
+                playSound(grade === 'fallo' ? 'fail' : 'hit');
+            };
+
+            const finishActiveAbilityTiming = () => {
+                const session = activeAbilitySessionRef.current;
+                if (!session || !['timing', 'tracking', 'precision'].includes(session.minigame)) return;
+                const cycle = ((performance.now() - activeAbilityTimingStartRef.current) % 3600) / 3600;
+                const progress = cycle <= 0.5 ? cycle * 2 : (1 - cycle) * 2;
+                const distance = Math.abs(progress - 0.5);
+                const halfWindow = session.targetSize / 2;
+                const grade = distance <= halfWindow * 0.72
+                    ? 'perfecto'
+                    : distance <= halfWindow * 1.65 ? 'parcial' : 'fallo';
+                finishCombatAbility(grade);
+            };
+
+            const pressActiveAbilitySequenceNode = index => {
+                const session = activeAbilitySessionRef.current;
+                if (!session || session.minigame !== 'sequence' || activeAbilitySequenceVisible) return;
+                const expected = activeAbilitySequence[activeAbilitySequenceProgress];
+                if (index !== expected) {
+                    finishCombatAbility(activeAbilitySequenceProgress >= activeAbilitySequence.length - 1 ? 'parcial' : 'fallo');
+                    return;
+                }
+                const next = activeAbilitySequenceProgress + 1;
+                if (next >= activeAbilitySequence.length) finishCombatAbility('perfecto');
+                else setActiveAbilitySequenceProgress(next);
+            };
+
+            const startActiveAbilityOverload = event => {
+                if (activeAbilitySessionRef.current?.minigame !== 'overload' ||
+                    activeAbilityOverloadPointerRef.current !== null ||
+                    activeAbilityOverloadRafRef.current !== null) return;
+                if (event?.pointerId !== undefined) activeAbilityOverloadPointerRef.current = event.pointerId;
+                const started = performance.now();
+                const tick = now => {
+                    const value = Math.min(100, ((now - started) / 1800) * 100);
+                    activeAbilityOverloadValueRef.current = value;
+                    setActiveAbilityOverload(value);
+                    if (value < 100 && activeAbilitySessionRef.current?.minigame === 'overload') {
+                        activeAbilityOverloadRafRef.current = requestAnimationFrame(tick);
+                    } else {
+                        activeAbilityOverloadRafRef.current = null;
+                    }
+                };
+                activeAbilityOverloadRafRef.current = requestAnimationFrame(tick);
+            };
+
+            const finishActiveAbilityOverload = event => {
+                if (event?.pointerId !== undefined &&
+                    activeAbilityOverloadPointerRef.current !== null &&
+                    event.pointerId !== activeAbilityOverloadPointerRef.current) return;
+                if (event?.pointerId !== undefined && activeAbilityOverloadPointerRef.current === null) return;
+                if (activeAbilityOverloadRafRef.current !== null) cancelAnimationFrame(activeAbilityOverloadRafRef.current);
+                activeAbilityOverloadRafRef.current = null;
+                const pointerId = activeAbilityOverloadPointerRef.current;
+                activeAbilityOverloadPointerRef.current = null;
+                if (event?.currentTarget && pointerId !== null && event.currentTarget.hasPointerCapture?.(pointerId)) {
+                    try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
+                }
+                const value = activeAbilityOverloadValueRef.current;
+                const grade = value >= 48 && value <= 68 ? 'perfecto'
+                    : value >= 35 && value <= 82 ? 'parcial' : 'fallo';
+                finishCombatAbility(grade);
+            };
+
+            const chooseTechnicalAbilityOption = choice => {
+                if (gameState !== 'BATTLE' || combatPhase !== 'ATTACK_ROLL') return;
+                const playerNum = currentTurnPlayer;
+                const index = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                const list = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = list[index];
+                const chosen = window.MITSGameRules.chooseActiveAbilityOption(mit, choice);
+                if (!chosen) return;
+                commitCombatMit(playerNum, index, chosen);
+                const bonus = chosen.passiveState[choice === 'attack' ? 'activeAttackBonus' : 'activeDefenseReduction'];
+                const message = choice === 'attack'
+                    ? `Reescritura: Ataque +${bonus} preparado.`
+                    : `Reescritura: Defensa −${bonus} preparada.`;
+                const nextLog = [...combatLog, { type: 'system', text: message }];
+                setCombatLog(nextLog);
+                if (gameMode === 'ONLINE') syncOnline({ combatLog: nextLog });
+                publishFloatingEffect({ player: playerNum, text: message, type: 'hit' });
+            };
 
             const executeRollAnimation = (finalValue, callback) => {
                 const session = gameSessionRef.current;
