@@ -1134,7 +1134,7 @@
                 const resume = pending.resume;
                 combatAbilityPendingRef.current = null;
                 setCombatAbilityLock(null);
-                setShowCombatTest(true);
+                setShowCombatTest(playerNum === localCombatPlayer());
                 setAbilityTestMinigame(null);
                 setAbilityTestReady(false);
                 setAbilityTestResult(result);
