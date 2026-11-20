@@ -3264,6 +3264,7 @@
                         unstoppable: atkData?.unstoppable === true,
                         allowCounterTrigger: atkData?.counterChain !== true
                     });
+                    const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
                     const defenseStateWithHistory = updateAbilityFaceHistory(defenseResult.state, currentDefender, roll, 'DEFENSE');
                     const defenseResultWithHistory = { ...defenseResult, state: defenseStateWithHistory };
                     const defenseAbilityId = getDefenseAbilityId({ ...currentDefender, passiveState: defenseStateWithHistory }, defenseResultWithHistory, roll);
