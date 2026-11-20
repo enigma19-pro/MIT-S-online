@@ -1131,7 +1131,8 @@
                 setAbilityTestChoice(null);
                 setAbilityTestReady(true);
                 setAbilityTestMessage('OPORTUNIDAD OBTENIDA · decide si gastar el intento.');
-                setShowCombatTest(playerNum === localCombatPlayer());
+                const shouldShowAbility = gameMode === 'ONLINE' ? playerNum === localCombatPlayer() : gameMode === 'AI' ? playerNum === 1 : true;
+                setShowCombatTest(shouldShowAbility);
                 playSound('click');
 
                 if (gameMode === 'AI' && playerNum === 2) {
