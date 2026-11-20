@@ -3421,7 +3421,9 @@
                         unstoppable: atkData?.unstoppable === true,
                         allowCounterTrigger: atkData?.counterChain !== true
                     });
-                    const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
+                    const defenseStateWithHistory = updateAbilityFaceHistory(defenseResult.state, currentDefender, roll, 'DEFENSE');
+                    const defenseResultWithHistory = { ...defenseResult, state: defenseStateWithHistory };
+                    const defenseAbilityId = getDefenseAbilityId({ ...currentDefender, passiveState: defenseStateWithHistory }, defenseResultWithHistory, roll);
 
                     let defenseLogEntry;
                     if (isEvadeNumber || defenseResult.shadowNullified) {
@@ -3451,7 +3453,33 @@
                         });
                     }
 
-                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll, defenseResult, currentTurnPlayer);
+                    const defenseLog = [...combatLog, defenseLogEntry];
+                    const resumeDefense = () => {
+                        const latestDefenderList = defenderPlayerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                        const latestAttackerList = currentTurnPlayer === 1 ? p1MitsRef.current : p2MitsRef.current;
+                        const latestDefender = latestDefenderList[defenderPlayerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current] || currentDefender;
+                        const latestAttacker = latestAttackerList[currentTurnPlayer === 1 ? activeP1IndexRef.current : activeP2IndexRef.current] || currentAttacker;
+                        applyDamageToDefender(
+                            defenderPlayerNum,
+                            finalDamageTaken,
+                            defenseLog,
+                            roll,
+                            { ...defenseResultWithHistory, state: latestDefender.passiveState, attackerState: latestAttacker.passiveState },
+                            currentTurnPlayer
+                        );
+                    };
+                    if (defenseAbilityId) {
+                        openCombatAbility({
+                            playerNum: defenderPlayerNum,
+                            index: defenderPlayerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current,
+                            abilityId: defenseAbilityId,
+                            roll,
+                            rollType: 'DEFENDER',
+                            resume: resumeDefense
+                        });
+                    } else {
+                        resumeDefense();
+                    }
                 });
             };
 
