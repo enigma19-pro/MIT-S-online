@@ -2919,7 +2919,7 @@
             };
 
             useEffect(() => {
-                if (!activeAbilitySession && gameState === 'BATTLE' && combatPhase === 'ATTACK_ROLL' && currentAttacker?.passiveState?.activeAbilityInProgress) {
+                if (canControlActiveAbility && !activeAbilitySession && gameState === 'BATTLE' && combatPhase === 'ATTACK_ROLL' && currentAttacker?.passiveState?.activeAbilityInProgress) {
                     const abilityId = currentAttacker.passiveState.activeAbilityInProgress;
                     openActiveAbilitySession(abilityId, currentTurnPlayer, currentAttacker);
                 }
@@ -2956,7 +2956,7 @@
 
             // Attack Roll
             const handleAttackRoll = () => {
-                if (isRollingRef.current || isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL') return;
+                if (isRollingRef.current || isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL' || currentActiveAbilityReady) return;
                 if (currentTurnPlayerRef.current !== currentTurnPlayer) return;
                 if (gameMode === 'ONLINE' && currentTurnPlayer !== (isRoomHost ? 1 : 2)) return;
 
@@ -2966,9 +2966,13 @@
                     const turnStart = window.MITSGameRules.beginPassiveAttackTurn(currentAttacker);
                     const attackerAtTurnStart = { ...currentAttacker, passiveState: turnStart.state };
                     const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
+                    const rolledAttacker = window.MITSGameRules.consumeActiveAbilityRoll({
+                        ...attackerAtTurnStart,
+                        passiveState: passiveAttack.state
+                    });
                     const isHit = passiveAttack.hit;
                     const updatedAttackerMits = [...currentTurnMits];
-                    updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    updatedAttackerMits[currentTurnActiveIndex] = rolledAttacker;
                     turnStart.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     passiveAttack.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
@@ -2976,7 +2980,7 @@
                     if (isHit) {
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
-                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: rolledAttacker.passiveState, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
                         if (currentAttacker.passiveState?.counterSequence?.phase === 'FIRST') {
                             const defenderNum = currentTurnPlayer === 1 ? 2 : 1;
                             const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...currentAttacker, passiveState: passiveAttack.state }, defender: currentDefender, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
@@ -3067,7 +3071,16 @@
                         unstoppable: atkData?.unstoppable === true,
                         allowCounterTrigger: atkData?.counterChain !== true
                     });
-                    const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
+                    const rolledDefender = window.MITSGameRules.consumeActiveAbilityRoll({
+                        ...currentDefender,
+                        passiveState: defenseResult.state
+                    });
+                    const resolvedDefenseResult = {
+                        ...defenseResult,
+                        state: rolledDefender.passiveState,
+                        defenderAfterRoll: rolledDefender
+                    };
+                    const { isEvadeNumber, damage: finalDamageTaken } = resolvedDefenseResult;
 
                     let defenseLogEntry;
                     if (isEvadeNumber || defenseResult.shadowNullified) {
@@ -3097,7 +3110,7 @@
                         });
                     }
 
-                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll, defenseResult, currentTurnPlayer);
+                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll, resolvedDefenseResult, currentTurnPlayer);
                 });
             };
 
@@ -3130,7 +3143,14 @@
                     const newHp = hpResult.currentHp;
                     const hpLost = hpResult.hpLost;
                     updatedP1 = [...latestP1Mits];
-                    const defenderWithState = { ...latestActiveP1Mit, passiveState: passiveDefenseResult?.state || latestActiveP1Mit.passiveState };
+                    const defenderWithState = {
+                        ...latestActiveP1Mit,
+                        ...(passiveDefenseResult?.defenderAfterRoll ? {
+                            attackNums: passiveDefenseResult.defenderAfterRoll.attackNums,
+                            evadeNums: passiveDefenseResult.defenderAfterRoll.evadeNums
+                        } : {}),
+                        passiveState: passiveDefenseResult?.state || latestActiveP1Mit.passiveState
+                    };
                     const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
                     consequences.events.forEach(event => publishFloatingEffect({ player: event.startsWith('Enfurecimiento') ? attackerPlayerNum : defenderPlayerNum, text: event, type: 'hit' }));
@@ -3150,7 +3170,14 @@
                     const newHp = hpResult.currentHp;
                     const hpLost = hpResult.hpLost;
                     updatedP2 = [...latestP2Mits];
-                    const defenderWithState = { ...latestActiveP2Mit, passiveState: passiveDefenseResult?.state || latestActiveP2Mit.passiveState };
+                    const defenderWithState = {
+                        ...latestActiveP2Mit,
+                        ...(passiveDefenseResult?.defenderAfterRoll ? {
+                            attackNums: passiveDefenseResult.defenderAfterRoll.attackNums,
+                            evadeNums: passiveDefenseResult.defenderAfterRoll.evadeNums
+                        } : {}),
+                        passiveState: passiveDefenseResult?.state || latestActiveP2Mit.passiveState
+                    };
                     const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
                     const consequences = window.MITSGameRules.applyPassiveDamageConsequences({ attacker: { ...attackerMit, passiveState: passiveDefenseResult?.attackerState || attackerMit.passiveState }, defender: defenderWithState, hpLost, fullyDodged: passiveDefenseResult?.fullyDodged, shadowNullified: passiveDefenseResult?.shadowNullified });
                     consequences.events.forEach(event => publishFloatingEffect({ player: event.startsWith('Enfurecimiento') ? attackerPlayerNum : defenderPlayerNum, text: event, type: 'hit' }));
@@ -3391,6 +3418,13 @@
                     const updatedActor = { ...actorMit, passiveState: { ...actorMit.passiveState, counterSequence: null, counterCooldownTurns: 1 } };
                     actorList[actorIndex] = updatedActor;
                     nextLog.push({ type: 'system', text: '🛡️ Contraataque completado. El rival recupera su turno.' });
+                } else if (actorMit?.passiveState?.activeChainPendingEnd) {
+                    actorList[actorIndex] = {
+                        ...actorMit,
+                        passiveState: { ...actorMit.passiveState, activeChainPendingEnd: false }
+                    };
+                    nextPlayer = playerWhoJustActed;
+                    nextLog.push({ type: 'system', text: '⚡ Impulso Cinético: turno adicional para el Móvil.' });
                 }
                 setP1Mits(nextP1Mits);
                 setP2Mits(nextP2Mits);
@@ -3471,10 +3505,31 @@
             const triggerAiTurn = () => {
                 // La IA solo puede actuar una vez y únicamente durante su turno.
                 if (gameState !== 'BATTLE' || gameMode !== 'AI' || currentTurnPlayerRef.current !== 2 || aiTurnInProgressRef.current) return;
-                const latestP2Mits = p2MitsRef.current;
+                let latestP2Mits = [...p2MitsRef.current];
                 const latestActiveP2Index = activeP2IndexRef.current;
-                const aiMit = latestP2Mits[latestActiveP2Index];
+                let aiMit = latestP2Mits[latestActiveP2Index];
                 if (!aiMit || !Array.isArray(aiMit.attackNums)) return;
+
+                if (aiMit.passiveState?.activeAbilityReady) {
+                    const startedAbility = window.MITSGameRules.beginActiveAbility(aiMit);
+                    if (startedAbility) {
+                        const resultRoll = Math.random() < 0.25 ? 'perfecto' : Math.random() < 0.72 ? 'parcial' : 'fallo';
+                        let choice = null;
+                        if (startedAbility.passiveState.activeAbilityInProgress === 'reescritura_parametros') {
+                            choice = { kind: 'attack' };
+                        } else if (startedAbility.passiveState.activeAbilityInProgress === 'cambio_protocolo') {
+                            choice = { dFace: startedAbility.attackNums?.[0], aFace: startedAbility.evadeNums?.[0] };
+                        }
+                        const result = window.MITSGameRules.completeActiveAbility(startedAbility, resultRoll, choice);
+                        if (result.ok) {
+                            aiMit = result.mit;
+                            latestP2Mits[latestActiveP2Index] = aiMit;
+                            p2MitsRef.current = latestP2Mits;
+                            setP2Mits(latestP2Mits);
+                            result.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
+                        }
+                    }
+                }
 
                 aiTurnInProgressRef.current = true;
                 setIsTurnProcessing(true);
@@ -3484,16 +3539,20 @@
                     const turnStart = window.MITSGameRules.beginPassiveAttackTurn(aiMit);
                     const attackerAtTurnStart = { ...aiMit, passiveState: turnStart.state };
                     const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
+                    const rolledAttacker = window.MITSGameRules.consumeActiveAbilityRoll({
+                        ...attackerAtTurnStart,
+                        passiveState: passiveAttack.state
+                    });
                     const isHit = passiveAttack.hit;
                     const updatedAiMits = [...latestP2Mits];
-                    updatedAiMits[latestActiveP2Index] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    updatedAiMits[latestActiveP2Index] = rolledAttacker;
                     turnStart.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
                     passiveAttack.events.forEach(event => publishFloatingEffect({ player: 2, text: event, type: 'hit' }));
                     setP2Mits(updatedAiMits);
                     if (isHit) {
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
-                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: aiMit.passiveState?.counterSequence?.phase === 'SECOND' };
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: rolledAttacker.passiveState, counterChain: aiMit.passiveState?.counterSequence?.phase === 'SECOND' };
                         if (aiMit.passiveState?.counterSequence?.phase === 'FIRST') {
                             const latestP1Mits = p1MitsRef.current;
                             const latestActiveP1Mit = latestP1Mits[activeP1IndexRef.current] || {};
