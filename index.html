@@ -936,6 +936,7 @@
             const [abilityTestSequenceProgress, setAbilityTestSequenceProgress] = useState(0);
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
             const [abilityTestRapidCount, setAbilityTestRapidCount] = useState(0);
+            const abilityTestRapidCountRef = useRef(0);
             const [abilityTestPredictionTarget, setAbilityTestPredictionTarget] = useState(0);
             const [abilityTestTimingTarget, setAbilityTestTimingTarget] = useState({ left: 42, width: 16 });
             const abilityTestOverloadRef = useRef(null);
@@ -1025,6 +1026,7 @@
                 setAbilityTestSequenceProgress(0);
                 setAbilityTestOverload(0);
                 setAbilityTestRapidCount(0);
+                abilityTestRapidCountRef.current = 0;
                 setAbilityTestPredictionTarget(0);
                 setAbilityTestRoll(null);
                 setAbilityTestRollType('');
@@ -1202,6 +1204,7 @@
                     setAbilityTestMessage('SOBRECARGA · mantén pulsado y suelta en la zona óptima.');
                 } else if (data.game === 'rapid') {
                     setAbilityTestRapidCount(0);
+                    abilityTestRapidCountRef.current = 0;
                     setAbilityTestMinigame('rapid');
                     setAbilityTestMessage('RUPTURA · pulsa rápidamente hasta llenar el umbral.');
                     abilityTestRapidTimerRef.current = setTimeout(() => finishAbilityRapid(), 1200);
@@ -1286,7 +1289,7 @@
                     clearTimeout(abilityTestRapidTimerRef.current);
                     abilityTestRapidTimerRef.current = null;
                 }
-                const count = abilityTestRapidCount;
+                const count = abilityTestRapidCountRef.current;
                 const result = count >= 8 ? 'perfecto' : count >= 5 ? 'parcial' : 'fallo';
                 setAbilityTestMinigame(null);
                 setAbilityTestResult(result);
@@ -1295,17 +1298,16 @@
 
             const pressAbilityRapid = () => {
                 if (abilityTestMinigame !== 'rapid') return;
-                setAbilityTestRapidCount(count => {
-                    const next = count + 1;
-                    if (next >= 8) {
-                        if (abilityTestRapidTimerRef.current !== null) clearTimeout(abilityTestRapidTimerRef.current);
-                        abilityTestRapidTimerRef.current = null;
-                        setAbilityTestMinigame(null);
-                        setAbilityTestResult('perfecto');
-                        completeCombatAbility('perfecto');
-                    }
-                    return next;
-                });
+                const next = abilityTestRapidCountRef.current + 1;
+                abilityTestRapidCountRef.current = next;
+                setAbilityTestRapidCount(next);
+                if (next >= 8) {
+                    if (abilityTestRapidTimerRef.current !== null) clearTimeout(abilityTestRapidTimerRef.current);
+                    abilityTestRapidTimerRef.current = null;
+                    setAbilityTestMinigame(null);
+                    setAbilityTestResult('perfecto');
+                    completeCombatAbility('perfecto');
+                }
             };
 
             const chooseAbilityPrediction = index => {
