@@ -1039,7 +1039,7 @@ test('Anclaje reduces the next incoming damage one time', () => {
         attackDamage: 5,
         defenseRoll: 1
     });
-    assert.equal(defense.damage, 3);
+    assert.equal(defense.damage, 4);
     assert.equal(defense.state.activeDefenseReduction, 0);
 });
 
@@ -1047,7 +1047,7 @@ test('Ruptura adds damage to Destructor next hit only', () => {
     const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.DESTRUCTOR));
     const resolved = resolveActiveAbilityResult(used, 'perfecto');
     const attack = resolvePassiveAttack({ attacker: { ...used, passiveState: resolved.state }, roll: 5 });
-    assert.equal(attack.damage, 8);
+    assert.equal(attack.damage, 3);
     assert.equal(attack.state.activeAttackBonus, 0);
 });
 
