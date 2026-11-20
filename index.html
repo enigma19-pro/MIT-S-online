@@ -1249,6 +1249,14 @@
                     clearInterval(rollIntervalRef.current);
                     rollIntervalRef.current = null;
                 }
+                if (activeAbilityOverloadRafRef.current !== null) cancelAnimationFrame(activeAbilityOverloadRafRef.current);
+                activeAbilityOverloadRafRef.current = null;
+                activeAbilityOverloadPointerRef.current = null;
+                activeAbilitySessionRef.current = null;
+                if (activeAbilitySequenceTimerRef.current !== null) {
+                    clearTimeout(activeAbilitySequenceTimerRef.current);
+                    activeAbilitySequenceTimerRef.current = null;
+                }
                 if (aiTurnTimerRef.current !== null) {
                     clearTimeout(aiTurnTimerRef.current);
                     pendingTimeoutsRef.current.delete(aiTurnTimerRef.current);
@@ -1267,6 +1275,30 @@
                 activeP2IndexRef.current = activeP2Index;
                 currentTurnPlayerRef.current = currentTurnPlayer;
             }, [p1Mits, p2Mits, activeP1Index, activeP2Index, currentTurnPlayer]);
+
+            useEffect(() => {
+                if (activeAbilitySession?.minigame !== 'sequence' || !activeAbilitySequenceVisible) return;
+                const timer = setTimeout(() => setActiveAbilitySequenceVisible(false), 1050);
+                activeAbilitySequenceTimerRef.current = timer;
+                return () => {
+                    clearTimeout(timer);
+                    if (activeAbilitySequenceTimerRef.current === timer) activeAbilitySequenceTimerRef.current = null;
+                };
+            }, [activeAbilitySession, activeAbilitySequenceVisible]);
+
+            useEffect(() => {
+                if (gameState !== 'BATTLE' || activeAbilitySessionRef.current) return;
+                const playerNum = currentTurnPlayer;
+                if (gameMode === 'AI' && playerNum === 2) return;
+                if (gameMode === 'ONLINE' && playerNum !== (isRoomHost ? 1 : 2)) return;
+                const index = playerNum === 1 ? activeP1Index : activeP2Index;
+                const list = playerNum === 1 ? p1Mits : p2Mits;
+                const mit = list[index];
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                if (!state.activeAbilityInProgress) return;
+                const session = makeActiveAbilitySession(playerNum, index, mit);
+                if (session) configureActiveAbilityMinigame(session);
+            }, [gameState, gameMode, isRoomHost, currentTurnPlayer, activeP1Index, activeP2Index, p1Mits, p2Mits, activeAbilitySession]);
 
             useEffect(() => {
                 if (logContainerRef.current) {
@@ -2574,6 +2606,8 @@
                 // Evita arrastrar resultados, efectos o valores de dado de otra partida.
                 gameSessionRef.current += 1;
                 cancelGameTimers();
+                activeAbilityFinishingRef.current = false;
+                setActiveAbilitySession(null);
                 setGameState('BATTLE');
                 setP1Mits(p1);
                 setP2Mits(p2);
@@ -2619,6 +2653,15 @@
                 if (id === 'Resistente2') { const v = state.murallaHits === 0 ? '+1 recibido' : 'sin vulnerabilidad'; const r = Math.min(3, Math.max(0, state.murallaHits - 1)); items.push(`Revestimiento: ${state.murallaHits}/4 · ${v} · reducción ${r}`); }
                 if (id === 'Dano1') items.push(`Enfurecimiento: daño +${state.destructorBonus}`);
                 if (id === 'Dano2') items.push(state.counterSequence?.phase === 'FIRST' ? 'Contraataque: 1/2' : state.counterSequence?.phase === 'SECOND' ? 'Contraataque: 2/2' : state.counterCooldownTurns > 0 ? `Contraataque: enfriamiento ${state.counterCooldownTurns}` : 'Contraataque: listo');
+                const activeInfo = window.MITSGameRules.getActiveAbilityInfo(id);
+                if (state.activeAbilityAvailable && activeInfo) items.push(`${activeInfo.name}: OPORTUNIDAD LISTA`);
+                if (state.activeAbilityInProgress && activeInfo) items.push(`${activeInfo.name}: EN CURSO`);
+                if (state.activeAttackBonus > 0) items.push(`Bono de ataque activo: +${state.activeAttackBonus}`);
+                if (state.activeAttackReroll) items.push('Próximo ataque: repetición disponible');
+                if (state.activeDefenseReduction > 0) items.push(`Próxima defensa: −${state.activeDefenseReduction}`);
+                if (state.activeIncomingDamageBonus > 0) items.push(`Exposición: +${state.activeIncomingDamageBonus} daño`);
+                if (state.activeCounterBonus > 0) items.push(`Réplica: segundo golpe +${state.activeCounterBonus}`);
+                if (state.activeChoicePending) items.push('Reescritura: elige un parámetro');
                 return items;
             };
 
@@ -2870,7 +2913,8 @@
 
             // Attack Roll
             const handleAttackRoll = () => {
-                if (isRollingRef.current || isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL') return;
+                if (isRollingRef.current || isRolling || isTurnProcessing || combatPhase !== 'ATTACK_ROLL' ||
+                    activeAbilitySessionRef.current || currentAttacker.passiveState?.activeChoicePending) return;
                 if (currentTurnPlayerRef.current !== currentTurnPlayer) return;
                 if (gameMode === 'ONLINE' && currentTurnPlayer !== (isRoomHost ? 1 : 2)) return;
 
@@ -3348,7 +3392,8 @@
                 if (gameState !== 'BATTLE' || combatPhase !== 'ATTACK_ROLL' ||
                     isRollingRef.current || isRolling || isTurnProcessing ||
                     currentTurnPlayerRef.current !== currentTurnPlayer ||
-                    availableMitIndex === null || currentAttacker.passiveState?.counterSequence) {
+                    availableMitIndex === null || currentAttacker.passiveState?.counterSequence ||
+                    activeAbilitySessionRef.current || currentAttacker.passiveState?.activeChoicePending) {
                     return;
                 }
                 if (gameMode === 'ONLINE' &&
@@ -3389,6 +3434,36 @@
                 const latestActiveP2Index = activeP2IndexRef.current;
                 const aiMit = latestP2Mits[latestActiveP2Index];
                 if (!aiMit || !Array.isArray(aiMit.attackNums)) return;
+
+                const aiAbilityState = window.MITSGameRules.normalizePassiveState(aiMit);
+                if (aiAbilityState.activeAbilityAvailable && !aiAbilityState.activeAbilityUsed) {
+                    const consumed = window.MITSGameRules.consumeActiveAbilityOpportunity(aiMit);
+                    if (consumed) {
+                        const rollGrade = Math.random();
+                        const grade = rollGrade < 0.22 ? 'perfecto' : rollGrade < 0.82 ? 'parcial' : 'fallo';
+                        const outcome = window.MITSGameRules.resolveActiveAbilityResult(consumed, grade);
+                        let updatedMit = outcome ? { ...consumed, passiveState: outcome.state } : consumed;
+                        if (updatedMit.passiveState?.activeChoicePending) {
+                            const choice = aiMit.currentHp <= aiMit.maxHp * 0.4 ? 'defense' : 'attack';
+                            updatedMit = window.MITSGameRules.chooseActiveAbilityOption(updatedMit, choice) || updatedMit;
+                            if (outcome) outcome.events.push(`IA eligió ${choice === 'attack' ? 'Ataque' : 'Defensa'} en Reescritura`);
+                        }
+                        const nextMits = [...latestP2Mits];
+                        nextMits[latestActiveP2Index] = updatedMit;
+                        p2MitsRef.current = nextMits;
+                        setP2Mits(nextMits);
+                        const info = window.MITSGameRules.getActiveAbilityInfo(aiMit.classData?.id);
+                        const abilityLog = [...combatLog, {
+                            type: 'system',
+                            text: `IA ejecutó ${info?.name || 'su habilidad activa'}: ${grade.toUpperCase()}.`
+                        }];
+                        (outcome?.events || []).forEach(event => abilityLog.push({ type: 'system', text: event }));
+                        setCombatLog(abilityLog);
+                        publishFloatingEffect({ player: 2, text: `${info?.name || 'HABILIDAD'} · ${grade.toUpperCase()}`, type: 'hit' });
+                        scheduleGameTimeout(() => triggerAiTurn(), 650);
+                        return;
+                    }
+                }
 
                 aiTurnInProgressRef.current = true;
                 setIsTurnProcessing(true);
@@ -3455,6 +3530,8 @@
             const gameOver = async (winnerPlayerNum, logOverride = null) => {
                 gameSessionRef.current += 1;
                 cancelGameTimers();
+                setActiveAbilitySession(null);
+                activeAbilityFinishingRef.current = true;
                 isRollingRef.current = false;
                 setIsRolling(false);
                 setIsTurnProcessing(false);
