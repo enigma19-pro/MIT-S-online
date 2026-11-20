@@ -4978,7 +4978,17 @@
                                 </div>
 
                                 {/* ACTION CONTROL & DICE DISPLAY */}
-                                {gameState === 'BATTLE' && (
+                                {gameState === 'BATTLE' && combatAbilityLock && (
+                                    <div className="battle-controls glass-panel rounded-3xl p-4 border border-violet-500/30 bg-violet-950/20 text-center">
+                                        <div className="text-[10px] font-mono-custom tracking-[.2em] text-violet-300 uppercase">PROTOCOLO EN EJECUCIÓN</div>
+                                        <div className="mt-2 text-sm font-black text-slate-100">
+                                            {combatAbilityLock.playerNum === localCombatPlayer()
+                                                ? 'Ejecuta la habilidad del núcleo.'
+                                                : 'El rival está ejecutando una habilidad.'}
+                                        </div>
+                                    </div>
+                                )}
+                                {gameState === 'BATTLE' && !combatAbilityLock && (
                                     <div className="battle-controls glass-panel rounded-3xl p-5 border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center">
                                         <div className="text-xs font-mono-custom text-slate-400 flex items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
@@ -4995,10 +5005,12 @@
 
                                         <div className="battle-action-buttons w-full max-w-sm">
                                             {(
-                                                gameMode !== 'ONLINE' ||
-                                                (combatPhase === 'ATTACK_ROLL'
-                                                    ? currentTurnPlayer === (isRoomHost ? 1 : 2)
-                                                    : currentTurnPlayer !== (isRoomHost ? 1 : 2))
+                                                !combatAbilityLock && (
+                                                    gameMode !== 'ONLINE' ||
+                                                    (combatPhase === 'ATTACK_ROLL'
+                                                        ? currentTurnPlayer === (isRoomHost ? 1 : 2)
+                                                        : currentTurnPlayer !== (isRoomHost ? 1 : 2))
+                                                )
                                             ) && (
                                                 <>
                                             {combatPhase === 'ATTACK_ROLL' && (
