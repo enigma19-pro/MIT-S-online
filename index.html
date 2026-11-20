@@ -1233,12 +1233,9 @@
 
             const cancelCombatAbility = () => {
                 if (!combatAbilityPendingRef.current) return;
-                setCombatAbilityLock(null);
+                resetAbilityOverlay();
                 setShowCombatTest(false);
-                setAbilityTestMinigame(null);
-                setAbilityTestReady(false);
-                setAbilityTestResult(null);
-                setAbilityTestChoice(null);
+                setCombatAbilityLock(null);
                 // Salir del minijuego no consume la oportunidad.
                 combatAbilityPendingRef.current = null;
                 if (gameMode === 'ONLINE') syncOnline({ combatAbilityLock: null });
