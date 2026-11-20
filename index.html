@@ -406,7 +406,7 @@
         .active-ability-panel { width:min(100%,760px);background:linear-gradient(145deg,rgba(15,23,42,.98),rgba(7,14,27,.98)); }
         .active-ability-track { position:relative;height:58px;border-radius:14px;background:#020617;border:1px solid rgba(148,163,184,.22);overflow:hidden; }
         .active-ability-target { position:absolute;top:7px;bottom:7px;border-radius:8px;border:2px solid rgba(250,204,21,.9);background:rgba(250,204,21,.14);box-shadow:0 0 18px rgba(250,204,21,.16);pointer-events:none; }
-        .active-ability-cursor { position:absolute;top:4px;bottom:4px;width:4px;border-radius:4px;background:#f8fafc;box-shadow:0 0 12px rgba(255,255,255,.9);animation:active-ability-cursor 3.6s linear infinite alternate; }
+        .active-ability-cursor { position:absolute;top:4px;bottom:4px;width:4px;border-radius:4px;background:#f8fafc;box-shadow:0 0 12px rgba(255,255,255,.9);animation:active-ability-cursor 1.8s linear infinite alternate; }
         @keyframes active-ability-cursor { from { left:0%; } to { left:96%; } }
         .active-ability-sequence { display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px; }
         .active-ability-node { min-height:58px;border-radius:14px;border:1px solid rgba(148,163,184,.2);background:rgba(30,41,59,.75);font-family:'JetBrains Mono',monospace;font-weight:900;color:#cbd5e1; }
@@ -3992,6 +3992,82 @@
                                 </div>
                             </div>
                         )}
+
+                        {activeAbilitySession && (
+                            <div className="active-ability-overlay fixed inset-0 z-[120] flex items-center justify-center overflow-y-auto p-3 md:p-6">
+                                <section className="active-ability-panel glass-panel rounded-3xl border border-violet-400/30 p-4 md:p-7 shadow-2xl">
+                                    <header className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <div className="text-[9px] font-mono-custom tracking-[.24em] text-violet-300">PROTOCOLO ACTIVO · MIT {activeAbilitySession.classId}</div>
+                                            <h2 className="mt-1 text-2xl md:text-3xl font-black font-mono-custom text-white">{activeAbilitySession.name}</h2>
+                                            <p className="mt-2 text-xs leading-relaxed text-slate-400">La oportunidad se obtuvo durante el combate. El minijuego define la potencia del efecto.</p>
+                                        </div>
+                                        <button onClick={() => finishCombatAbility('fallo')} className="shrink-0 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-xs font-bold text-slate-300">Abortar ✕</button>
+                                    </header>
+
+                                    {(activeAbilitySession.minigame === 'timing' || activeAbilitySession.minigame === 'tracking' || activeAbilitySession.minigame === 'precision') && (
+                                        <div className="mt-6 space-y-5">
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-mono-custom tracking-[.24em] text-cyan-300">
+                                                    {activeAbilitySession.minigame === 'tracking' ? 'CONTROL DE TRAYECTORIA' : activeAbilitySession.minigame === 'precision' ? 'PRECISIÓN' : 'SINCRONIZACIÓN'}
+                                                </div>
+                                                <h3 className="mt-2 text-xl md:text-2xl font-black text-white">Detén el cursor dentro de la ventana</h3>
+                                                <p className="mt-2 text-xs text-slate-400">La zona cambia según el protocolo. Cuanto más cerca del centro, mejor será el resultado.</p>
+                                            </div>
+                                            <div className="active-ability-track">
+                                                <div className="active-ability-target" style={{ left: `${50 - activeAbilitySession.targetSize * 50}%`, width: `${activeAbilitySession.targetSize * 100}%` }} />
+                                                <div className="active-ability-cursor" />
+                                            </div>
+                                            <button onClick={finishActiveAbilityTiming} className="w-full rounded-xl bg-cyan-400 py-4 font-black text-slate-950 hover:bg-cyan-300">DETENER CURSOR</button>
+                                        </div>
+                                    )}
+
+                                    {activeAbilitySession.minigame === 'sequence' && (
+                                        <div className="mt-6 space-y-5">
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-mono-custom tracking-[.24em] text-violet-300">LECTURA / CALIBRACIÓN</div>
+                                                <h3 className="mt-2 text-xl md:text-2xl font-black text-white">Memoriza y repite la secuencia</h3>
+                                                <p className="mt-2 text-sm font-mono-custom text-violet-200">{activeAbilitySequenceVisible ? activeAbilitySequence.map(n => n + 1).join('  →  ') : 'Secuencia oculta · reproduce el orden'}</p>
+                                            </div>
+                                            <div className="active-ability-sequence">
+                                                {[0,1,2,3].map(i => (
+                                                    <button key={i} disabled={activeAbilitySequenceVisible} onClick={() => pressActiveAbilitySequenceNode(i)} className={'active-ability-node ' + (i < activeAbilitySequenceProgress ? 'done' : '')}>{i + 1}</button>
+                                                ))}
+                                            </div>
+                                            <div className="text-center text-[10px] font-mono-custom text-slate-500">PASO {Math.min(activeAbilitySequenceProgress + 1, activeAbilitySequence.length)} / {activeAbilitySequence.length}</div>
+                                        </div>
+                                    )}
+
+                                    {activeAbilitySession.minigame === 'overload' && (
+                                        <div className="mt-6 space-y-5">
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-mono-custom tracking-[.24em] text-rose-300">SOBRECARGA</div>
+                                                <h3 className="mt-2 text-xl md:text-2xl font-black text-white">Carga el núcleo y suelta</h3>
+                                                <p className="mt-2 text-xs text-slate-400">Zona óptima: 48–68%. Fuera de ella, la potencia disminuye.</p>
+                                            </div>
+                                            <div className="active-ability-overload" aria-label="Medidor de sobrecarga">
+                                                <div className="active-ability-overload-target" />
+                                                <span style={{ width: activeAbilityOverload + '%' }} />
+                                                <div className="active-ability-overload-marker" style={{ left: activeAbilityOverload + '%' }} />
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider">
+                                                <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO 48–68%</span><span className="text-rose-300">CRÍTICO</span>
+                                            </div>
+                                            <button
+                                                onPointerDown={e => { e.preventDefault(); if (activeAbilityOverloadPointerRef.current !== null) return; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} startActiveAbilityOverload(e); }}
+                                                onPointerUp={e => { e.preventDefault(); finishActiveAbilityOverload(e); }}
+                                                onPointerCancel={e => { e.preventDefault(); finishActiveAbilityOverload(e); }}
+                                                onLostPointerCapture={finishActiveAbilityOverload}
+                                                onContextMenu={e => e.preventDefault()}
+                                                style={{ touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' }}
+                                                className="w-full rounded-xl bg-rose-400 py-4 font-black text-slate-950 select-none"
+                                            >MANTENER / SOLTAR</button>
+                                        </div>
+                                    )}
+                                </section>
+                            </div>
+                        )}
+
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
                                 <div className="space-y-3">
@@ -4545,9 +4621,30 @@
                                                     : currentTurnPlayer !== (isRoomHost ? 1 : 2))
                                             ) && (
                                                 <>
+
+                                            {combatPhase === 'ATTACK_ROLL' && currentAttacker.passiveState?.activeAbilityAvailable &&
+                                                !currentAttacker.passiveState?.activeAbilityUsed &&
+                                                !(gameMode === 'AI' && currentTurnPlayer === 2) && (
+                                                <button
+                                                    disabled={isRolling || isTurnProcessing || !!activeAbilitySession}
+                                                    onClick={startCombatAbility}
+                                                    className="w-full mb-3 rounded-xl border border-violet-400/40 bg-violet-500/15 py-3 text-xs font-black uppercase tracking-wider text-violet-100 hover:bg-violet-500/25 disabled:opacity-50"
+                                                >
+                                                    ✦ Activar {window.MITSGameRules.getActiveAbilityInfo(currentAttacker.classData?.id)?.name || 'habilidad activa'}
+                                                </button>
+                                            )}
+
+                                            {combatPhase === 'ATTACK_ROLL' && currentAttacker.passiveState?.activeChoicePending &&
+                                                !(gameMode === 'AI' && currentTurnPlayer === 2) && (
+                                                <div className="mb-3 grid grid-cols-2 gap-2">
+                                                    <button onClick={() => chooseTechnicalAbilityOption('attack')} className="rounded-xl border border-amber-400/40 bg-amber-500/10 py-3 text-[10px] font-black text-amber-200">+{currentAttacker.passiveState.activeChoicePending === 'perfecto' ? 2 : 1} ATAQUE</button>
+                                                    <button onClick={() => chooseTechnicalAbilityOption('defense')} className="rounded-xl border border-cyan-400/40 bg-cyan-500/10 py-3 text-[10px] font-black text-cyan-200">−{currentAttacker.passiveState.activeChoicePending === 'perfecto' ? 2 : 1} DAÑO RECIBIDO</button>
+                                                </div>
+                                            )}
+
                                             {combatPhase === 'ATTACK_ROLL' && (
                                                 <button
-                                                    disabled={isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 2)}
+                                                    disabled={isRolling || isTurnProcessing || !!activeAbilitySession || !!currentAttacker.passiveState?.activeChoicePending || (gameMode === 'AI' && currentTurnPlayer === 2)}
                                                     onClick={handleAttackRoll}
                                                     className={`w-full py-4 rounded-2xl font-black text-base uppercase tracking-wider transition-all font-mono-custom ${
                                                         isRolling || isTurnProcessing || (gameMode === 'AI' && currentTurnPlayer === 2)
