@@ -4396,13 +4396,9 @@
                                     )}
 
                                     {!abilityTestResult && abilityTestReady && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
-                                        <div className="mt-4 space-y-3">
-                                            <div className="rounded-2xl border border-cyan-400/25 bg-cyan-500/5 p-3">
-                                                <div className="text-[9px] font-mono-custom uppercase tracking-widest text-cyan-300">¿USAR AHORA?</div>
-                                                <p className="mt-1 text-xs leading-relaxed text-slate-300">La oportunidad ya está guardada. Puedes ejecutarla ahora o salir y conservarla para otro turno.</p>
-                                            </div>
+                                        <div className="mt-4">
                                             <button onClick={startAbilityTest} className="w-full rounded-xl bg-cyan-400 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300 active:scale-[.99] transition">
-                                                INICIAR MINI JUEGO
+                                                INICIAR
                                             </button>
                                         </div>
                                     )}
@@ -4486,7 +4482,6 @@
                                             <div>
                                                 <div className="text-[9px] font-mono-custom tracking-[.25em] text-purple-300">LECTURA</div>
                                                 <div className="mt-1 text-xl font-black text-white">Predice el canal rival</div>
-                                                <div className="mt-1 text-[10px] text-slate-500">Elige una de las tres señales.</div>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2">
                                                 {[0,1,2].map(i => <button key={i} onClick={() => chooseAbilityPrediction(i)} className="ability-test-node py-4">CANAL {i + 1}</button>)}
