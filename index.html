@@ -870,7 +870,7 @@
             const [soundEnabled, setSoundEnabled] = useState(true);
             // Sandbox de movimiento: estado independiente del combate y de Firebase.
             const [showMovementTest, setShowMovementTest] = useState(false);
-            // Prototipo de habilidades: el dado genera la oportunidad; la prueba de habilidad ejecuta el efecto.
+            // Pruebas de movimiento: independientes del combate y de Firebase.
             const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
             const [testPlayerFacing, setTestPlayerFacing] = useState(0);
             const [testIsMoving, setTestIsMoving] = useState(false);
@@ -2036,6 +2036,8 @@
                 const firebase = window.MITSFirebase;
                 gameSessionRef.current += 1;
                 cancelGameTimers();
+                setActiveAbilitySession(null);
+                activeAbilityFinishingRef.current = true;
                 isRollingRef.current = false;
                 setIsRolling(false);
                 setIsTurnProcessing(false);
@@ -2243,6 +2245,8 @@
                     if (currentRoomStatus === 'gameover' && previousStatus !== currentRoomStatus) {
                         gameSessionRef.current += 1;
                         cancelGameTimers();
+                        setActiveAbilitySession(null);
+                        activeAbilityFinishingRef.current = true;
                         isRollingRef.current = false;
                         setIsRolling(false);
                         setIsTurnProcessing(false);
@@ -3573,6 +3577,8 @@
                 // Desactiva la sesión local y sus listeners antes de publicar la salida.
                 gameSessionRef.current += 1;
                 cancelGameTimers();
+                setActiveAbilitySession(null);
+                activeAbilityFinishingRef.current = true;
                 isRollingRef.current = false;
                 setIsRolling(false);
                 setIsTurnProcessing(false);
@@ -3673,6 +3679,8 @@
                 // Invalida callbacks antiguos y detiene cualquier tirada/temporizador pendiente.
                 gameSessionRef.current += 1;
                 cancelGameTimers();
+                setActiveAbilitySession(null);
+                activeAbilityFinishingRef.current = true;
                 isSubmittingMitRef.current = false;
 
                 // Se desuscribe antes de modificar la pertenencia: el invitado que
