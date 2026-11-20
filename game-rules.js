@@ -136,7 +136,16 @@
             murallaDamagedThisTurn: false,
             destructorBonus: 0,
             counterCooldownTurns: 0,
-            counterSequence: null
+            counterSequence: null,
+            activeAbilityOpportunity: null,
+            activeAbilityAttackBonus: 0,
+            activeAbilityDefenseReduction: 0,
+            activeAbilityDefensePierce: 0,
+            activeAbilityExtraTurn: false,
+            activeAbilitySwap: 0,
+            activeAbilityExposure: 0,
+            activeAbilityCounterBoost: 0,
+            activeAbilityPreviousFaceType: null
         };
     }
 
@@ -193,7 +202,18 @@
             murallaDamagedThisTurn: raw.murallaDamagedThisTurn === true,
             destructorBonus: safeCounter(raw.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1),
             counterCooldownTurns: safeCounter(raw.counterCooldownTurns, 0, 1),
-            counterSequence
+            counterSequence,
+            activeAbilityOpportunity: typeof raw.activeAbilityOpportunity === 'string' ? raw.activeAbilityOpportunity.slice(0, 32) : null,
+            activeAbilityAttackBonus: safeCounter(raw.activeAbilityAttackBonus, 0, 10),
+            activeAbilityDefenseReduction: safeCounter(raw.activeAbilityDefenseReduction, 0, 5),
+            activeAbilityDefensePierce: safeCounter(raw.activeAbilityDefensePierce, 0, 5),
+            activeAbilityExtraTurn: raw.activeAbilityExtraTurn === true,
+            activeAbilitySwap: safeCounter(raw.activeAbilitySwap, 0, 1),
+            activeAbilityExposure: safeCounter(raw.activeAbilityExposure, 0, 5),
+            activeAbilityCounterBoost: safeCounter(raw.activeAbilityCounterBoost, 0, 5),
+            activeAbilityPreviousFaceType: raw.activeAbilityPreviousFaceType === 'D' || raw.activeAbilityPreviousFaceType === 'A'
+                ? raw.activeAbilityPreviousFaceType
+                : null
         };
     }
 
@@ -212,9 +232,15 @@
 
     function resolvePassiveAttack({ attacker, roll, random = Math.random } = {}) {
         const state = passiveState(attacker);
-        const faces = Array.isArray(attacker?.attackNums)
+        const normalAttackFaces = Array.isArray(attacker?.attackNums)
             ? attacker.attackNums.map(parseDieFace).filter(face => face !== null)
             : [];
+        const normalEvadeFaces = Array.isArray(attacker?.evadeNums)
+            ? attacker.evadeNums.map(parseDieFace).filter(face => face !== null)
+            : [];
+        const faces = state.activeAbilitySwap > 0 && normalEvadeFaces.length > 0
+            ? normalEvadeFaces
+            : normalAttackFaces;
         // Ultra Impulso solo puede activarse si conserva al menos una cara D
         // válida. Nunca convierte una distribución corrupta en un golpe NaN.
         const ultra = state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO &&
@@ -236,6 +262,22 @@
             damage += bonus;
             next.technicalAttackBonus = 0;
             events.push(`Técnico aplicó Ataque +${bonus} y gastó sus cargas`);
+        }
+        if (state.activeAbilityAttackBonus > 0 && hit) {
+            const bonus = state.activeAbilityAttackBonus;
+            damage += bonus;
+            next.activeAbilityAttackBonus = 0;
+            events.push(`Habilidad activa aplicó Ataque +${bonus}`);
+        }
+        if (state.counterSequence && state.activeAbilityCounterBoost > 0 && hit) {
+            const bonus = state.activeAbilityCounterBoost;
+            damage += bonus;
+            next.activeAbilityCounterBoost = 0;
+            events.push(`Réplica reforzó el contraataque +${bonus}`);
+        }
+        if (state.activeAbilitySwap > 0) {
+            next.activeAbilitySwap = 0;
+            events.push('Cambio de Protocolo: se usaron las caras intercambiadas');
         }
         if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
             const bonus = safeCounter(state.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
@@ -308,6 +350,24 @@
                 next.technicalDefenseBonus = 0;
                 events.push(`Técnico aplicó Defensa +${bonus} y gastó sus cargas`);
             }
+        }
+        if (!forceHit && !shadow && damage > 0 && state.activeAbilityDefenseReduction > 0) {
+            const reduction = state.activeAbilityDefenseReduction;
+            damage = Math.max(0, damage - reduction);
+            next.activeAbilityDefenseReduction = 0;
+            events.push(`Habilidad activa redujo ${reduction} de daño`);
+        }
+        if (!forceHit && !shadow && damage > 0 && attackState.activeAbilityDefensePierce > 0) {
+            const pierce = attackState.activeAbilityDefensePierce;
+            damage = Math.min(rawAttackDamage, damage + pierce);
+            attackState.activeAbilityDefensePierce = 0;
+            events.push(`Ruptura ignoró ${pierce} de defensa`);
+        }
+        if (!forceHit && !shadow && damage > 0 && state.activeAbilityExposure > 0) {
+            const exposure = state.activeAbilityExposure;
+            damage += exposure;
+            next.activeAbilityExposure = 0;
+            events.push(`Sobrecarga expuso al núcleo: +${exposure} daño recibido`);
         }
         // Evasivo uses the normal damage calculation. It only gains a charge
         // when that normal calculation leaves it with 0 or 1 damage.
@@ -414,7 +474,15 @@
                 murallaQuietTurns: 0,
                 murallaDamagedThisTurn: false,
                 counterCooldownTurns: 0,
-                counterSequence: null
+                counterSequence: null,
+                activeAbilityOpportunity: null,
+                activeAbilityAttackBonus: 0,
+                activeAbilityDefenseReduction: 0,
+                activeAbilityDefensePierce: 0,
+                activeAbilityExtraTurn: false,
+                activeAbilitySwap: 0,
+                activeAbilityExposure: 0,
+                activeAbilityCounterBoost: 0
             }
         };
     }
@@ -440,7 +508,10 @@
                 shadowInvulnerableTurns: 0, technicalAttackBonus: 0,
                 technicalDefenseBonus: 0, adaptabilityCharges: 0,
                 murallaHits: 0, murallaQuietTurns: 0, murallaDamagedThisTurn: false, destructorBonus: 0,
-                counterCooldownTurns: 0, counterSequence: null }
+                counterCooldownTurns: 0, counterSequence: null,
+                activeAbilityOpportunity: null, activeAbilityAttackBonus: 0, activeAbilityDefenseReduction: 0,
+                activeAbilityDefensePierce: 0, activeAbilityExtraTurn: false, activeAbilitySwap: 0,
+                activeAbilityExposure: 0, activeAbilityCounterBoost: 0, activeAbilityPreviousFaceType: null }
         };
     }
 
