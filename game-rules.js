@@ -121,6 +121,24 @@
         DESTRUCTOR: 'Dano1', DUELISTA: 'Dano2'
     });
 
+    const ACTIVE_ABILITY_IDS = Object.freeze({
+        EVASIVO: 'vector_fantasma', MOVIL: 'impulso_cinetico',
+        TECNICO: 'reescritura_parametros', VERSATIL: 'cambio_protocolo',
+        BERSERKER: 'sobrecarga', MURALLA: 'anclaje',
+        DESTRUCTOR: 'ruptura', DUELISTA: 'replica'
+    });
+
+    const ACTIVE_ABILITY_NAMES = Object.freeze({
+        vector_fantasma: 'Vector Fantasma',
+        impulso_cinetico: 'Impulso Cinético',
+        reescritura_parametros: 'Reescritura de Parámetros',
+        cambio_protocolo: 'Cambio de Protocolo',
+        sobrecarga: 'Sobrecarga',
+        anclaje: 'Anclaje',
+        ruptura: 'Ruptura',
+        replica: 'Réplica'
+    });
+
     function createPassiveState(classId) {
         return {
             passiveClassId: classId || null,
@@ -136,7 +154,19 @@
             murallaDamagedThisTurn: false,
             destructorBonus: 0,
             counterCooldownTurns: 0,
-            counterSequence: null
+            counterSequence: null,
+            activeAbilityReady: null,
+            activeAbilityInProgress: null,
+            activeAbilityCooldownTurns: 0,
+            activeLastRollType: null,
+            activeAttackBonus: 0,
+            activeDamageReduction: 0,
+            activeIncomingRisk: 0,
+            activePierce: 0,
+            activeChain: 0,
+            activeChainPendingEnd: false,
+            activeCounterBonus: 0,
+            versatileSwap: null
         };
     }
 
@@ -193,8 +223,64 @@
             murallaDamagedThisTurn: raw.murallaDamagedThisTurn === true,
             destructorBonus: safeCounter(raw.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1),
             counterCooldownTurns: safeCounter(raw.counterCooldownTurns, 0, 1),
-            counterSequence
+            counterSequence,
+            activeAbilityReady: isExpectedActiveAbility(classId, raw.activeAbilityReady) ? raw.activeAbilityReady : null,
+            activeAbilityInProgress: isExpectedActiveAbility(classId, raw.activeAbilityInProgress) ? raw.activeAbilityInProgress : null,
+            activeAbilityCooldownTurns: safeCounter(raw.activeAbilityCooldownTurns, 0, 2),
+            activeLastRollType: raw.activeLastRollType === 'D' || raw.activeLastRollType === 'A' ? raw.activeLastRollType : null,
+            activeAttackBonus: safeCounter(raw.activeAttackBonus, 0, 20),
+            activeDamageReduction: safeCounter(raw.activeDamageReduction, 0, 20),
+            activeIncomingRisk: safeCounter(raw.activeIncomingRisk, 0, 20),
+            activePierce: safeCounter(raw.activePierce, 0, 6),
+            activeChain: safeCounter(raw.activeChain, 0, 1),
+            activeChainPendingEnd: raw.activeChainPendingEnd === true,
+            activeCounterBonus: safeCounter(raw.activeCounterBonus, 0, 20),
+            versatileSwap: normalizeVersatileSwap(raw.versatileSwap)
         };
+    }
+
+    function activeAbilityForClass(classId) {
+        const key = Object.keys(PASSIVE_CLASS_IDS).find(name => PASSIVE_CLASS_IDS[name] === classId);
+        return key ? ACTIVE_ABILITY_IDS[key] : null;
+    }
+
+    function isExpectedActiveAbility(classId, value) {
+        return !!value && value === activeAbilityForClass(classId);
+    }
+
+    function normalizeVersatileSwap(raw) {
+        if (!raw || typeof raw !== 'object') return null;
+        const parseFaces = values => Array.isArray(values) ? values.map(parseDieFace).filter(value => value !== null) : [];
+        const originalAttackNums = parseFaces(raw.originalAttackNums);
+        const originalEvadeNums = parseFaces(raw.originalEvadeNums);
+        const all = [...originalAttackNums, ...originalEvadeNums];
+        const remainingRolls = safeCounter(raw.remainingRolls, 0, 2);
+        if (originalAttackNums.length < 1 || originalEvadeNums.length < 1 ||
+            all.length !== 6 || new Set(all).size !== 6 || remainingRolls < 1) return null;
+        return { originalAttackNums, originalEvadeNums, remainingRolls };
+    }
+
+    function grantActiveAbility(state, events) {
+        const abilityId = activeAbilityForClass(state.passiveClassId);
+        if (!abilityId || state.activeAbilityReady || state.activeAbilityInProgress ||
+            state.activeAbilityCooldownTurns > 0) return false;
+        state.activeAbilityReady = abilityId;
+        if (Array.isArray(events)) events.push(`${ACTIVE_ABILITY_NAMES[abilityId]}: oportunidad disponible`);
+        return true;
+    }
+
+    function registerVersatileRoll(state, mit, roll, events) {
+        if (state.passiveClassId !== PASSIVE_CLASS_IDS.VERSATIL) return;
+        const face = parseDieFace(roll);
+        if (face === null) return;
+        const attackFaces = Array.isArray(mit?.attackNums) ? mit.attackNums.map(parseDieFace) : [];
+        const evadeFaces = Array.isArray(mit?.evadeNums) ? mit.evadeNums.map(parseDieFace) : [];
+        const type = evadeFaces.includes(face) ? 'A' : attackFaces.includes(face) ? 'D' : null;
+        if (!type) return;
+        if (state.activeLastRollType && state.activeLastRollType !== type) {
+            grantActiveAbility(state, events);
+        }
+        state.activeLastRollType = type;
     }
 
     function beginPassiveAttackTurn(mit, random = Math.random) {
@@ -226,6 +312,18 @@
         let damage = hit && selectedRoll !== null ? selectedRoll : 0;
         const events = [];
         const next = { ...state };
+        if (!ultra) registerVersatileRoll(next, attacker, roll, events);
+        if (!ultra && hit && next.passiveClassId === PASSIVE_CLASS_IDS.TECNICO &&
+            faces.length > 0 && selectedRoll === Math.max(...faces)) {
+            grantActiveAbility(next, events);
+        }
+        const currentHp = Number(attacker?.currentHp);
+        const maxHp = Number(attacker?.maxHp);
+        if (!ultra && hit && next.passiveClassId === PASSIVE_CLASS_IDS.BERSERKER &&
+            Number.isFinite(currentHp) && Number.isFinite(maxHp) && maxHp > 0 &&
+            currentHp <= maxHp / 2) {
+            grantActiveAbility(next, events);
+        }
         if (ultra) {
             damage += 1;
             next.ultraCharges = 0;
@@ -237,9 +335,24 @@
             next.technicalAttackBonus = 0;
             events.push(`Técnico aplicó Ataque +${bonus} y gastó sus cargas`);
         }
-        if (hit && state.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
-            const bonus = safeCounter(state.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
+        if (hit && next.passiveClassId === PASSIVE_CLASS_IDS.DESTRUCTOR) {
+            const bonus = safeCounter(next.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1);
             damage = Math.min(Number.MAX_SAFE_INTEGER, 1 + bonus);
+        }
+        if (hit && next.activeAttackBonus > 0) {
+            damage = Math.min(Number.MAX_SAFE_INTEGER, damage + next.activeAttackBonus);
+            events.push(`Habilidad activa: Ataque +${next.activeAttackBonus}`);
+            next.activeAttackBonus = 0;
+        }
+        if (hit && next.counterSequence?.phase === 'FIRST' && next.activeCounterBonus > 0) {
+            damage = Math.min(Number.MAX_SAFE_INTEGER, damage + next.activeCounterBonus);
+            events.push(`Réplica: contraataque +${next.activeCounterBonus}`);
+            next.activeCounterBonus = 0;
+        }
+        if (hit && next.activeChain > 0) {
+            next.activeChain = 0;
+            next.activeChainPendingEnd = true;
+            events.push('Impulso Cinético: turno adicional preparado');
         }
         return { hit, roll: selectedRoll, damage, state: next, events, unstoppable: ultra };
     }
@@ -248,6 +361,9 @@
         const attackState = passiveState(attacker);
         const state = passiveState(defender);
         const events = [];
+        const nextAttacker = { ...attackState };
+        const next = { ...state };
+        if (!forceHit) registerVersatileRoll(next, defender, defenseRoll, events);
         const isUltra = unstoppable === true;
         const shadow = state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && state.shadowInvulnerableTurns > 0 && !isUltra && !forceHit;
         const base = resolveDefense({
@@ -265,16 +381,21 @@
             && state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA
             && base.isEvadeNumber
             && rawAttackDamage > 0;
-        let damage = isUltra
+        let normalDamage = isUltra
             ? rawAttackDamage
             : shadow
                 ? 0
                 : berserkerPhaseTwoDodge
                     ? 0
-                    : duelistaDefense
-                        ? Math.min(1, base.finalDamageTaken)
-                        : base.finalDamageTaken;
-        let next = { ...state };
+                    : base.finalDamageTaken;
+        if (!isUltra && !shadow && !forceHit && !berserkerPhaseTwoDodge &&
+            base.isEvadeNumber && nextAttacker.activePierce > 0) {
+            const face = parseDieFace(defenseRoll);
+            normalDamage = Math.max(0, rawAttackDamage - Math.max(0, face - nextAttacker.activePierce));
+            events.push(`Ruptura atravesó ${nextAttacker.activePierce} puntos de esquive`);
+            nextAttacker.activePierce = 0;
+        }
+        let damage = duelistaDefense ? Math.min(1, normalDamage) : normalDamage;
         if (berserkerPhaseTwoDodge) {
             events.push('Berserker Fase 2: esquive perfecto');
         }
@@ -309,6 +430,18 @@
                 events.push(`Técnico aplicó Defensa +${bonus} y gastó sus cargas`);
             }
         }
+        if (!forceHit && !shadow && damage > 0 && next.activeDamageReduction > 0) {
+            const reduction = next.activeDamageReduction;
+            damage = Math.max(0, damage - reduction);
+            next.activeDamageReduction = 0;
+            events.push(`Habilidad activa: Anclaje/reestructuración redujo ${reduction} de daño`);
+        }
+        if (!forceHit && !shadow && damage > 0 && next.activeIncomingRisk > 0) {
+            const risk = next.activeIncomingRisk;
+            damage = Math.min(Number.MAX_SAFE_INTEGER, damage + risk);
+            next.activeIncomingRisk = 0;
+            events.push(`Sobrecarga: el impacto aumentó ${risk} de daño`);
+        }
         // Evasivo uses the normal damage calculation. It only gains a charge
         // when that normal calculation leaves it with 0 or 1 damage.
         const evasivoChargeEligible = successfulEvade &&
@@ -323,16 +456,23 @@
             next.shadowCooldownTurns = 2;
             events.push('Sombra activada: invulnerable durante 2 turnos rivales; el cooldown de 2 turnos propios empezará al terminar Sombra');
         }
+        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO && damage <= 1) {
+            grantActiveAbility(next, events);
+        }
+        if (successfulEvade && state.passiveClassId === PASSIVE_CLASS_IDS.MOVIL && damage === 0) {
+            grantActiveAbility(next, events);
+        }
         // Ultra Impulso no puede activar una defensa de contraataque:
         // el primer golpe del Duelista tampoco puede encadenar otra secuencia.
         const triggersCounter = allowCounterTrigger && !isUltra && !forceHit &&
             state.passiveClassId === PASSIVE_CLASS_IDS.DUELISTA &&
             duelistaDefense && !state.counterSequence && state.counterCooldownTurns <= 0 && damage <= 1;
+        if (triggersCounter) grantActiveAbility(next, events);
         return {
             damage, fullyDodged, isEvadeNumber: base.isEvadeNumber,
             state: next, events, triggersCounter,
             shadowNullified: shadow,
-            attackerState: attackState
+            attackerState: nextAttacker
         };
     }
 
@@ -349,6 +489,7 @@
                 safeCounter(attackerState.destructorBonus, 0, Number.MAX_SAFE_INTEGER - 1) + 1
             );
             events.push(`Enfurecimiento: daño permanente +${nextAttacker.destructorBonus}`);
+            grantActiveAbility(nextAttacker, events);
         }
         if (actualLoss > 0 && defenderState.passiveClassId === PASSIVE_CLASS_IDS.VERSATIL) {
             nextDefender.adaptabilityCharges = Math.min(2, defenderState.adaptabilityCharges + 1);
@@ -359,6 +500,7 @@
             nextDefender.murallaQuietTurns = 0;
             nextDefender.murallaDamagedThisTurn = true;
             events.push(`Revestimiento: ${nextDefender.murallaHits}/4 impactos`);
+            grantActiveAbility(nextDefender, events);
         }
         if (actualLoss === 0 && fullyDodged && defenderState.passiveClassId === PASSIVE_CLASS_IDS.EVASIVO) {
             // The dodge charge is awarded in resolvePassiveDefense.
@@ -395,6 +537,7 @@
         if (opponentTurnEnded && state.shadowInvulnerableTurns > 0) next.shadowInvulnerableTurns = Math.max(0, state.shadowInvulnerableTurns - 1);
         if (ownTurnEnded && state.shadowInvulnerableTurns <= 0 && state.shadowCooldownTurns > 0) next.shadowCooldownTurns = Math.max(0, state.shadowCooldownTurns - 1);
         if (opponentTurnEnded && state.counterCooldownTurns > 0) next.counterCooldownTurns = Math.max(0, state.counterCooldownTurns - 1);
+        if (ownTurnEnded && state.activeAbilityCooldownTurns > 0) next.activeAbilityCooldownTurns = Math.max(0, state.activeAbilityCooldownTurns - 1);
         return { state: next, events };
     }
 
@@ -414,7 +557,19 @@
                 murallaQuietTurns: 0,
                 murallaDamagedThisTurn: false,
                 counterCooldownTurns: 0,
-                counterSequence: null
+                counterSequence: null,
+                activeAbilityReady: null,
+                activeAbilityInProgress: null,
+                activeAbilityCooldownTurns: 0,
+                activeLastRollType: null,
+                activeAttackBonus: 0,
+                activeDamageReduction: 0,
+                activeIncomingRisk: 0,
+                activePierce: 0,
+                activeChain: 0,
+                activeChainPendingEnd: false,
+                activeCounterBonus: 0,
+                versatileSwap: null
             }
         };
     }
@@ -444,6 +599,88 @@
         };
     }
 
+
+    function beginActiveAbility(mit) {
+        const state = passiveState(mit);
+        if (!state.activeAbilityReady || state.activeAbilityCooldownTurns > 0 || state.activeAbilityInProgress) return null;
+        return { ...mit, passiveState: { ...state, activeAbilityInProgress: state.activeAbilityReady, activeAbilityReady: null } };
+    }
+
+    function declineActiveAbility(mit) {
+        const state = passiveState(mit);
+        if (!state.activeAbilityReady) return mit;
+        return { ...mit, passiveState: { ...state, activeAbilityReady: null } };
+    }
+
+    function completeActiveAbility(mit, result, choice = null) {
+        const state = passiveState(mit);
+        const abilityId = state.activeAbilityInProgress;
+        if (!abilityId || !['perfecto', 'parcial', 'fallo'].includes(result)) return { ok: false, mit, events: [] };
+        const next = { ...state, activeAbilityInProgress: null, activeAbilityCooldownTurns: 2 };
+        const amount = result === 'perfecto' ? 2 : result === 'parcial' ? 1 : 0;
+        const events = [];
+        if (result === 'fallo') {
+            events.push(`${ACTIVE_ABILITY_NAMES[abilityId]}: oportunidad perdida`);
+            return { ok: true, mit: { ...mit, passiveState: next }, events };
+        }
+
+        if (abilityId === ACTIVE_ABILITY_IDS.EVASIVO) {
+            next.activeAttackBonus = Math.min(20, next.activeAttackBonus + amount);
+        } else if (abilityId === ACTIVE_ABILITY_IDS.MOVIL) {
+            if (result === 'perfecto') next.activeChain = 1;
+            else next.activeAttackBonus = Math.min(20, next.activeAttackBonus + 1);
+        } else if (abilityId === ACTIVE_ABILITY_IDS.TECNICO) {
+            if (choice?.kind === 'attack') next.activeAttackBonus = Math.min(20, next.activeAttackBonus + amount);
+            else if (choice?.kind === 'defense') next.activeDamageReduction = Math.min(20, next.activeDamageReduction + amount);
+            else return { ok: false, mit, events: [] };
+        } else if (abilityId === ACTIVE_ABILITY_IDS.VERSATIL) {
+            const attackNums = Array.isArray(mit.attackNums) ? mit.attackNums.map(parseDieFace).filter(face => face !== null) : [];
+            const evadeNums = Array.isArray(mit.evadeNums) ? mit.evadeNums.map(parseDieFace).filter(face => face !== null) : [];
+            const dFace = parseDieFace(choice?.dFace);
+            const aFace = parseDieFace(choice?.aFace);
+            const all = [...attackNums, ...evadeNums];
+            if (!attackNums.includes(dFace) || !evadeNums.includes(aFace) || all.length !== 6 || new Set(all).size !== 6) {
+                return { ok: false, mit, events: [] };
+            }
+            next.versatileSwap = {
+                originalAttackNums: [...attackNums],
+                originalEvadeNums: [...evadeNums],
+                remainingRolls: result === 'perfecto' ? 2 : 1
+            };
+            mit = {
+                ...mit,
+                attackNums: attackNums.filter(face => face !== dFace).concat(aFace).sort((a,b) => a-b),
+                evadeNums: evadeNums.filter(face => face !== aFace).concat(dFace).sort((a,b) => a-b)
+            };
+        } else if (abilityId === ACTIVE_ABILITY_IDS.BERSERKER) {
+            next.activeAttackBonus = Math.min(20, next.activeAttackBonus + (result === 'perfecto' ? 3 : 1));
+            if (result === 'perfecto') next.activeIncomingRisk = Math.min(20, next.activeIncomingRisk + 2);
+        } else if (abilityId === ACTIVE_ABILITY_IDS.MURALLA) {
+            next.activeDamageReduction = Math.min(20, next.activeDamageReduction + amount);
+        } else if (abilityId === ACTIVE_ABILITY_IDS.DESTRUCTOR) {
+            next.activePierce = Math.min(6, next.activePierce + amount);
+        } else if (abilityId === ACTIVE_ABILITY_IDS.DUELISTA) {
+            next.activeCounterBonus = Math.min(20, next.activeCounterBonus + amount);
+        }
+        events.push(`${ACTIVE_ABILITY_NAMES[abilityId]} ejecutada · ${result === 'perfecto' ? 'resultado perfecto' : 'resultado parcial'}`);
+        return { ok: true, mit: { ...mit, passiveState: next }, events };
+    }
+
+    function consumeActiveAbilityRoll(mit) {
+        const state = passiveState(mit);
+        const swap = state.versatileSwap;
+        if (!swap) return mit;
+        if (swap.remainingRolls > 1) {
+            return { ...mit, passiveState: { ...state, versatileSwap: { ...swap, remainingRolls: swap.remainingRolls - 1 } } };
+        }
+        return {
+            ...mit,
+            attackNums: [...swap.originalAttackNums],
+            evadeNums: [...swap.originalEvadeNums],
+            passiveState: { ...state, versatileSwap: null }
+        };
+    }
+
     return Object.freeze({
         isSuccessfulAttack,
         resolveDefense,
@@ -459,6 +696,12 @@
         applyPassiveDamageConsequences,
         advancePassiveTurn,
         clearTemporaryPassiveEffects,
-        activateBerserkerSecondPhase
+        activateBerserkerSecondPhase,
+        ACTIVE_ABILITY_IDS,
+        ACTIVE_ABILITY_NAMES,
+        beginActiveAbility,
+        declineActiveAbility,
+        completeActiveAbility,
+        consumeActiveAbilityRoll
     });
 }));
