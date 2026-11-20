@@ -4376,14 +4376,12 @@
                                         <div className="min-w-0">
                                             <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · HABILIDAD</div>
                                             <h2 className="mt-1 text-lg md:text-xl font-black font-mono-custom text-white">{abilityTestCurrent.ability}</h2>
-                                            <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{abilityTestCurrent.trigger}</p>
                                         </div>
                                         <button onClick={cancelCombatAbility} className="shrink-0 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-bold text-slate-300 hover:border-rose-400/40 hover:text-rose-200 transition">SALIR</button>
                                     </header>
 
                                     {abilityTestResult && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
                                         <div className="ability-result-card mt-4 rounded-2xl border border-cyan-400/30 bg-cyan-500/5 p-4 text-center">
-                                            <div className="text-[9px] font-mono-custom font-bold tracking-[.25em] text-slate-400">RESULTADO DEL PROTOCOLO</div>
                                             <div className={"mt-2 text-2xl font-black font-mono-custom uppercase " + (
                                                 abilityTestResult === 'perfecto'
                                                     ? 'text-emerald-300'
@@ -4422,7 +4420,6 @@
                                             <div className="text-center">
                                                 <div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div>
                                                 <div className="mt-1 text-xl font-black text-white">Detén el cursor en la zona</div>
-                                                <div className="mt-1 text-[10px] text-slate-500">Busca el centro de la franja para obtener el resultado máximo.</div>
                                             </div>
                                             <div className="ability-test-track">
                                                 <div className="ability-test-target" style={{left: abilityTestTimingTarget.left + '%', width: abilityTestTimingTarget.width + '%'}} />
@@ -4437,7 +4434,6 @@
                                             <div className="text-center">
                                                 <div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div>
                                                 <div className="mt-1 text-xl font-black text-white">Repite la secuencia</div>
-                                                <div className="mt-1 text-[10px] text-slate-500">Pulsa los nodos en el orden indicado.</div>
                                                 <div className="mt-1 text-[10px] text-slate-500">Orden: {abilityTestSequence.map(n => n + 1).join(' → ')}</div>
                                             </div>
                                             <div className="grid grid-cols-3 gap-2">
@@ -4453,7 +4449,6 @@
                                             <div className="text-center">
                                                 <div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div>
                                                 <div className="mt-1 text-xl font-black text-white">Carga el núcleo y suelta</div>
-                                                <div className="mt-1 text-[10px] text-slate-500">Mantén pulsado y suelta dentro de la zona óptima.</div>
                                             </div>
                                             <div className="ability-test-overload" aria-label="Medidor de sobrecarga">
                                                 <div className="ability-test-overload-target" />
@@ -4480,7 +4475,6 @@
                                             <div>
                                                 <div className="text-[9px] font-mono-custom tracking-[.25em] text-amber-300">RUPTURA</div>
                                                 <div className="mt-1 text-xl font-black text-white">Rompe el blindaje</div>
-                                                <div className="mt-1 text-[10px] text-slate-500">Alcanza 8 pulsaciones antes de que termine el tiempo.</div>
                                             </div>
                                             <div className="text-5xl font-black font-mono-custom text-amber-300">{abilityTestRapidCount}<span className="text-slate-600 text-2xl"> / 8</span></div>
                                             <button onClick={pressAbilityRapid} className="w-full rounded-xl bg-amber-400 py-4 text-lg font-black text-slate-950 active:scale-95">IMPACTAR</button>
@@ -5073,9 +5067,8 @@
                                                 >
                                                     <div className="flex items-center justify-between gap-3">
                                                         <div>
-                                                            <div className="text-[9px] font-mono-custom font-bold tracking-[.2em] text-violet-300">HABILIDAD DISPONIBLE</div>
+                                                            <div className="text-[9px] font-mono-custom font-bold tracking-[.2em] text-violet-300">HABILIDAD</div>
                                                             <div className="mt-1 text-sm font-black text-white">{savedAbility.data.ability}</div>
-                                                            <div className="mt-1 text-[10px] text-slate-400">Guardada en {savedAbility.mit.name} · pulsa para usarla</div>
                                                         </div>
                                                         <span className="shrink-0 rounded-xl bg-violet-400 px-3 py-2 text-[10px] font-black text-slate-950">USAR</span>
                                                     </div>
