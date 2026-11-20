@@ -3568,8 +3568,18 @@
                     publishFloatingEffect({ player: defenderPlayerNum, text: '¡CONTRAATAQUE!', type: 'hit' });
                 }
 
+                p1MitsRef.current = updatedP1;
+                p2MitsRef.current = updatedP2;
                 setP1Mits(updatedP1);
                 setP2Mits(updatedP2);
+
+                const attackerIndexForAbility = attackerPlayerNum === 1 ? currentActiveP1Index : currentActiveP2Index;
+                const attackerListForAbility = attackerPlayerNum === 1 ? updatedP1 : updatedP2;
+                const attackerAfterDamage = attackerListForAbility[attackerIndexForAbility];
+                const destructorOpportunity = !defeated &&
+                    Number(hpLost || 0) > 0 &&
+                    attackerAfterDamage?.classData?.id === 'Dano1' &&
+                    !window.MITSGameRules.normalizePassiveState(attackerAfterDamage).activeAbilityOpportunity;
 
                 if (gameMode === 'ONLINE') {
                     const nextLog = logOverride || combatLog;
@@ -3582,6 +3592,20 @@
 
                 if (defeated) {
                     handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2, logOverride, { p1Mits: updatedP1, p2Mits: updatedP2 });
+                    return;
+                }
+
+                if (destructorOpportunity) {
+                    openCombatAbility({
+                        playerNum: attackerPlayerNum,
+                        index: attackerIndexForAbility,
+                        abilityId: 'Dano1',
+                        resume: () => {
+                            const latestP1 = p1MitsRef.current;
+                            const latestP2 = p2MitsRef.current;
+                            endTurn(attackerPlayerNum, logOverride, { p1Mits: latestP1, p2Mits: latestP2 });
+                        }
+                    });
                     return;
                 }
 
