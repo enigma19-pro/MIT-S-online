@@ -922,25 +922,402 @@
             const [soundEnabled, setSoundEnabled] = useState(true);
             // Sandbox de movimiento: estado independiente del combate y de Firebase.
             const [showMovementTest, setShowMovementTest] = useState(false);
+            // Habilidades activas: el dado crea la oportunidad y el minijuego decide su ejecución.
             const [showCombatTest, setShowCombatTest] = useState(false);
-            const [combatTestMessage, setCombatTestMessage] = useState('¡Un MIT salvaje aparece!');
-            const [combatTestAction, setCombatTestAction] = useState('');
-            // Prototipo de habilidades: el dado genera la oportunidad; la prueba de habilidad ejecuta el efecto.
             const [abilityTestMit, setAbilityTestMit] = useState('Agil1');
             const [abilityTestRoll, setAbilityTestRoll] = useState(null);
             const [abilityTestRollType, setAbilityTestRollType] = useState('');
             const [abilityTestReady, setAbilityTestReady] = useState(false);
-            const [abilityTestMessage, setAbilityTestMessage] = useState('Lanza el dado para buscar una oportunidad.');
+            const [abilityTestMessage, setAbilityTestMessage] = useState('');
             const [abilityTestMinigame, setAbilityTestMinigame] = useState(null);
             const [abilityTestResult, setAbilityTestResult] = useState(null);
+            const [abilityTestChoice, setAbilityTestChoice] = useState(null);
             const [abilityTestSequence, setAbilityTestSequence] = useState([]);
             const [abilityTestSequenceProgress, setAbilityTestSequenceProgress] = useState(0);
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
+            const [abilityTestRapidCount, setAbilityTestRapidCount] = useState(0);
+            const abilityTestRapidCountRef = useRef(0);
+            const [abilityTestPredictionTarget, setAbilityTestPredictionTarget] = useState(0);
+            const [abilityTestTimingTarget, setAbilityTestTimingTarget] = useState({ left: 42, width: 16 });
             const abilityTestOverloadRef = useRef(null);
             const abilityTestOverloadPointerRef = useRef(null);
             const abilityTestOverloadValueRef = useRef(0);
-            const abilityTestSequenceRef = useRef(null);
             const abilityTestTimingStartRef = useRef(0);
+            const abilityTestRapidTimerRef = useRef(null);
+            const combatAbilityPendingRef = useRef(null);
+            const [combatAbilityLock, setCombatAbilityLock] = useState(null);
+
+            const ACTIVE_ABILITY_DATA = {
+                Agil1: {
+                    name:'Evasivo', ability:'Vector Fantasma', game:'timing',
+                    trigger:'Defensa: una cara A que reduzca el daño final a 0 o 1.',
+                    effect:'Perfecto: +2 daño en el próximo ataque. Parcial: +1.',
+                    risk:'La oportunidad se consume al iniciar la prueba.'
+                },
+                Agil2: {
+                    name:'Móvil', ability:'Impulso Cinético', game:'timing',
+                    trigger:'Defensa: esquiva completa con una cara A.',
+                    effect:'Perfecto: +1 daño y conserva la iniciativa tras el próximo ataque. Parcial: +1 daño.',
+                    risk:'El efecto de iniciativa solo ocurre si el próximo ataque acierta.'
+                },
+                Normal1: {
+                    name:'Técnico', ability:'Reescritura de Parámetros', game:'sequence',
+                    trigger:'Ataque: sacar exactamente la cara D más alta.',
+                    effect:'Perfecto: elegir +2 ataque o -2 daño recibido. Parcial: +1 ataque.',
+                    risk:'Una mala secuencia consume la oportunidad.'
+                },
+                Normal2: {
+                    name:'Versátil', ability:'Cambio de Protocolo', game:'sequence',
+                    trigger:'Conseguir una transición D→A o A→D entre dos lanzamientos consecutivos.',
+                    effect:'Perfecto: intercambia D y A durante el siguiente ataque. Parcial: +1 ataque.',
+                    risk:'El intercambio dura un solo ataque.'
+                },
+                Resistente1: {
+                    name:'Berserker', ability:'Sobrecarga', game:'overload',
+                    trigger:'Ataque: HP al 50% o menos y cara D acertada.',
+                    effect:'Perfecto: +3 daño al próximo ataque y +2 daño recibido en el siguiente impacto. Parcial: +1.',
+                    risk:'La recompensa perfecta aumenta el daño que recibirá el núcleo.'
+                },
+                Resistente2: {
+                    name:'Muralla', ability:'Anclaje', game:'timing',
+                    trigger:'Defensa: el impacto debe causar al menos 1 daño.',
+                    effect:'Perfecto: -3 daño en el próximo impacto recibido. Parcial: -1.',
+                    risk:'El blindaje extra se consume en un solo impacto.'
+                },
+                Dano1: {
+                    name:'Destructor', ability:'Ruptura', game:'rapid',
+                    trigger:'Ataque: el impacto debe quitar al menos 1 HP.',
+                    effect:'Perfecto: el próximo ataque ignora hasta 2 puntos de reducción defensiva. Parcial: +1 daño.',
+                    risk:'Ruptura no aumenta por sí sola el daño permanente de Enfurecimiento.'
+                },
+                Dano2: {
+                    name:'Duelista', ability:'Réplica', game:'prediction',
+                    trigger:'Defensa: reducir el impacto a 0 o 1 daño.',
+                    effect:'Perfecto: los siguientes ataques de Contraataque reciben +2 daño. Parcial: +1.',
+                    risk:'La mejora solo afecta la secuencia de Contraataque.'
+                }
+            };
+            const abilityTestCurrent = ACTIVE_ABILITY_DATA[abilityTestMit] || ACTIVE_ABILITY_DATA.Agil1;
+
+            const localCombatPlayer = () => gameMode === 'ONLINE' ? (isRoomHost ? 1 : 2) : 1;
+
+            const getFaceTypeForAbility = (mit, roll, actionType) => {
+                const value = Number(roll);
+                if (actionType === 'ATTACK' && mit?.attackNums?.includes(value)) return 'D';
+                if (actionType === 'DEFENSE' && mit?.evadeNums?.includes(value)) return 'A';
+                if (mit?.attackNums?.includes(value)) return 'D';
+                if (mit?.evadeNums?.includes(value)) return 'A';
+                return null;
+            };
+
+            const resetAbilityOverlay = () => {
+                if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current);
+                abilityTestOverloadRef.current = null;
+                abilityTestOverloadPointerRef.current = null;
+                if (abilityTestRapidTimerRef.current !== null) {
+                    clearTimeout(abilityTestRapidTimerRef.current);
+                    abilityTestRapidTimerRef.current = null;
+                }
+                setAbilityTestMinigame(null);
+                setAbilityTestReady(false);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                setAbilityTestSequence([]);
+                setAbilityTestSequenceProgress(0);
+                setAbilityTestOverload(0);
+                setAbilityTestRapidCount(0);
+                abilityTestRapidCountRef.current = 0;
+                setAbilityTestPredictionTarget(0);
+                setAbilityTestRoll(null);
+                setAbilityTestRollType('');
+            };
+
+            const applyCombatAbilityResult = (result, choice = null) => {
+                const pending = combatAbilityPendingRef.current;
+                if (!pending) return;
+                const { playerNum, index, abilityId } = pending;
+                const lists = { p1: p1MitsRef.current, p2: p2MitsRef.current };
+                const list = playerNum === 1 ? lists.p1 : lists.p2;
+                const mit = list?.[index];
+                if (!mit) return;
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                if (state.activeAbilityOpportunity !== abilityId) {
+                    combatAbilityPendingRef.current = null;
+                    setCombatAbilityLock(null);
+                    setShowCombatTest(false);
+                    return;
+                }
+
+                const next = { ...state, activeAbilityOpportunity: null };
+                const messages = [];
+                if (result === 'perfecto') {
+                    if (abilityId === 'Agil1') next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 2);
+                    if (abilityId === 'Agil2') { next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 1); next.activeAbilityExtraTurn = true; }
+                    if (abilityId === 'Normal1') {
+                        if (choice === 'attack') next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 2);
+                        else next.activeAbilityDefenseReduction = Math.min(5, next.activeAbilityDefenseReduction + 2);
+                    }
+                    if (abilityId === 'Normal2') next.activeAbilitySwap = 1;
+                    if (abilityId === 'Resistente1') { next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 3); next.activeAbilityExposure = Math.min(5, next.activeAbilityExposure + 2); }
+                    if (abilityId === 'Resistente2') next.activeAbilityDefenseReduction = Math.min(5, next.activeAbilityDefenseReduction + 3);
+                    if (abilityId === 'Dano1') next.activeAbilityDefensePierce = Math.min(5, next.activeAbilityDefensePierce + 2);
+                    if (abilityId === 'Dano2') next.activeAbilityCounterBoost = Math.min(5, next.activeAbilityCounterBoost + 2);
+                    messages.push(choice === 'defense' ? 'Réplica de parámetros defensivos cargada.' : 'Habilidad ejecutada con precisión perfecta.');
+                } else if (result === 'parcial') {
+                    if (abilityId === 'Agil1' || abilityId === 'Agil2' || abilityId === 'Normal1' || abilityId === 'Normal2' || abilityId === 'Resistente1' || abilityId === 'Dano1') next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 1);
+                    if (abilityId === 'Resistente2') next.activeAbilityDefenseReduction = Math.min(5, next.activeAbilityDefenseReduction + 1);
+                    if (abilityId === 'Dano2') next.activeAbilityCounterBoost = Math.min(5, next.activeAbilityCounterBoost + 1);
+                    messages.push('Ejecución parcial: efecto reducido cargado.');
+                } else {
+                    messages.push(result === 'cancelled' ? 'Habilidad omitida. La oportunidad se consumió.' : 'Prueba fallida: la oportunidad se perdió.');
+                }
+
+                const updatedMit = { ...mit, passiveState: next };
+                const updatedP1 = playerNum === 1 ? lists.p1.map((item,i)=>i===index?updatedMit:item) : lists.p1;
+                const updatedP2 = playerNum === 2 ? lists.p2.map((item,i)=>i===index?updatedMit:item) : lists.p2;
+                p1MitsRef.current = updatedP1;
+                p2MitsRef.current = updatedP2;
+                setP1Mits(updatedP1);
+                setP2Mits(updatedP2);
+                messages.forEach(message => publishFloatingEffect({ player: playerNum, text: message, type: result === 'fallo' ? 'miss' : 'hit' }));
+
+                const resume = pending.resume;
+                combatAbilityPendingRef.current = null;
+                setCombatAbilityLock(null);
+                setShowCombatTest(false);
+                setAbilityTestMinigame(null);
+                setAbilityTestReady(false);
+                setAbilityTestResult(result);
+                if (gameMode === 'ONLINE') {
+                    syncOnline({ p1Mits: updatedP1, p2Mits: updatedP2, combatAbilityLock: null });
+                }
+                if (typeof resume === 'function') {
+                    scheduleGameTimeout(() => resume(updatedP1, updatedP2), 120);
+                }
+            };
+
+            const completeCombatAbility = (result, choice = null) => {
+                if (result === 'perfecto' && abilityTestMit === 'Normal1' && !choice) {
+                    setAbilityTestResult('perfecto');
+                    setAbilityTestMinigame(null);
+                    setAbilityTestChoice('pending');
+                    setAbilityTestMessage('Calibración perfecta. Elige qué parámetro reescribir.');
+                    return;
+                }
+                applyCombatAbilityResult(result, choice);
+            };
+
+            const openCombatAbility = ({ playerNum, index, abilityId, roll = null, rollType = '', resume }) => {
+                const lists = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = lists?.[index];
+                if (!mit || !abilityId) return false;
+                const normalized = window.MITSGameRules.normalizePassiveState(mit);
+                if (normalized.activeAbilityOpportunity) return false;
+
+                const updatedMit = { ...mit, passiveState: { ...normalized, activeAbilityOpportunity: abilityId } };
+                const updatedList = lists.map((item,i)=>i===index?updatedMit:item);
+                if (playerNum === 1) p1MitsRef.current = updatedList; else p2MitsRef.current = updatedList;
+                if (playerNum === 1) setP1Mits(updatedList); else setP2Mits(updatedList);
+                if (gameMode === 'ONLINE') {
+                    const patch = playerNum === 1 ? { p1Mits: updatedList } : { p2Mits: updatedList };
+                    syncOnline({ ...patch, combatAbilityLock: { playerNum, abilityId } });
+                }
+                combatAbilityPendingRef.current = { playerNum, index, abilityId, resume };
+                setCombatAbilityLock({ playerNum, abilityId });
+                setAbilityTestMit(mit.classData.id);
+                setAbilityTestRoll(roll);
+                setAbilityTestRollType(rollType);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                setAbilityTestReady(true);
+                setAbilityTestMessage('OPORTUNIDAD OBTENIDA · decide si gastar el intento.');
+                const shouldShowAbility = gameMode === 'ONLINE' ? playerNum === localCombatPlayer() : gameMode === 'AI' ? playerNum === 1 : true;
+                setShowCombatTest(shouldShowAbility);
+                playSound('click');
+
+                if (gameMode === 'AI' && playerNum === 2) {
+                    scheduleGameTimeout(() => completeCombatAbility('parcial'), 650);
+                }
+                return true;
+            };
+
+            const cancelCombatAbility = () => {
+                if (!combatAbilityPendingRef.current) return;
+                completeCombatAbility('cancelled');
+            };
+
+            const getAttackAbilityId = (mit, roll, hit) => {
+                const id = mit?.classData?.id;
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                if (!hit) return null;
+                if (id === 'Normal1' && Number(roll) === Math.max(...(mit.attackNums || []))) return 'Normal1';
+                if (id === 'Resistente1' && Number(mit.currentHp) <= Number(mit.maxHp) / 2 && mit.attackNums?.includes(Number(roll))) return 'Resistente1';
+                const currentType = getFaceTypeForAbility(mit, roll, 'ATTACK');
+                if (id === 'Normal2' && state.activeAbilityPreviousFaceType && currentType &&
+                    state.activeAbilityPreviousFaceType !== currentType) return 'Normal2';
+                return null;
+            };
+
+            const getDefenseAbilityId = (mit, defenseResult, roll) => {
+                const id = mit?.classData?.id;
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                const currentType = getFaceTypeForAbility(mit, roll, 'DEFENSE');
+                if (id === 'Agil1' && defenseResult.isEvadeNumber && defenseResult.damage <= 1) return 'Agil1';
+                if (id === 'Agil2' && defenseResult.isEvadeNumber && defenseResult.damage === 0) return 'Agil2';
+                if (id === 'Resistente2' && defenseResult.damage > 0) return 'Resistente2';
+                if (id === 'Dano2' && defenseResult.damage <= 1 && !defenseResult.shadowNullified) return 'Dano2';
+                if (id === 'Normal2' && state.activeAbilityPreviousFaceType === 'D' && currentType === 'A') return 'Normal2';
+                return null;
+            };
+
+            const updateAbilityFaceHistory = (state, mit, roll, actionType) => ({
+                ...state,
+                activeAbilityPreviousFaceType: getFaceTypeForAbility(mit, roll, actionType)
+            });
+
+            const startAbilityTest = () => {
+                if (!abilityTestReady || abilityTestMinigame) return;
+                setAbilityTestReady(false);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                const data = abilityTestCurrent;
+                if (data.game === 'timing') {
+                    const target = data.name === 'Muralla'
+                        ? { left: 38, width: 24 }
+                        : data.name === 'Móvil'
+                            ? { left: 46, width: 9 }
+                            : { left: 42, width: 16 };
+                    setAbilityTestTimingTarget(target);
+                    abilityTestTimingStartRef.current = performance.now();
+                    setAbilityTestMinigame('timing');
+                    setAbilityTestMessage('SINCRONIZACIÓN · detén el cursor dentro de la zona.');
+                } else if (data.game === 'sequence') {
+                    const length = data.name === 'Versátil' ? 4 : 3;
+                    const seq = Array.from({length},()=>Math.floor(Math.random()*3));
+                    setAbilityTestSequence(seq);
+                    setAbilityTestSequenceProgress(0);
+                    setAbilityTestMinigame('sequence');
+                    setAbilityTestMessage('CALIBRACIÓN · repite la secuencia mostrada.');
+                } else if (data.game === 'overload') {
+                    setAbilityTestOverload(0);
+                    abilityTestOverloadValueRef.current = 0;
+                    setAbilityTestMinigame('overload');
+                    setAbilityTestMessage('SOBRECARGA · mantén pulsado y suelta en la zona óptima.');
+                } else if (data.game === 'rapid') {
+                    setAbilityTestRapidCount(0);
+                    abilityTestRapidCountRef.current = 0;
+                    setAbilityTestMinigame('rapid');
+                    setAbilityTestMessage('RUPTURA · pulsa rápidamente hasta llenar el umbral.');
+                    abilityTestRapidTimerRef.current = setTimeout(() => finishAbilityRapid(), 1200);
+                } else {
+                    const target = Math.floor(Math.random()*3);
+                    setAbilityTestPredictionTarget(target);
+                    setAbilityTestMinigame('prediction');
+                    setAbilityTestMessage('LECTURA · anticipa el canal correcto.');
+                }
+                playSound('click');
+            };
+
+            const finishAbilityTiming = () => {
+                if (abilityTestMinigame !== 'timing') return;
+                const elapsed = ((performance.now() - abilityTestTimingStartRef.current) % 1800) / 1800;
+                const phase = elapsed <= 0.5 ? elapsed : 1 - elapsed;
+                const center = 0.5;
+                const distance = Math.abs(phase - center);
+                const tolerance = abilityTestCurrent.name === 'Muralla' ? 0.16 : abilityTestCurrent.name === 'Móvil' ? 0.055 : 0.09;
+                const result = distance < tolerance ? 'perfecto' : distance < tolerance + 0.11 ? 'parcial' : 'fallo';
+                setAbilityTestResult(result);
+                setAbilityTestMinigame(null);
+                if (result === 'perfecto' && abilityTestCurrent.name === 'Técnico') {
+                    setAbilityTestMessage('SINCRONIZACIÓN PERFECTA.');
+                } else {
+                    setAbilityTestMessage(result === 'perfecto' ? 'SINCRONIZACIÓN PERFECTA.' : result === 'parcial' ? 'SINCRONIZACIÓN PARCIAL.' : 'DESFASE · la oportunidad se perdió.');
+                }
+                completeCombatAbility(result);
+            };
+
+            const pressAbilitySequenceNode = (index) => {
+                if (abilityTestMinigame !== 'sequence') return;
+                const expected = abilityTestSequence[abilityTestSequenceProgress];
+                if (index !== expected) {
+                    setAbilityTestResult('fallo');
+                    setAbilityTestMinigame(null);
+                    completeCombatAbility('fallo');
+                    return;
+                }
+                const next = abilityTestSequenceProgress + 1;
+                if (next >= abilityTestSequence.length) {
+                    setAbilityTestResult('perfecto');
+                    setAbilityTestMinigame(null);
+                    completeCombatAbility('perfecto');
+                } else {
+                    setAbilityTestSequenceProgress(next);
+                }
+            };
+
+            const startAbilityOverload = (event) => {
+                if (abilityTestMinigame !== 'overload' || abilityTestOverloadPointerRef.current !== null) return;
+                if (event?.pointerId !== undefined) abilityTestOverloadPointerRef.current = event.pointerId;
+                if (event?.currentTarget?.setPointerCapture && event.pointerId !== undefined) {
+                    try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
+                }
+                const started = performance.now();
+                const tick = now => {
+                    const value = Math.min(100, ((now-started)/1800)*100);
+                    abilityTestOverloadValueRef.current = value;
+                    setAbilityTestOverload(value);
+                    if (value < 100 && abilityTestMinigame === 'overload') abilityTestOverloadRef.current = requestAnimationFrame(tick);
+                    else abilityTestOverloadRef.current = null;
+                };
+                abilityTestOverloadRef.current = requestAnimationFrame(tick);
+            };
+
+            const finishAbilityOverload = event => {
+                if (event?.pointerId !== undefined && abilityTestOverloadPointerRef.current !== null && event.pointerId !== abilityTestOverloadPointerRef.current) return;
+                if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current);
+                abilityTestOverloadRef.current = null;
+                abilityTestOverloadPointerRef.current = null;
+                const value = abilityTestOverloadValueRef.current;
+                const result = value >= 48 && value <= 68 ? 'perfecto' : value >= 35 && value <= 82 ? 'parcial' : 'fallo';
+                setAbilityTestResult(result);
+                setAbilityTestMinigame(null);
+                completeCombatAbility(result);
+            };
+
+            const finishAbilityRapid = () => {
+                if (abilityTestMinigame !== 'rapid') return;
+                if (abilityTestRapidTimerRef.current !== null) {
+                    clearTimeout(abilityTestRapidTimerRef.current);
+                    abilityTestRapidTimerRef.current = null;
+                }
+                const count = abilityTestRapidCountRef.current;
+                const result = count >= 8 ? 'perfecto' : count >= 5 ? 'parcial' : 'fallo';
+                setAbilityTestMinigame(null);
+                setAbilityTestResult(result);
+                completeCombatAbility(result);
+            };
+
+            const pressAbilityRapid = () => {
+                if (abilityTestMinigame !== 'rapid') return;
+                const next = abilityTestRapidCountRef.current + 1;
+                abilityTestRapidCountRef.current = next;
+                setAbilityTestRapidCount(next);
+                if (next >= 8) {
+                    if (abilityTestRapidTimerRef.current !== null) clearTimeout(abilityTestRapidTimerRef.current);
+                    abilityTestRapidTimerRef.current = null;
+                    setAbilityTestMinigame(null);
+                    setAbilityTestResult('perfecto');
+                    completeCombatAbility('perfecto');
+                }
+            };
+
+            const chooseAbilityPrediction = index => {
+                if (abilityTestMinigame !== 'prediction') return;
+                const result = index === abilityTestPredictionTarget ? 'perfecto' : Math.random() < 0.5 ? 'parcial' : 'fallo';
+                setAbilityTestMinigame(null);
+                setAbilityTestResult(result);
+                completeCombatAbility(result);
+            };
             const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
             const [testPlayerFacing, setTestPlayerFacing] = useState(0);
             const [testIsMoving, setTestIsMoving] = useState(false);
@@ -957,169 +1334,6 @@
             const testPlayerPositionRef = useRef({ x: 50, y: 52 });
             const testMovingRef = useRef(false);
             const testFacingRef = useRef(0);
-
-            const ABILITY_TEST_DATA = {
-                Agil1: {
-                    name:'Evasivo', color:'cyan', hp:10, d:[1,2], a:[3,4,5,6],
-                    trigger:'DEFENDER: el dado debe caer en una cara A. Si además es la cara A más alta, la oportunidad es “limpia”.',
-                    ability:'Vector Fantasma',
-                    game:'timing',
-                    effect:'Éxito: el siguiente ataque obtiene +2 daño. Parcial: +1. Fallo: se pierde la oportunidad.',
-                    risk:'La habilidad se consume al iniciar la prueba; fallar no devuelve el intento.'
-                },
-                Normal1: {
-                    name:'Técnico', color:'violet', hp:15, d:[1,2], a:[3,4],
-                    trigger:'ATACAR: el dado debe caer exactamente en tu cara D más alta (2).',
-                    ability:'Reescritura de Parámetros',
-                    game:'sequence',
-                    effect:'Completa la secuencia: eliges luego entre +2 ataque en tu siguiente lanzamiento o -2 al próximo daño recibido.',
-                    risk:'Si fallas una entrada, la oportunidad se pierde y no obtienes ninguna mejora.'
-                },
-                Resistente1: {
-                    name:'Berserker', color:'rose', hp:20, d:[1,2,3], a:[4],
-                    trigger:'ATACAR con HP al 50% o menos: el dado debe acertar una cara D.',
-                    ability:'Sobrecarga',
-                    game:'overload',
-                    effect:'Éxito: +3 daño al siguiente ataque, pero el próximo golpe recibido hace +2 daño. Parcial: +1 daño sin penalización.',
-                    risk:'La recompensa fuerte te deja deliberadamente más expuesto.'
-                }
-            };
-
-            const abilityTestCurrent = ABILITY_TEST_DATA[abilityTestMit];
-
-            const resetAbilityTest = (mitId = abilityTestMit) => {
-                setAbilityTestMit(mitId);
-                setAbilityTestRoll(null);
-                setAbilityTestRollType('');
-                setAbilityTestReady(false);
-                setAbilityTestResult(null);
-                setAbilityTestMinigame(null);
-                setAbilityTestSequence([]);
-                setAbilityTestSequenceProgress(0);
-                setAbilityTestOverload(0);
-                abilityTestOverloadValueRef.current = 0;
-                if (abilityTestOverloadRef.current) cancelAnimationFrame(abilityTestOverloadRef.current);
-                abilityTestOverloadRef.current = null;
-                abilityTestOverloadPointerRef.current = null;
-                setAbilityTestMessage('Lanza el dado para buscar una oportunidad.');
-            };
-
-            const rollAbilityTestDie = (type) => {
-                if (abilityTestMinigame) return;
-                const data = ABILITY_TEST_DATA[abilityTestMit];
-                const roll = Math.floor(Math.random()*6)+1;
-                const faces = type === 'DEFENDER' ? data.a : data.d;
-                const hit = faces.includes(roll);
-                let qualifies = false;
-                if (abilityTestMit === 'Agil1') qualifies = type === 'DEFENDER' && hit;
-                if (abilityTestMit === 'Normal1') qualifies = type === 'ATACAR' && roll === Math.max(...data.d);
-                if (abilityTestMit === 'Resistente1') qualifies = type === 'ATACAR' && hit && abilityTestHp <= data.hp / 2;
-                setAbilityTestRoll(roll);
-                setAbilityTestRollType(type);
-                setAbilityTestResult(null);
-                if (qualifies) {
-                    setAbilityTestReady(true);
-                    setAbilityTestMessage('OPORTUNIDAD OBTENIDA · decide si gastar el intento en la prueba.');
-                } else {
-                    setAbilityTestReady(false);
-                    setAbilityTestMessage(hit ? 'El dado pasó la acción, pero no activó la oportunidad.' : 'El dado falló la acción. No hay oportunidad.');
-                }
-                playSound('click');
-            };
-
-            const startAbilityTest = () => {
-                if (!abilityTestReady || abilityTestMinigame) return;
-                setAbilityTestReady(false);
-                setAbilityTestResult(null);
-                const data = ABILITY_TEST_DATA[abilityTestMit];
-                if (data.game === 'timing') {
-                    abilityTestTimingStartRef.current = performance.now();
-                    setAbilityTestMinigame('timing');
-                    setAbilityTestMessage('SINCRONIZACIÓN · detén el cursor dentro de la ventana.');
-                } else if (data.game === 'sequence') {
-                    const seq = Array.from({length:3},()=>Math.floor(Math.random()*3));
-                    setAbilityTestSequence(seq);
-                    setAbilityTestSequenceProgress(0);
-                    setAbilityTestMinigame('sequence');
-                    setAbilityTestMessage('CALIBRACIÓN · pulsa los nodos en el orden mostrado.');
-                } else {
-                    setAbilityTestOverload(0);
-                    setAbilityTestMinigame('overload');
-                    setAbilityTestMessage('SOBRECARGA · mantén pulsado y suelta en la zona amarilla.');
-                }
-                playSound('click');
-            };
-
-            const finishAbilityTiming = () => {
-                const elapsed = ((performance.now() - abilityTestTimingStartRef.current) % 1800) / 1800;
-                const phase = elapsed <= 0.5 ? elapsed : 1 - elapsed;
-                const distance = Math.abs(phase - .5);
-                const result = distance < .09 ? 'perfecto' : distance < .2 ? 'parcial' : 'fallo';
-                setAbilityTestResult(result);
-                setAbilityTestMinigame(null);
-                setAbilityTestMessage(result === 'perfecto' ? 'SINCRONIZACIÓN PERFECTA · Vector Fantasma cargado.' : result === 'parcial' ? 'SINCRONIZACIÓN PARCIAL · potencia reducida.' : 'DESFASE · la oportunidad se perdió.');
-            };
-
-            const pressAbilitySequenceNode = (index) => {
-                if (abilityTestMinigame !== 'sequence') return;
-                const expected = abilityTestSequence[abilityTestSequenceProgress];
-                if (index !== expected) {
-                    setAbilityTestResult('fallo');
-                    setAbilityTestMinigame(null);
-                    setAbilityTestMessage('ERROR DE CALIBRACIÓN · la oportunidad se perdió.');
-                    return;
-                }
-                const next = abilityTestSequenceProgress + 1;
-                if (next >= abilityTestSequence.length) {
-                    setAbilityTestResult('perfecto');
-                    setAbilityTestMinigame(null);
-                    setAbilityTestMessage('CALIBRACIÓN PERFECTA · elige cómo reescribir tus parámetros.');
-                } else {
-                    setAbilityTestSequenceProgress(next);
-                    setAbilityTestMessage('Lectura correcta · continúa la secuencia.');
-                }
-            };
-
-            const startAbilityOverload = (event) => {
-                if (abilityTestMinigame !== 'overload') return;
-                if (abilityTestOverloadPointerRef.current !== null) return;
-                if (event?.pointerId !== undefined) abilityTestOverloadPointerRef.current = event.pointerId;
-                if (abilityTestOverloadRef.current !== null) return;
-                const started = performance.now();
-                const tick = (now) => {
-                    const value = Math.min(100, ((now-started)/1800)*100);
-                    abilityTestOverloadValueRef.current = value;
-                    setAbilityTestOverload(value);
-                    if (value < 100 && abilityTestMinigame === 'overload') {
-                        abilityTestOverloadRef.current = requestAnimationFrame(tick);
-                    } else {
-                        abilityTestOverloadRef.current = null;
-                    }
-                };
-                abilityTestOverloadRef.current = requestAnimationFrame(tick);
-            };
-
-            const finishAbilityOverload = (event) => {
-                if (
-                    event?.pointerId !== undefined &&
-                    abilityTestOverloadPointerRef.current !== null &&
-                    event.pointerId !== abilityTestOverloadPointerRef.current
-                ) return;
-                if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current);
-                abilityTestOverloadRef.current = null;
-                const pointerId = abilityTestOverloadPointerRef.current;
-                abilityTestOverloadPointerRef.current = null;
-                if (event?.currentTarget && pointerId !== null && event.currentTarget.hasPointerCapture?.(pointerId)) {
-                    try { event.currentTarget.releasePointerCapture(pointerId); } catch (_) {}
-                }
-                const value = abilityTestOverloadValueRef.current;
-                const result = value >= 48 && value <= 68 ? 'perfecto' : value >= 35 && value <= 82 ? 'parcial' : 'fallo';
-                setAbilityTestResult(result);
-                setAbilityTestMinigame(null);
-                setAbilityTestMessage(result === 'perfecto' ? 'SOBRECARGA CONTROLADA · +3 daño, pero quedas expuesto.' : result === 'parcial' ? 'SOBRECARGA ESTABLE · +1 daño sin penalización.' : 'SOBRECARGA CRÍTICA · la oportunidad se perdió.');
-            };
-
-            const [abilityTestHp, setAbilityTestHp] = useState(20);
 
             const resetTestJoystick = () => {
                 testJoystickPointerRef.current = null;
@@ -1714,7 +1928,8 @@
                                 isPublic: roomVisibility === 'public', createdAt, expiresAt,
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
                                 currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
-                                attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
+                                attackResult: null, combatAbilityLock: null,
+                                combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
                                 winner: null
                             };
                         });
@@ -2487,6 +2702,13 @@
                     setCurrentTurnPlayer(normalizedTurnPlayer);
                     currentTurnPlayerRef.current = normalizedTurnPlayer;
                     setCombatPhase(normalizedCombatPhase);
+                    const normalizedCombatAbilityLock = room.combatAbilityLock &&
+                        typeof room.combatAbilityLock === 'object' &&
+                        (room.combatAbilityLock.playerNum === 1 || room.combatAbilityLock.playerNum === 2) &&
+                        typeof room.combatAbilityLock.abilityId === 'string'
+                        ? { playerNum: room.combatAbilityLock.playerNum, abilityId: room.combatAbilityLock.abilityId }
+                        : null;
+                    setCombatAbilityLock(normalizedCombatAbilityLock);
 
                     if (!isRollingRef.current) {
                         const syncedRoll = Number(room.currentRollValue);
@@ -2823,6 +3045,10 @@
                 if (id === 'Resistente2') { const v = state.murallaHits === 0 ? '+1 recibido' : 'sin vulnerabilidad'; const r = Math.min(3, Math.max(0, state.murallaHits - 1)); items.push(`Revestimiento: ${state.murallaHits}/4 · ${v} · reducción ${r}`); }
                 if (id === 'Dano1') items.push(`Enfurecimiento: daño +${state.destructorBonus}`);
                 if (id === 'Dano2') items.push(state.counterSequence?.phase === 'FIRST' ? 'Contraataque: 1/2' : state.counterSequence?.phase === 'SECOND' ? 'Contraataque: 2/2' : state.counterCooldownTurns > 0 ? `Contraataque: enfriamiento ${state.counterCooldownTurns}` : 'Contraataque: listo');
+                if (state.activeAbilityOpportunity) items.push(`HABILIDAD LISTA: ${ACTIVE_ABILITY_DATA[state.activeAbilityOpportunity]?.ability || 'PROTOCOLO'}`);
+                if (state.activeAbilityAttackBonus > 0) items.push(`Habilidad: ataque +${state.activeAbilityAttackBonus}`);
+                if (state.activeAbilityDefenseReduction > 0) items.push(`Habilidad: defensa −${state.activeAbilityDefenseReduction}`);
+                if (state.activeAbilityExposure > 0) items.push(`Habilidad: expuesto +${state.activeAbilityExposure}`);
                 return items;
             };
 
@@ -2912,16 +3138,24 @@
                     const attackerAtTurnStart = { ...currentAttacker, passiveState: turnStart.state };
                     const passiveAttack = window.MITSGameRules.resolvePassiveAttack({ attacker: attackerAtTurnStart, roll });
                     const isHit = passiveAttack.hit;
+                    const attackStateWithHistory = updateAbilityFaceHistory(passiveAttack.state, attackerAtTurnStart, passiveAttack.roll, 'ATTACK');
                     const updatedAttackerMits = [...currentTurnMits];
-                    updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: passiveAttack.state };
+                    updatedAttackerMits[currentTurnActiveIndex] = { ...attackerAtTurnStart, passiveState: attackStateWithHistory };
+                    const attackAbilityId = getAttackAbilityId({ ...attackerAtTurnStart, passiveState: attackStateWithHistory }, passiveAttack.roll, isHit);
                     turnStart.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     passiveAttack.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
-                    if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
+                    if (currentTurnPlayer === 1) {
+                        p1MitsRef.current = updatedAttackerMits;
+                        setP1Mits(updatedAttackerMits);
+                    } else {
+                        p2MitsRef.current = updatedAttackerMits;
+                        setP2Mits(updatedAttackerMits);
+                    }
                     if (gameMode === 'ONLINE') syncOnline(currentTurnPlayer === 1 ? { p1Mits: updatedAttackerMits } : { p2Mits: updatedAttackerMits });
                     if (isHit) {
                         playSound('hit');
                         setCurrentRollValue(passiveAttack.roll);
-                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: passiveAttack.state, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
+                        const atkData = { success: true, damage: passiveAttack.damage, roll: passiveAttack.roll, unstoppable: passiveAttack.unstoppable, attackerPassiveState: attackStateWithHistory, counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND' };
                         if (currentAttacker.passiveState?.counterSequence?.phase === 'FIRST') {
                             const defenderNum = currentTurnPlayer === 1 ? 2 : 1;
                             const forcedResult = window.MITSGameRules.resolvePassiveDefense({ attacker: { ...currentAttacker, passiveState: passiveAttack.state }, defender: currentDefender, attackDamage: passiveAttack.damage, forceHit: true, allowCounterTrigger: false });
@@ -2937,20 +3171,39 @@
                             type: 'attack_hit',
                             text: `🎯 ${getPlayerDisplayName(currentTurnPlayer)} (${currentAttacker.name}) sacó [${passiveAttack.roll}] → ¡Ataque exitoso! El rival debe defender.`
                         }];
-                        setAttackResult(atkData);
-                        setCombatPhase('DEFENSE_ROLL');
-                        setIsTurnProcessing(false);
-                        setCombatLog(newLog);
-                        if (gameMode === 'ONLINE') syncOnline({ currentRollValue: passiveAttack.roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
-                        publishFloatingEffect({
-                            player: currentTurnPlayer,
-                            text: '¡ACERTÓ!',
-                            type: 'hit'
-                        });
-
-                        if (gameMode === 'AI' && currentTurnPlayer === 1) {
-                            scheduleGameTimeout(() => triggerAiDefense(atkData), 800);
+                        const resumeAttack = () => {
+                            const latestLists = currentTurnPlayer === 1 ? p1MitsRef.current : p2MitsRef.current;
+                            const latestAttacker = latestLists[currentTurnActiveIndex] || attackerAtTurnStart;
+                            const latestAtkData = {
+                                success: true,
+                                damage: passiveAttack.damage,
+                                roll: passiveAttack.roll,
+                                unstoppable: passiveAttack.unstoppable,
+                                attackerPassiveState: latestAttacker.passiveState,
+                                counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND'
+                            };
+                            setAttackResult(latestAtkData);
+                            setCombatPhase('DEFENSE_ROLL');
+                            setIsTurnProcessing(false);
+                            setCombatLog(newLog);
+                            if (gameMode === 'ONLINE') syncOnline({ currentRollValue: passiveAttack.roll, attackResult: latestAtkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog, combatAbilityLock: null });
+                            publishFloatingEffect({ player: currentTurnPlayer, text: '¡ACERTÓ!', type: 'hit' });
+                            if (gameMode === 'AI' && currentTurnPlayer === 1) {
+                                scheduleGameTimeout(() => triggerAiDefense(latestAtkData), 800);
+                            }
+                        };
+                        if (attackAbilityId) {
+                            openCombatAbility({
+                                playerNum: currentTurnPlayer,
+                                index: currentTurnActiveIndex,
+                                abilityId: attackAbilityId,
+                                roll: passiveAttack.roll,
+                                rollType: 'ATACAR',
+                                resume: resumeAttack
+                            });
+                            return;
                         }
+                        resumeAttack();
                     } else {
                         // Attack Failed -> Switch Turn Directly
                         playSound('fail');
@@ -3013,6 +3266,9 @@
                         allowCounterTrigger: atkData?.counterChain !== true
                     });
                     const { isEvadeNumber, damage: finalDamageTaken } = defenseResult;
+                    const defenseStateWithHistory = updateAbilityFaceHistory(defenseResult.state, currentDefender, roll, 'DEFENSE');
+                    const defenseResultWithHistory = { ...defenseResult, state: defenseStateWithHistory };
+                    const defenseAbilityId = getDefenseAbilityId({ ...currentDefender, passiveState: defenseStateWithHistory }, defenseResultWithHistory, roll);
 
                     let defenseLogEntry;
                     if (isEvadeNumber || defenseResult.shadowNullified) {
@@ -3042,7 +3298,46 @@
                         });
                     }
 
-                    applyDamageToDefender(defenderPlayerNum, finalDamageTaken, [...combatLog, defenseLogEntry], roll, defenseResult, currentTurnPlayer);
+                    const defenseLog = [...combatLog, defenseLogEntry];
+                    const defenderIndexForHistory = defenderPlayerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                    const historyMit = { ...currentDefender, passiveState: defenseStateWithHistory };
+                    if (defenderPlayerNum === 1) {
+                        const next = [...p1MitsRef.current];
+                        next[defenderIndexForHistory] = historyMit;
+                        p1MitsRef.current = next;
+                        setP1Mits(next);
+                    } else {
+                        const next = [...p2MitsRef.current];
+                        next[defenderIndexForHistory] = historyMit;
+                        p2MitsRef.current = next;
+                        setP2Mits(next);
+                    }
+                    const resumeDefense = () => {
+                        const latestDefenderList = defenderPlayerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                        const latestAttackerList = currentTurnPlayer === 1 ? p1MitsRef.current : p2MitsRef.current;
+                        const latestDefender = latestDefenderList[defenderPlayerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current] || currentDefender;
+                        const latestAttacker = latestAttackerList[currentTurnPlayer === 1 ? activeP1IndexRef.current : activeP2IndexRef.current] || currentAttacker;
+                        applyDamageToDefender(
+                            defenderPlayerNum,
+                            finalDamageTaken,
+                            defenseLog,
+                            roll,
+                            { ...defenseResultWithHistory, state: latestDefender.passiveState, attackerState: latestAttacker.passiveState },
+                            currentTurnPlayer
+                        );
+                    };
+                    if (defenseAbilityId) {
+                        openCombatAbility({
+                            playerNum: defenderPlayerNum,
+                            index: defenderPlayerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current,
+                            abilityId: defenseAbilityId,
+                            roll,
+                            rollType: 'DEFENDER',
+                            resume: resumeDefense
+                        });
+                    } else {
+                        resumeDefense();
+                    }
                 });
             };
 
@@ -3060,6 +3355,7 @@
                 let updatedP1 = latestP1Mits;
                 let updatedP2 = latestP2Mits;
                 let defeated = false;
+                let hpLost = 0;
 
                 const parsedDamage = Number(damage);
                 const safeDamage = Number.isSafeInteger(parsedDamage)
@@ -3073,7 +3369,7 @@
                         damage: safeDamage
                     });
                     const newHp = hpResult.currentHp;
-                    const hpLost = hpResult.hpLost;
+                    hpLost = hpResult.hpLost;
                     updatedP1 = [...latestP1Mits];
                     const defenderWithState = { ...latestActiveP1Mit, passiveState: passiveDefenseResult?.state || latestActiveP1Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
@@ -3093,7 +3389,7 @@
                         damage: safeDamage
                     });
                     const newHp = hpResult.currentHp;
-                    const hpLost = hpResult.hpLost;
+                    hpLost = hpResult.hpLost;
                     updatedP2 = [...latestP2Mits];
                     const defenderWithState = { ...latestActiveP2Mit, passiveState: passiveDefenseResult?.state || latestActiveP2Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
@@ -3118,8 +3414,18 @@
                     publishFloatingEffect({ player: defenderPlayerNum, text: '¡CONTRAATAQUE!', type: 'hit' });
                 }
 
+                p1MitsRef.current = updatedP1;
+                p2MitsRef.current = updatedP2;
                 setP1Mits(updatedP1);
                 setP2Mits(updatedP2);
+
+                const attackerIndexForAbility = attackerPlayerNum === 1 ? currentActiveP1Index : currentActiveP2Index;
+                const attackerListForAbility = attackerPlayerNum === 1 ? updatedP1 : updatedP2;
+                const attackerAfterDamage = attackerListForAbility[attackerIndexForAbility];
+                const destructorOpportunity = !defeated &&
+                    Number(hpLost || 0) > 0 &&
+                    attackerAfterDamage?.classData?.id === 'Dano1' &&
+                    !window.MITSGameRules.normalizePassiveState(attackerAfterDamage).activeAbilityOpportunity;
 
                 if (gameMode === 'ONLINE') {
                     const nextLog = logOverride || combatLog;
@@ -3132,6 +3438,20 @@
 
                 if (defeated) {
                     handleMitDefeated(defenderPlayerNum, defenderPlayerNum === 1 ? updatedP1 : updatedP2, logOverride, { p1Mits: updatedP1, p2Mits: updatedP2 });
+                    return;
+                }
+
+                if (destructorOpportunity) {
+                    openCombatAbility({
+                        playerNum: attackerPlayerNum,
+                        index: attackerIndexForAbility,
+                        abilityId: 'Dano1',
+                        resume: () => {
+                            const latestP1 = p1MitsRef.current;
+                            const latestP2 = p2MitsRef.current;
+                            endTurn(attackerPlayerNum, logOverride, { p1Mits: latestP1, p2Mits: latestP2 });
+                        }
+                    });
                     return;
                 }
 
@@ -3326,6 +3646,14 @@
                 const actorIndex = playerWhoJustActed === 1 ? p1Index : p2Index;
                 const actorMit = actorList[actorIndex];
                 const sequence = actorMit?.passiveState?.counterSequence;
+                const activeAbilityExtraTurn = actorMit?.passiveState?.activeAbilityExtraTurn === true;
+                if (activeAbilityExtraTurn) {
+                    actorList[actorIndex] = {
+                        ...actorMit,
+                        passiveState: { ...actorMit.passiveState, activeAbilityExtraTurn: false }
+                    };
+                    nextPlayer = playerWhoJustActed;
+                }
                 let nextLog = Array.isArray(logOverride) ? [...logOverride] : [...combatLog];
                 if (sequence?.phase === 'FIRST') {
                     const updatedActor = { ...actorMit, passiveState: { ...actorMit.passiveState, counterSequence: { ...sequence, phase: 'SECOND' } } };
@@ -3951,84 +4279,56 @@
                                 <div className="ability-test-shell mx-auto flex flex-col gap-3 md:gap-4">
                                     <header className="glass-panel flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 px-4 py-3 md:px-5">
                                         <div className="min-w-0">
-                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · LABORATORIO</div>
-                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">PRUEBA DE HABILIDADES</h2>
+                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · HABILIDAD ACTIVA</div>
+                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">{abilityTestCurrent.ability}</h2>
+                                            <p className="mt-1 text-[10px] text-slate-500">Dado → oportunidad → ejecución</p>
                                         </div>
-                                        <button onClick={() => { setShowCombatTest(false); setAbilityTestMinigame(null); if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current); abilityTestOverloadRef.current = null; abilityTestOverloadPointerRef.current = null; playSound('click'); }} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">Salir ✕</button>
+                                        <button onClick={cancelCombatAbility} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">NO USAR</button>
                                     </header>
 
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {Object.entries(ABILITY_TEST_DATA).map(([id,data]) => (
-                                            <button key={id} onClick={() => { setAbilityTestHp(data.hp); resetAbilityTest(id); }} className={'rounded-2xl border p-3 text-left transition ' + (abilityTestMit===id ? 'border-cyan-400/70 bg-cyan-500/10' : 'border-slate-800 bg-slate-950/50 hover:border-slate-600')}>
-                                                <div className="text-[9px] font-mono-custom tracking-widest text-slate-500">NÚCLEO</div>
-                                                <div className="mt-1 text-sm md:text-base font-black text-slate-100">{data.name}</div>
-                                                <div className="mt-1 text-[9px] font-mono-custom text-slate-400">D {data.d.join(' · ')} · A {data.a.join(' · ')}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-
                                     <section className="ability-test-card rounded-3xl border border-slate-800 p-4 md:p-6 shadow-2xl">
-                                        <div className="grid lg:grid-cols-[1fr_1.15fr] gap-5">
+                                        <div className="grid lg:grid-cols-[.9fr_1.1fr] gap-5">
                                             <div className="space-y-4">
                                                 <div className="flex items-start justify-between gap-3">
                                                     <div>
-                                                        <div className="text-[9px] font-mono-custom tracking-[.22em] text-cyan-300">NÚCLEO SELECCIONADO</div>
+                                                        <div className="text-[9px] font-mono-custom tracking-[.22em] text-cyan-300">NÚCLEO EN EJECUCIÓN</div>
                                                         <h3 className="mt-1 text-2xl md:text-3xl font-black text-white">{abilityTestCurrent.name}</h3>
-                                                        <p className="mt-2 text-xs leading-relaxed text-slate-400">{abilityTestCurrent.ability}</p>
+                                                        <p className="mt-2 text-xs leading-relaxed text-slate-400">{abilityTestCurrent.trigger}</p>
                                                     </div>
                                                     <div className="ability-test-die shrink-0 text-3xl font-black font-mono-custom text-cyan-200">{abilityTestRoll ?? '—'}</div>
                                                 </div>
 
-                                                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3">
-                                                    <div className="text-[9px] font-mono-custom uppercase tracking-widest text-slate-500">CONDICIÓN DE OPORTUNIDAD</div>
-                                                    <p className="mt-2 text-xs leading-relaxed text-slate-300">{abilityTestCurrent.trigger}</p>
+                                                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3">
+                                                    <div className="text-[9px] font-mono-custom uppercase tracking-widest text-emerald-300">OPORTUNIDAD DISPONIBLE</div>
+                                                    <p className="mt-1 text-xs text-emerald-100">{abilityTestMessage}</p>
                                                 </div>
 
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    <button disabled={!!abilityTestMinigame} onClick={() => rollAbilityTestDie('ATACAR')} className="ability-test-action rounded-xl px-3 py-3 text-xs font-black">LANZAR D · ATAQUE</button>
-                                                    <button disabled={!!abilityTestMinigame} onClick={() => rollAbilityTestDie('DEFENDER')} className="ability-test-action rounded-xl px-3 py-3 text-xs font-black">LANZAR A · DEFENSA</button>
-                                                </div>
-
-                                                {abilityTestMit === 'Resistente1' && (
-                                                    <div className="rounded-2xl border border-rose-500/20 bg-rose-500/5 p-3">
-                                                        <div className="flex items-center justify-between text-[10px] font-mono-custom">
-                                                            <span className="text-slate-400">HP DE PRUEBA</span><span className="font-black text-rose-300">{abilityTestHp} / 20</span>
-                                                        </div>
-                                                        <button onClick={() => setAbilityTestHp(h => Math.max(1,h-2))} className="mt-2 w-full rounded-xl border border-rose-400/20 bg-rose-500/10 py-2 text-[10px] font-black text-rose-200">RECIBIR 2 DAÑO</button>
-                                                    </div>
-                                                )}
-
-                                                <div className={'rounded-2xl border p-3 text-xs leading-relaxed ' + (abilityTestReady ? 'border-emerald-400/40 bg-emerald-500/10 text-emerald-200' : 'border-slate-800 bg-slate-950/50 text-slate-400')}>
-                                                    <div className="font-mono-custom text-[9px] tracking-widest uppercase">{abilityTestReady ? 'OPORTUNIDAD DISPONIBLE' : 'ESTADO DEL PROTOCOLO'}</div>
-                                                    <div className="mt-1">{abilityTestMessage}</div>
-                                                </div>
-
-                                                {abilityTestReady && (
+                                                {abilityTestReady && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
                                                     <button onClick={startAbilityTest} className="w-full rounded-xl bg-cyan-400 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300">ACTIVAR HABILIDAD · INICIAR PRUEBA</button>
                                                 )}
 
-                                                {abilityTestResult === 'perfecto' && abilityTestMit === 'Normal1' && (
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button onClick={() => setAbilityTestMessage('PARÁMETRO OFENSIVO REESCRITO · +2 ataque en el próximo dado.')} className="rounded-xl border border-amber-400/30 bg-amber-500/10 py-3 text-[10px] font-black text-amber-200">+2 ATAQUE</button>
-                                                        <button onClick={() => setAbilityTestMessage('BLINDAJE REESCRITO · -2 daño en el próximo impacto recibido.')} className="rounded-xl border border-violet-400/30 bg-violet-500/10 py-3 text-[10px] font-black text-violet-200">-2 DAÑO RECIBIDO</button>
+                                                {abilityTestChoice === 'pending' && (
+                                                    <div className="space-y-2">
+                                                        <div className="text-[9px] font-mono-custom tracking-widest text-violet-300 uppercase">REESCRITURA COMPLETADA</div>
+                                                        <button onClick={() => completeCombatAbility('perfecto','attack')} className="w-full rounded-xl border border-amber-400/30 bg-amber-500/10 py-3 text-xs font-black text-amber-200">+2 ATAQUE · PRÓXIMO DADO</button>
+                                                        <button onClick={() => completeCombatAbility('perfecto','defense')} className="w-full rounded-xl border border-violet-400/30 bg-violet-500/10 py-3 text-xs font-black text-violet-200">−2 DAÑO · PRÓXIMO IMPACTO</button>
                                                     </div>
                                                 )}
+
+                                                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-400">
+                                                    <span className="font-mono-custom text-[9px] tracking-widest text-slate-500">EFECTO:</span> {abilityTestCurrent.effect}
+                                                </div>
                                             </div>
 
-                                            <div className="rounded-3xl border border-slate-800 bg-slate-950/65 p-4 md:p-5 min-h-[280px] flex flex-col justify-center">
-                                                {!abilityTestMinigame && (
-                                                    <div className="text-center">
-                                                        <div className="text-[9px] font-mono-custom tracking-[.25em] text-slate-500">PRUEBA DE HABILIDAD</div>
-                                                        <div className="mt-3 text-xl font-black text-slate-200">{abilityTestReady ? 'Oportunidad lista' : 'Esperando resultado del dado'}</div>
-                                                        <p className="mt-2 text-xs text-slate-500">El minijuego solo aparece después de superar la condición de activación.</p>
-                                                    </div>
-                                                )}
-
+                                            <div className="rounded-3xl border border-slate-800 bg-slate-950/65 p-4 md:p-5 min-h-[300px] flex flex-col justify-center">
                                                 {abilityTestMinigame === 'timing' && (
                                                     <div className="space-y-5">
-                                                        <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div><div className="mt-2 text-2xl font-black text-white">Detén el cursor en el centro</div></div>
+                                                        <div className="text-center">
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Detén el cursor en la zona</div>
+                                                        </div>
                                                         <div className="ability-test-track">
-                                                            <div className="ability-test-target left-[42%] w-[16%]" />
+                                                            <div className="ability-test-target" style={{left: abilityTestTimingTarget.left + '%', width: abilityTestTimingTarget.width + '%'}} />
                                                             <div className="ability-test-cursor left-0 animate-[ability-cursor_1.8s_linear_infinite]" />
                                                         </div>
                                                         <button onClick={finishAbilityTiming} className="w-full rounded-xl bg-cyan-400 py-4 font-black text-slate-950">DETENER CURSOR</button>
@@ -4037,23 +4337,33 @@
 
                                                 {abilityTestMinigame === 'sequence' && (
                                                     <div className="space-y-5">
-                                                        <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div><div className="mt-2 text-2xl font-black text-white">Repite la secuencia</div><div className="mt-2 text-xs text-slate-500">Orden: {abilityTestSequence.map(n=>n+1).join(' → ')}</div></div>
-                                                        <div className="ability-test-seq">
-                                                            {[0,1,2].map(i => <button key={i} onClick={() => pressAbilitySequenceNode(i)} className={'ability-test-node ' + (i < abilityTestSequenceProgress ? 'done' : '')}>{i+1}</button>)}
+                                                        <div className="text-center">
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Repite la secuencia</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Orden: {abilityTestSequence.map(n => n + 1).join(' → ')}</div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {Array.from({length: abilityTestSequence.length || 3}, (_,i) => (
+                                                                <button key={i} onClick={() => pressAbilitySequenceNode(i)} className={'ability-test-node ' + (i < abilityTestSequenceProgress ? 'done' : '')}>{i + 1}</button>
+                                                            ))}
                                                         </div>
                                                     </div>
                                                 )}
 
                                                 {abilityTestMinigame === 'overload' && (
                                                     <div className="space-y-5">
-                                                        <div className="text-center"><div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div><div className="mt-2 text-2xl font-black text-white">Carga el núcleo y suelta</div><div className="mt-2 text-xs text-slate-500">Zona óptima: 48–68%. Fuera de ella pierdes potencia.</div></div>
+                                                        <div className="text-center">
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Carga el núcleo y suelta</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Zona óptima: 48–68%.</div>
+                                                        </div>
                                                         <div className="ability-test-overload" aria-label="Medidor de sobrecarga">
                                                             <div className="ability-test-overload-target" />
-                                                            <span style={{width:abilityTestOverload+'%'}} />
-                                                            <div className="ability-test-overload-marker" style={{left:abilityTestOverload+'%'}} />
+                                                            <span style={{width: abilityTestOverload + '%'}} />
+                                                            <div className="ability-test-overload-marker" style={{left: abilityTestOverload + '%'}} />
                                                         </div>
                                                         <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider">
-                                                            <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO 48–68%</span><span className="text-rose-300">CRÍTICO</span>
+                                                            <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO</span><span className="text-rose-300">CRÍTICO</span>
                                                         </div>
                                                         <button
                                                             onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(e); }}
@@ -4066,21 +4376,46 @@
                                                         >MANTENER / SOLTAR</button>
                                                     </div>
                                                 )}
+
+                                                {abilityTestMinigame === 'rapid' && (
+                                                    <div className="space-y-5 text-center">
+                                                        <div>
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-amber-300">RUPTURA</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Rompe el blindaje</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Alcanza 8 pulsaciones en 1.2 segundos.</div>
+                                                        </div>
+                                                        <div className="text-5xl font-black font-mono-custom text-amber-300">{abilityTestRapidCount}<span className="text-slate-600 text-2xl"> / 8</span></div>
+                                                        <button onClick={pressAbilityRapid} className="w-full rounded-xl bg-amber-400 py-5 text-lg font-black text-slate-950 active:scale-95">IMPACTAR</button>
+                                                    </div>
+                                                )}
+
+                                                {abilityTestMinigame === 'prediction' && (
+                                                    <div className="space-y-5 text-center">
+                                                        <div>
+                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-purple-300">LECTURA</div>
+                                                            <div className="mt-2 text-2xl font-black text-white">Predice el canal rival</div>
+                                                            <div className="mt-2 text-xs text-slate-500">Una de las tres señales es la respuesta correcta.</div>
+                                                        </div>
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {[0,1,2].map(i => <button key={i} onClick={() => chooseAbilityPrediction(i)} className="ability-test-node py-5">CANAL {i + 1}</button>)}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {!abilityTestMinigame && abilityTestChoice !== 'pending' && (
+                                                    <div className="text-center">
+                                                        <div className="text-[9px] font-mono-custom tracking-[.25em] text-slate-500">PROTOCOLO</div>
+                                                        <div className="mt-3 text-xl font-black text-slate-200">Esperando ejecución</div>
+                                                        <p className="mt-2 text-xs text-slate-500">El combate permanece bloqueado mientras decides.</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
-
-                                        <div className="mt-5 grid md:grid-cols-2 gap-2 text-[10px] font-mono-custom">
-                                            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-slate-400"><span className="text-slate-500">RESULTADO:</span> {abilityTestResult || '—'}</div>
-                                            <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 text-slate-400"><span className="text-slate-500">EFECTO:</span> {abilityTestCurrent.effect}</div>
-                                            <div className="md:col-span-2 rounded-xl border border-amber-500/15 bg-amber-500/5 p-3 text-amber-200"><span className="text-amber-400">RIESGO:</span> {abilityTestCurrent.risk}</div>
-                                        </div>
                                     </section>
-                                    <p className="text-center text-[9px] md:text-[10px] font-mono-custom tracking-wider text-slate-500">PROTOTIPO AISLADO · NO MODIFICA LAS REGLAS DE COMBATE NI FIREBASE</p>
                                 </div>
                             </div>
                         )}
 
-}
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
                                 <div className="space-y-3">
@@ -4154,19 +4489,7 @@
                                     <span className="text-emerald-400 text-xl font-bold font-mono-custom">→</span>
                                 </button>
 
-                                <button
-                                    onClick={() => { setAbilityTestHp(20); resetAbilityTest('Agil1'); setShowCombatTest(true); playSound('click'); }}
-                                    className="w-full p-4 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 flex items-center justify-between group hover:border-cyan-300 hover:bg-cyan-400/15 transition"
-                                >
-                                    <div className="flex items-center gap-4 text-left">
-                                        <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-300 group-hover:scale-110 transition">⚔️</div>
-                                        <div>
-                                            <div className="font-bold text-slate-100">Prueba de combate</div>
-                                            <div className="text-xs text-slate-400">Dado → oportunidad → prueba de habilidad</div>
-                                        </div>
-                                    </div>
-                                    <span className="text-cyan-300 text-xl font-bold font-mono-custom">→</span>
-                                </button>
+                                
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     <button
@@ -4625,7 +4948,17 @@
                                 </div>
 
                                 {/* ACTION CONTROL & DICE DISPLAY */}
-                                {gameState === 'BATTLE' && (
+                                {gameState === 'BATTLE' && combatAbilityLock && (
+                                    <div className="battle-controls glass-panel rounded-3xl p-4 border border-violet-500/30 bg-violet-950/20 text-center">
+                                        <div className="text-[10px] font-mono-custom tracking-[.2em] text-violet-300 uppercase">PROTOCOLO EN EJECUCIÓN</div>
+                                        <div className="mt-2 text-sm font-black text-slate-100">
+                                            {combatAbilityLock.playerNum === localCombatPlayer()
+                                                ? 'Ejecuta la habilidad del núcleo.'
+                                                : 'El rival está ejecutando una habilidad.'}
+                                        </div>
+                                    </div>
+                                )}
+                                {gameState === 'BATTLE' && !combatAbilityLock && (
                                     <div className="battle-controls glass-panel rounded-3xl p-5 border border-slate-800 flex flex-col items-center justify-center space-y-4 text-center">
                                         <div className="text-xs font-mono-custom text-slate-400 flex items-center gap-2">
                                             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
@@ -4642,10 +4975,12 @@
 
                                         <div className="battle-action-buttons w-full max-w-sm">
                                             {(
-                                                gameMode !== 'ONLINE' ||
-                                                (combatPhase === 'ATTACK_ROLL'
-                                                    ? currentTurnPlayer === (isRoomHost ? 1 : 2)
-                                                    : currentTurnPlayer !== (isRoomHost ? 1 : 2))
+                                                !combatAbilityLock && (
+                                                    gameMode !== 'ONLINE' ||
+                                                    (combatPhase === 'ATTACK_ROLL'
+                                                        ? currentTurnPlayer === (isRoomHost ? 1 : 2)
+                                                        : currentTurnPlayer !== (isRoomHost ? 1 : 2))
+                                                )
                                             ) && (
                                                 <>
                                             {combatPhase === 'ATTACK_ROLL' && (
