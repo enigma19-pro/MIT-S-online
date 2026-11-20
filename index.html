@@ -3388,7 +3388,7 @@
                         damage: safeDamage
                     });
                     const newHp = hpResult.currentHp;
-                    const hpLost = hpResult.hpLost;
+                    hpLost = hpResult.hpLost;
                     updatedP2 = [...latestP2Mits];
                     const defenderWithState = { ...latestActiveP2Mit, passiveState: passiveDefenseResult?.state || latestActiveP2Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
