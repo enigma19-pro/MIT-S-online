@@ -866,3 +866,200 @@ test('random generators that return non-numbers or throw are safely neutralized'
     assert.equal(result.state.technicalAttackBonus, 1);
     assert.equal(result.state.technicalDefenseBonus, 1);
 });
+
+
+const {
+    getActiveAbilityInfo,
+    consumeActiveAbilityOpportunity,
+    resolveActiveAbilityResult,
+    chooseActiveAbilityOption
+} = require('../game-rules.js');
+
+function availableActiveMit(classId, extra = {}) {
+    return {
+        classData: { id: classId },
+        currentHp: 20,
+        maxHp: 20,
+        attackNums: [2, 5],
+        evadeNums: [3, 6],
+        passiveState: {
+            ...createPassiveState(classId),
+            activeAbilityAvailable: true,
+            ...extra
+        }
+    };
+}
+
+test('the eight MIT classes expose one active ability definition', () => {
+    for (const classId of Object.values(PASSIVE_CLASS_IDS)) {
+        assert.ok(getActiveAbilityInfo(classId));
+        assert.equal(typeof getActiveAbilityInfo(classId).name, 'string');
+        assert.equal(typeof getActiveAbilityInfo(classId).minigame, 'string');
+    }
+});
+
+test('Evasivo receives Vector Fantasma after an assigned A leaves at most one damage', () => {
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.EVASIVO }, evadeNums: [4], passiveState: createPassiveState(PASSIVE_CLASS_IDS.EVASIVO) };
+    const result = resolvePassiveDefense({ attacker: {}, defender, attackDamage: 5, defenseRoll: 4 });
+    assert.equal(result.damage, 1);
+    assert.equal(result.state.activeAbilityAvailable, true);
+    assert.equal(result.state.ultraCharges, 1);
+});
+
+test('Móvil receives Impulso Cinético only after a complete assigned-face dodge', () => {
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MOVIL }, evadeNums: [4], passiveState: createPassiveState(PASSIVE_CLASS_IDS.MOVIL) };
+    const result = resolvePassiveDefense({ attacker: {}, defender, attackDamage: 4, defenseRoll: 4 });
+    assert.equal(result.damage, 0);
+    assert.equal(result.state.activeAbilityAvailable, true);
+});
+
+test('Técnico receives Reescritura only on a hit with its highest assigned D face', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.TECNICO }, attackNums: [2, 5], passiveState: createPassiveState(PASSIVE_CLASS_IDS.TECNICO) };
+    assert.equal(resolvePassiveAttack({ attacker, roll: 2 }).state.activeAbilityAvailable, false);
+    assert.equal(resolvePassiveAttack({ attacker, roll: 5 }).state.activeAbilityAvailable, true);
+});
+
+test('Versátil receives Cambio de Protocolo after a hit and full dodge in either order', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, attackNums: [2], passiveState: createPassiveState(PASSIVE_CLASS_IDS.VERSATIL) };
+    const hit = resolvePassiveAttack({ attacker, roll: 2 });
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [6], passiveState: hit.state };
+    const dodge = resolvePassiveDefense({ attacker: {}, defender, attackDamage: 5, defenseRoll: 6 });
+    assert.equal(dodge.state.activeAbilityAvailable, true);
+
+    const defenderFirst = { classData: { id: PASSIVE_CLASS_IDS.VERSATIL }, evadeNums: [6], passiveState: createPassiveState(PASSIVE_CLASS_IDS.VERSATIL) };
+    const dodgeFirst = resolvePassiveDefense({ attacker: {}, defender: defenderFirst, attackDamage: 5, defenseRoll: 6 });
+    const hitSecond = resolvePassiveAttack({ attacker: { ...attacker, passiveState: dodgeFirst.state }, roll: 2 });
+    assert.equal(hitSecond.state.activeAbilityAvailable, true);
+});
+
+test('Berserker receives Sobrecarga only after a successful hit at or below half HP', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.BERSERKER }, currentHp: 10, maxHp: 20, attackNums: [2], passiveState: createPassiveState(PASSIVE_CLASS_IDS.BERSERKER) };
+    assert.equal(resolvePassiveAttack({ attacker: { ...attacker, currentHp: 11 }, roll: 2 }).state.activeAbilityAvailable, false);
+    assert.equal(resolvePassiveAttack({ attacker, roll: 2 }).state.activeAbilityAvailable, true);
+});
+
+test('Muralla receives Anclaje only when an impact actually removes HP', () => {
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.MURALLA }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.MURALLA) };
+    const noLoss = applyPassiveDamageConsequences({ attacker: {}, defender, hpLost: 0 });
+    const lostHp = applyPassiveDamageConsequences({ attacker: {}, defender, hpLost: 1 });
+    assert.equal(noLoss.defenderState.activeAbilityAvailable, false);
+    assert.equal(lostHp.defenderState.activeAbilityAvailable, true);
+});
+
+test('Destructor receives Ruptura only when its attack removes HP', () => {
+    const attacker = { classData: { id: PASSIVE_CLASS_IDS.DESTRUCTOR }, passiveState: createPassiveState(PASSIVE_CLASS_IDS.DESTRUCTOR) };
+    const noLoss = applyPassiveDamageConsequences({ attacker, defender: {}, hpLost: 0 });
+    const lostHp = applyPassiveDamageConsequences({ attacker, defender: {}, hpLost: 1 });
+    assert.equal(noLoss.attackerState.activeAbilityAvailable, false);
+    assert.equal(lostHp.attackerState.activeAbilityAvailable, true);
+});
+
+test('Duelista receives Réplica when Contraataque becomes available', () => {
+    const defender = { classData: { id: PASSIVE_CLASS_IDS.DUELISTA }, evadeNums: [5], passiveState: createPassiveState(PASSIVE_CLASS_IDS.DUELISTA) };
+    const result = resolvePassiveDefense({ attacker: {}, defender, attackDamage: 5, defenseRoll: 5 });
+    assert.equal(result.triggersCounter, true);
+    assert.equal(result.state.activeAbilityAvailable, true);
+});
+
+test('an active opportunity can only be consumed once and failed minigames stay consumed', () => {
+    const mit = availableActiveMit(PASSIVE_CLASS_IDS.EVASIVO);
+    const consumed = consumeActiveAbilityOpportunity(mit);
+    assert.equal(consumed.passiveState.activeAbilityUsed, true);
+    assert.equal(consumed.passiveState.activeAbilityInProgress, true);
+    assert.equal(consumed.passiveState.activeAbilityAvailable, false);
+    assert.equal(consumeActiveAbilityOpportunity(consumed), null);
+    const failed = resolveActiveAbilityResult(consumed, 'fallo');
+    assert.equal(failed.state.activeAbilityResolved, true);
+    assert.equal(failed.state.activeAttackBonus, 0);
+    assert.equal(resolveActiveAbilityResult({ ...consumed, passiveState: failed.state }, 'perfecto'), null);
+});
+
+test('Vector Fantasma perfect and partial results buff the next successful attack once', () => {
+    for (const [grade, expected] of [['perfecto', 2], ['parcial', 1]]) {
+        const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.EVASIVO));
+        const resolved = resolveActiveAbilityResult(used, grade);
+        const attack = resolvePassiveAttack({ attacker: { ...used, passiveState: resolved.state }, roll: 5 });
+        assert.equal(attack.damage, 5 + expected);
+        assert.equal(attack.state.activeAttackBonus, 0);
+    }
+});
+
+test('Impulso Cinético perfect result retries one failed attack roll', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.MOVIL));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    const attack = resolvePassiveAttack({
+        attacker: { ...used, passiveState: resolved.state, attackNums: [1] },
+        roll: 6,
+        random: () => 0
+    });
+    assert.equal(attack.hit, true);
+    assert.equal(attack.roll, 1);
+    assert.equal(attack.state.activeAttackReroll, false);
+});
+
+test('Reescritura lets Técnico select its attack or defense parameter', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.TECNICO));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    assert.equal(resolved.state.activeChoicePending, 'perfecto');
+    const attackChoice = chooseActiveAbilityOption({ ...used, passiveState: resolved.state }, 'attack');
+    const defenseChoice = chooseActiveAbilityOption({ ...used, passiveState: resolved.state }, 'defense');
+    assert.equal(attackChoice.passiveState.activeAttackBonus, 2);
+    assert.equal(attackChoice.passiveState.activeChoicePending, null);
+    assert.equal(defenseChoice.passiveState.activeDefenseReduction, 2);
+});
+
+test('Cambio de Protocolo grants both small bonuses on a perfect result', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.VERSATIL));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    assert.equal(resolved.state.activeAttackBonus, 1);
+    assert.equal(resolved.state.activeDefenseReduction, 1);
+});
+
+test('Sobrecarga perfect result grants three attack damage and vulnerability to the next hit', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.BERSERKER));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    assert.equal(resolved.state.activeAttackBonus, 3);
+    assert.equal(resolved.state.activeIncomingDamageBonus, 2);
+    const defense = resolvePassiveDefense({
+        attacker: {},
+        defender: { ...used, evadeNums: [], passiveState: resolved.state },
+        attackDamage: 2,
+        defenseRoll: 1
+    });
+    assert.equal(defense.damage, 4);
+    assert.equal(defense.state.activeIncomingDamageBonus, 0);
+});
+
+test('Anclaje reduces the next incoming damage one time', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.MURALLA));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    const defense = resolvePassiveDefense({
+        attacker: {},
+        defender: { ...used, evadeNums: [], passiveState: resolved.state },
+        attackDamage: 5,
+        defenseRoll: 1
+    });
+    assert.equal(defense.damage, 3);
+    assert.equal(defense.state.activeDefenseReduction, 0);
+});
+
+test('Ruptura adds damage to Destructor next hit only', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.DESTRUCTOR));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    const attack = resolvePassiveAttack({ attacker: { ...used, passiveState: resolved.state }, roll: 5 });
+    assert.equal(attack.damage, 8);
+    assert.equal(attack.state.activeAttackBonus, 0);
+});
+
+test('Réplica boosts only Duelista second counterattack', () => {
+    const used = consumeActiveAbilityOpportunity(availableActiveMit(PASSIVE_CLASS_IDS.DUELISTA));
+    const resolved = resolveActiveAbilityResult(used, 'perfecto');
+    const attacker = {
+        ...used,
+        attackNums: [2],
+        passiveState: { ...resolved.state, counterSequence: { phase: 'SECOND', opponentPlayer: 2 } }
+    };
+    const attack = resolvePassiveAttack({ attacker, roll: 2 });
+    assert.equal(attack.damage, 4);
+    assert.equal(attack.state.activeCounterBonus, 0);
+});
