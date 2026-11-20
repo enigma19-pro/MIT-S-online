@@ -3300,7 +3300,13 @@
                     const attackAbilityId = getAttackAbilityId({ ...attackerAtTurnStart, passiveState: attackStateWithHistory }, passiveAttack.roll, isHit);
                     turnStart.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
                     passiveAttack.events.forEach(event => publishFloatingEffect({ player: currentTurnPlayer, text: event, type: 'hit' }));
-                    if (currentTurnPlayer === 1) setP1Mits(updatedAttackerMits); else setP2Mits(updatedAttackerMits);
+                    if (currentTurnPlayer === 1) {
+                        p1MitsRef.current = updatedAttackerMits;
+                        setP1Mits(updatedAttackerMits);
+                    } else {
+                        p2MitsRef.current = updatedAttackerMits;
+                        setP2Mits(updatedAttackerMits);
+                    }
                     if (gameMode === 'ONLINE') syncOnline(currentTurnPlayer === 1 ? { p1Mits: updatedAttackerMits } : { p2Mits: updatedAttackerMits });
                     if (isHit) {
                         playSound('hit');
