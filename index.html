@@ -3510,6 +3510,7 @@
                 let updatedP1 = latestP1Mits;
                 let updatedP2 = latestP2Mits;
                 let defeated = false;
+                let hpLost = 0;
 
                 const parsedDamage = Number(damage);
                 const safeDamage = Number.isSafeInteger(parsedDamage)
@@ -3523,7 +3524,7 @@
                         damage: safeDamage
                     });
                     const newHp = hpResult.currentHp;
-                    const hpLost = hpResult.hpLost;
+                    hpLost = hpResult.hpLost;
                     updatedP1 = [...latestP1Mits];
                     const defenderWithState = { ...latestActiveP1Mit, passiveState: passiveDefenseResult?.state || latestActiveP1Mit.passiveState };
                     const attackerMit = attackerPlayerNum === 1 ? latestActiveP1Mit : latestActiveP2Mit;
