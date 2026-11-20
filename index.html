@@ -793,14 +793,54 @@
         // --- CLASSES DEFINITIONS ---
         // Los MIT son núcleos artificiales de combate. La clase define su arquitectura de adaptación; el cuerpo es solo la plataforma que el núcleo controla.
         const MIT_CLASSES = [
-            { id: 'Agil1', name: 'Evasivo', hp: 10, d: 2, a: 4, desc: 'Núcleo de reacción extrema. Ultra Impulso convierte defensas casi perfectas en energía ofensiva.' },
-            { id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3, desc: 'Núcleo de movilidad adaptativa. Sombra permite al MIT alterar temporalmente su respuesta al combate.' },
-            { id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2, desc: 'Núcleo analítico. Útil acumula recursos al interpretar cada nuevo ciclo de combate.' },
-            { id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1, desc: 'Núcleo de aprendizaje. Adaptabilidad transforma el daño recibido en patrones defensivos.' },
-            { id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1, desc: 'Núcleo de supervivencia extrema. Último Instinto reconstruye funciones esenciales tras un colapso.' },
-            { id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1, desc: 'Núcleo defensivo. Revestimiento adapta la respuesta del blindaje tras cada impacto.' },
-            { id: 'Dano1', name: 'Destructor', hp: 15, d: 4, a: 1, desc: 'Núcleo ofensivo. Enfurecimiento optimiza su salida de daño a partir de resultados reales.' },
-            { id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2, desc: 'Núcleo de lectura táctica. Contraataque analiza la acción rival y recupera la iniciativa.' }
+            {
+                id: 'Agil1', name: 'Evasivo', hp: 10, d: 2, a: 4,
+                desc: 'Núcleo especializado en reacción y evasión. Convierte defensas precisas en oportunidades ofensivas.',
+                lore: 'Nació de los primeros prototipos diseñados para sobrevivir sin enfrentarse directamente al enemigo. Su núcleo aprendió que el mejor impacto es el que nunca llega a recibirse.',
+                coreDesc: 'Un núcleo de respuesta extrema que analiza trayectorias en fracciones de segundo y reajusta su comportamiento antes de cada impacto.'
+            },
+            {
+                id: 'Agil2', name: 'Móvil', hp: 15, d: 2, a: 3,
+                desc: 'Núcleo especializado en movilidad y desplazamiento adaptativo.',
+                lore: 'Fue desarrollado para atravesar zonas de combate donde detenerse significaba quedar expuesto. Con cada enfrentamiento perfeccionó una forma de movimiento casi imposible de predecir.',
+                coreDesc: 'Un núcleo cinético que prioriza movimiento, aceleración y cambios constantes de posición para mantener el control del combate.'
+            },
+            {
+                id: 'Normal1', name: 'Técnico', hp: 15, d: 2, a: 2,
+                desc: 'Núcleo especializado en análisis, precisión y acumulación de recursos.',
+                lore: 'Los ingenieros que lo crearon querían un MIT capaz de aprender de cada intercambio. Técnico convirtió los patrones del combate en parámetros que puede reutilizar y mejorar.',
+                coreDesc: 'Un núcleo analítico que registra resultados, identifica patrones y reajusta sus parámetros para obtener ventaja con el paso de los turnos.'
+            },
+            {
+                id: 'Normal2', name: 'Versátil', hp: 20, d: 2, a: 1,
+                desc: 'Núcleo especializado en adaptación y cambio de protocolos.',
+                lore: 'Fue concebido como una plataforma capaz de cambiar de estrategia sin necesidad de regresar a una estación de control. Su arquitectura terminó aprendiendo a convertir la presión enemiga en nuevas respuestas.',
+                coreDesc: 'Un núcleo flexible que puede reinterpretar sus protocolos y modificar temporalmente la relación entre ataque y defensa.'
+            },
+            {
+                id: 'Resistente1', name: 'Berserker', hp: 20, d: 3, a: 1,
+                desc: 'Núcleo especializado en supervivencia extrema y respuesta de emergencia.',
+                lore: 'Berserker fue creado para operaciones de las que otros MIT no regresaban. Su protocolo de emergencia conserva una última reserva de funcionamiento incluso después del colapso de la plataforma.',
+                coreDesc: 'Un núcleo de supervivencia que concentra recursos cuando está al límite y puede reconstruir su configuración para continuar el combate.'
+            },
+            {
+                id: 'Resistente2', name: 'Muralla', hp: 30, d: 2, a: 1,
+                desc: 'Núcleo especializado en resistencia y adaptación del blindaje.',
+                lore: 'Su primera función fue proteger unidades de recuperación en campos de batalla prolongados. Cada impacto recibido se convirtió en información para reforzar el siguiente punto vulnerable.',
+                coreDesc: 'Un núcleo defensivo que estudia los impactos recibidos y adapta progresivamente la protección de la plataforma.'
+            },
+            {
+                id: 'Dano1', name: 'Destructor', hp: 15, d: 4, a: 1,
+                desc: 'Núcleo especializado en presión ofensiva y aumento progresivo del daño.',
+                lore: 'Fue diseñado para abrir brechas donde la fuerza inicial no era suficiente. Sus registros muestran una característica inesperada: cuanto más éxito obtiene, más agresivo se vuelve su patrón de ataque.',
+                coreDesc: 'Un núcleo ofensivo que convierte cada impacto efectivo en información para aumentar permanentemente la potencia de sus siguientes ataques.'
+            },
+            {
+                id: 'Dano2', name: 'Duelista', hp: 20, d: 3, a: 2,
+                desc: 'Núcleo especializado en lectura táctica y recuperación de iniciativa.',
+                lore: 'Duelista surgió de simulaciones centradas en anticipar al adversario. En lugar de resistir una acción enemiga, su núcleo busca el instante exacto en el que puede devolverla.',
+                coreDesc: 'Un núcleo táctico que analiza la respuesta rival y aprovecha defensas precisas para encadenar contraataques.'
+            }
         ];
 
         const MIT_PASSIVE_DETAILS = {
@@ -4608,9 +4648,14 @@
                                                         ))}
                                                     </div>
                                                     <div className="mits-class-guide-details mits-modal-content min-w-0 p-6 md:p-10 xl:p-14 2xl:p-16 text-left bg-gradient-to-br from-slate-950 via-slate-950 to-cyan-950/10">
-                                                        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/15 p-4 md:p-5 mb-7">
-                                                            <div className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-cyan-400 font-bold">REGISTRO DE NÚCLEO · LINK #{guideClass.id}</div>
-                                                            <p className="text-sm md:text-base text-slate-300 mt-2 leading-relaxed">Un MIT es un núcleo artificial inteligente que dirige una plataforma física de combate. Su arquitectura determina cómo interpreta el entorno, responde a las amenazas y desarrolla sus capacidades.</p>
+                                                        <div className="rounded-3xl border border-cyan-500/20 bg-cyan-950/10 p-5 md:p-7 mb-7">
+                                                            <div className="text-[10px] md:text-xs uppercase tracking-[0.25em] text-cyan-400 font-bold">ARCHIVO DEL NÚCLEO</div>
+                                                            <h4 className="text-3xl md:text-4xl xl:text-5xl font-black text-white mt-2 break-words">{guideClass.name}</h4>
+                                                            <p className="text-sm md:text-base text-slate-300 mt-3 leading-relaxed max-w-4xl">{guideClass.lore}</p>
+                                                            <div className="mt-5 pt-5 border-t border-cyan-500/10">
+                                                                <div className="text-[10px] uppercase tracking-[0.25em] text-cyan-400 font-bold">DESCRIPCIÓN DEL NÚCLEO</div>
+                                                                <p className="text-sm md:text-base text-slate-400 mt-2 leading-relaxed max-w-4xl">{guideClass.coreDesc}</p>
+                                                            </div>
                                                         </div>
                                                         <div className="flex flex-wrap items-start justify-between gap-3">
                                                             <div>
@@ -4626,9 +4671,14 @@
                                                             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5 lg:p-7"><div className="text-xs text-cyan-300 font-bold">PROTOCOLO A</div><div className="text-3xl font-black text-white mt-1">{guideClass.a}<span className="text-sm text-slate-500 ml-1">caras</span></div><div className="text-[10px] text-slate-500 mt-1">Caras defensivas que puedes asignar</div></div>
                                                         </div>
                                                         <div className="mt-8 lg:mt-12 rounded-3xl border border-purple-500/25 bg-purple-500/5 p-6 lg:p-10 2xl:p-12">
-                                                            <div className="text-sm uppercase tracking-[0.2em] text-purple-300 font-bold">✦ Capacidad adaptativa registrada</div>
+                                                            <div className="text-sm uppercase tracking-[0.2em] text-purple-300 font-bold">✦ PASIVA</div>
                                                             <h5 className="text-xl md:text-2xl font-black text-white mt-3">{MIT_PASSIVE_DETAILS[guideClass.id]?.split(' · ')[0] || 'Protocolo especial'}</h5>
                                                             <p className="text-base md:text-lg xl:text-xl 2xl:text-2xl leading-8 xl:leading-9 text-slate-200 mt-4 max-w-5xl break-words">{MIT_PASSIVE_DETAILS[guideClass.id] || guideClass.desc}</p>
+                                                        </div>
+                                                        <div className="mt-5 rounded-3xl border border-violet-500/25 bg-violet-500/5 p-6 lg:p-8">
+                                                            <div className="text-sm uppercase tracking-[0.2em] text-violet-300 font-bold">✦ HABILIDAD</div>
+                                                            <h5 className="text-xl md:text-2xl font-black text-white mt-3">{ACTIVE_ABILITY_DATA[guideClass.id]?.ability || 'Protocolo activo'}</h5>
+                                                            <p className="text-base md:text-lg leading-7 text-slate-200 mt-3 max-w-5xl">{ACTIVE_ABILITY_DATA[guideClass.id]?.effect || 'Sin descripción disponible.'}</p>
                                                         </div>
                                                         <div className="mt-7 rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
                                                             <div className="text-xs font-bold tracking-widest text-cyan-300 mb-2">SOBRE LOS PROTOCOLOS</div>
