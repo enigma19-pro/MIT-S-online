@@ -448,6 +448,40 @@
             .combat-test-core-wrap.player { bottom:18%;left:9%; }
         }
 
+        /* Active ability HUD: compact overlay over the battle arena. */
+        .ability-test-hud { pointer-events:none; }
+        .ability-test-floating {
+            position:relative;
+            overflow:hidden;
+            transform-origin:center;
+            animation: ability-hud-in .18s ease-out;
+        }
+        .ability-test-floating::before {
+            content:"";
+            position:absolute;
+            inset:0;
+            pointer-events:none;
+            background:
+                radial-gradient(circle at 15% 0%, rgba(34,211,238,.12), transparent 42%),
+                linear-gradient(135deg, rgba(15,23,42,.96), rgba(8,15,30,.9));
+        }
+        .ability-test-floating > * { position:relative; z-index:1; }
+        .ability-result-card { animation: ability-result-in .18s ease-out; }
+        @keyframes ability-hud-in {
+            from { opacity:0; transform:translateY(10px) scale(.98); }
+            to { opacity:1; transform:translateY(0) scale(1); }
+        }
+        @keyframes ability-result-in {
+            from { opacity:0; transform:scale(.96); }
+            to { opacity:1; transform:scale(1); }
+        }
+        @media (max-width:640px) {
+            .ability-test-floating { max-width:520px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .ability-test-floating,.ability-result-card { animation:none; }
+        }
+
         /* Ability prototype: dado -> oportunidad -> prueba de habilidad. */
         .ability-test-screen { background:rgba(2,6,23,.96); backdrop-filter:blur(16px); }
         .ability-test-shell { width:min(100%,1240px); }
@@ -1001,6 +1035,22 @@
 
             const localCombatPlayer = () => gameMode === 'ONLINE' ? (isRoomHost ? 1 : 2) : 1;
 
+            const getLocalCombatAbility = () => {
+                const playerNum = localCombatPlayer();
+                const index = playerNum === 1 ? activeP1IndexRef.current : activeP2IndexRef.current;
+                const list = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = list?.[index];
+                const state = mit ? window.MITSGameRules.normalizePassiveState(mit) : null;
+                if (!mit || !state?.activeAbilityOpportunity) return null;
+                return {
+                    playerNum,
+                    index,
+                    abilityId: state.activeAbilityOpportunity,
+                    data: ACTIVE_ABILITY_DATA[state.activeAbilityOpportunity] || null,
+                    mit
+                };
+            };
+
             const getFaceTypeForAbility = (mit, roll, actionType) => {
                 const value = Number(roll);
                 if (actionType === 'ATTACK' && mit?.attackNums?.includes(value)) return 'D';
@@ -1084,16 +1134,27 @@
                 const resume = pending.resume;
                 combatAbilityPendingRef.current = null;
                 setCombatAbilityLock(null);
-                setShowCombatTest(false);
+                setShowCombatTest(playerNum === localCombatPlayer());
                 setAbilityTestMinigame(null);
                 setAbilityTestReady(false);
                 setAbilityTestResult(result);
+                setAbilityTestMessage(
+                    result === 'perfecto'
+                        ? 'Ejecución perfecta · efecto aplicado.'
+                        : result === 'parcial'
+                            ? 'Ejecución parcial · efecto reducido aplicado.'
+                            : 'Ejecución fallida · la oportunidad se consumió.'
+                );
                 if (gameMode === 'ONLINE') {
                     syncOnline({ p1Mits: updatedP1, p2Mits: updatedP2, combatAbilityLock: null });
                 }
                 if (typeof resume === 'function') {
                     scheduleGameTimeout(() => resume(updatedP1, updatedP2), 120);
                 }
+                scheduleGameTimeout(() => {
+                    setShowCombatTest(false);
+                    setAbilityTestResult(null);
+                }, 1250);
             };
 
             const completeCombatAbility = (result, choice = null) => {
@@ -1107,32 +1168,29 @@
                 applyCombatAbilityResult(result, choice);
             };
 
-            const openCombatAbility = ({ playerNum, index, abilityId, roll = null, rollType = '', resume }) => {
+            const activateCombatAbility = ({ playerNum, index, abilityId }) => {
                 const lists = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
                 const mit = lists?.[index];
                 if (!mit || !abilityId) return false;
                 const normalized = window.MITSGameRules.normalizePassiveState(mit);
-                if (normalized.activeAbilityOpportunity) return false;
+                if (normalized.activeAbilityOpportunity !== abilityId || combatAbilityLock) return false;
 
-                const updatedMit = { ...mit, passiveState: { ...normalized, activeAbilityOpportunity: abilityId } };
-                const updatedList = lists.map((item,i)=>i===index?updatedMit:item);
-                if (playerNum === 1) p1MitsRef.current = updatedList; else p2MitsRef.current = updatedList;
-                if (playerNum === 1) setP1Mits(updatedList); else setP2Mits(updatedList);
-                if (gameMode === 'ONLINE') {
-                    const patch = playerNum === 1 ? { p1Mits: updatedList } : { p2Mits: updatedList };
-                    syncOnline({ ...patch, combatAbilityLock: { playerNum, abilityId } });
-                }
-                combatAbilityPendingRef.current = { playerNum, index, abilityId, resume };
+                combatAbilityPendingRef.current = { playerNum, index, abilityId };
                 setCombatAbilityLock({ playerNum, abilityId });
                 setAbilityTestMit(mit.classData.id);
-                setAbilityTestRoll(roll);
-                setAbilityTestRollType(rollType);
+                setAbilityTestRoll(null);
+                setAbilityTestRollType('');
                 setAbilityTestResult(null);
                 setAbilityTestChoice(null);
                 setAbilityTestReady(true);
-                setAbilityTestMessage('OPORTUNIDAD OBTENIDA · decide si gastar el intento.');
-                const shouldShowAbility = gameMode === 'ONLINE' ? playerNum === localCombatPlayer() : gameMode === 'AI' ? playerNum === 1 : true;
+                setAbilityTestMessage('HABILIDAD ACTIVADA · ejecuta el protocolo.');
+                const shouldShowAbility = gameMode === 'ONLINE'
+                    ? playerNum === localCombatPlayer()
+                    : gameMode === 'AI'
+                        ? playerNum === 1
+                        : true;
                 setShowCombatTest(shouldShowAbility);
+                if (gameMode === 'ONLINE') syncOnline({ combatAbilityLock: { playerNum, abilityId } });
                 playSound('click');
 
                 if (gameMode === 'AI' && playerNum === 2) {
@@ -1141,9 +1199,49 @@
                 return true;
             };
 
+            const openCombatAbility = ({ playerNum, index, abilityId, roll = null, rollType = '', resume }) => {
+                const lists = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = lists?.[index];
+                if (!mit || !abilityId) return false;
+                const normalized = window.MITSGameRules.normalizePassiveState(mit);
+                if (normalized.activeAbilityOpportunity) return false;
+
+                const updatedMit = {
+                    ...mit,
+                    passiveState: {
+                        ...normalized,
+                        activeAbilityOpportunity: abilityId
+                    }
+                };
+                const updatedList = lists.map((item,i)=>i===index?updatedMit:item);
+                if (playerNum === 1) p1MitsRef.current = updatedList; else p2MitsRef.current = updatedList;
+                if (playerNum === 1) setP1Mits(updatedList); else setP2Mits(updatedList);
+                if (gameMode === 'ONLINE') {
+                    const patch = playerNum === 1 ? { p1Mits: updatedList } : { p2Mits: updatedList };
+                    syncOnline({ ...patch, combatAbilityLock: null });
+                }
+
+                // La oportunidad queda guardada en el núcleo. El combate continúa.
+                if (typeof resume === 'function') resume();
+                playSound('click');
+
+                if (gameMode === 'AI' && playerNum === 2) {
+                    scheduleGameTimeout(() => activateCombatAbility({ playerNum, index, abilityId }), 650);
+                }
+                return true;
+            };
+
             const cancelCombatAbility = () => {
                 if (!combatAbilityPendingRef.current) return;
-                completeCombatAbility('cancelled');
+                setCombatAbilityLock(null);
+                setShowCombatTest(false);
+                setAbilityTestMinigame(null);
+                setAbilityTestReady(false);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                // Salir del minijuego no consume la oportunidad.
+                combatAbilityPendingRef.current = null;
+                if (gameMode === 'ONLINE') syncOnline({ combatAbilityLock: null });
             };
 
             const getAttackAbilityId = (mit, roll, hit) => {
@@ -4275,146 +4373,139 @@
                             </div>
                         )}
                         {showCombatTest && (
-                            <div className="ability-test-screen fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto p-3 md:p-6">
-                                <div className="ability-test-shell mx-auto flex flex-col gap-3 md:gap-4">
-                                    <header className="glass-panel flex items-center justify-between gap-3 rounded-2xl border border-cyan-500/20 px-4 py-3 md:px-5">
+                            <div className="ability-test-hud fixed inset-0 z-[90] pointer-events-none flex items-end justify-center p-3 md:items-center md:justify-end md:p-6">
+                                <div className="ability-test-card ability-test-floating pointer-events-auto w-full max-w-md rounded-3xl border border-cyan-400/25 bg-slate-950/90 p-4 md:p-5 shadow-2xl backdrop-blur-xl">
+                                    <header className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
-                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · HABILIDAD ACTIVA</div>
-                                            <h2 className="text-lg md:text-2xl font-black font-mono-custom text-slate-100">{abilityTestCurrent.ability}</h2>
-                                            <p className="mt-1 text-[10px] text-slate-500">Dado → oportunidad → ejecución</p>
+                                            <div className="text-[9px] md:text-[10px] font-mono-custom font-bold uppercase tracking-[.24em] text-cyan-300">PROTOCOLO LINK · HABILIDAD</div>
+                                            <h2 className="mt-1 text-lg md:text-xl font-black font-mono-custom text-white">{abilityTestCurrent.ability}</h2>
+                                            <p className="mt-1 text-[10px] leading-relaxed text-slate-400">{abilityTestCurrent.trigger}</p>
                                         </div>
-                                        <button onClick={cancelCombatAbility} className="shrink-0 px-4 py-2 rounded-xl bg-slate-800 hover:bg-rose-500/15 border border-slate-700 hover:border-rose-400/40 text-slate-200 text-xs md:text-sm font-bold transition">NO USAR</button>
+                                        <button onClick={cancelCombatAbility} className="shrink-0 rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-[10px] font-bold text-slate-300 hover:border-rose-400/40 hover:text-rose-200 transition">SALIR</button>
                                     </header>
 
-                                    <section className="ability-test-card rounded-3xl border border-slate-800 p-4 md:p-6 shadow-2xl">
-                                        <div className="grid lg:grid-cols-[.9fr_1.1fr] gap-5">
-                                            <div className="space-y-4">
-                                                <div className="flex items-start justify-between gap-3">
-                                                    <div>
-                                                        <div className="text-[9px] font-mono-custom tracking-[.22em] text-cyan-300">NÚCLEO EN EJECUCIÓN</div>
-                                                        <h3 className="mt-1 text-2xl md:text-3xl font-black text-white">{abilityTestCurrent.name}</h3>
-                                                        <p className="mt-2 text-xs leading-relaxed text-slate-400">{abilityTestCurrent.trigger}</p>
-                                                    </div>
-                                                    <div className="ability-test-die shrink-0 text-3xl font-black font-mono-custom text-cyan-200">{abilityTestRoll ?? '—'}</div>
-                                                </div>
-
-                                                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-3">
-                                                    <div className="text-[9px] font-mono-custom uppercase tracking-widest text-emerald-300">OPORTUNIDAD DISPONIBLE</div>
-                                                    <p className="mt-1 text-xs text-emerald-100">{abilityTestMessage}</p>
-                                                </div>
-
-                                                {abilityTestReady && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
-                                                    <button onClick={startAbilityTest} className="w-full rounded-xl bg-cyan-400 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300">ACTIVAR HABILIDAD · INICIAR PRUEBA</button>
-                                                )}
-
-                                                {abilityTestChoice === 'pending' && (
-                                                    <div className="space-y-2">
-                                                        <div className="text-[9px] font-mono-custom tracking-widest text-violet-300 uppercase">REESCRITURA COMPLETADA</div>
-                                                        <button onClick={() => completeCombatAbility('perfecto','attack')} className="w-full rounded-xl border border-amber-400/30 bg-amber-500/10 py-3 text-xs font-black text-amber-200">+2 ATAQUE · PRÓXIMO DADO</button>
-                                                        <button onClick={() => completeCombatAbility('perfecto','defense')} className="w-full rounded-xl border border-violet-400/30 bg-violet-500/10 py-3 text-xs font-black text-violet-200">−2 DAÑO · PRÓXIMO IMPACTO</button>
-                                                    </div>
-                                                )}
-
-                                                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-3 text-xs leading-relaxed text-slate-400">
-                                                    <span className="font-mono-custom text-[9px] tracking-widest text-slate-500">EFECTO:</span> {abilityTestCurrent.effect}
-                                                </div>
+                                    {abilityTestResult && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
+                                        <div className="ability-result-card mt-4 rounded-2xl border border-cyan-400/30 bg-cyan-500/5 p-4 text-center">
+                                            <div className="text-[9px] font-mono-custom font-bold tracking-[.25em] text-slate-400">RESULTADO DEL PROTOCOLO</div>
+                                            <div className={"mt-2 text-2xl font-black font-mono-custom uppercase " + (
+                                                abilityTestResult === 'perfecto'
+                                                    ? 'text-emerald-300'
+                                                    : abilityTestResult === 'parcial'
+                                                        ? 'text-amber-300'
+                                                        : 'text-rose-300'
+                                            )}>
+                                                {abilityTestResult === 'perfecto' ? 'PERFECTO' : abilityTestResult === 'parcial' ? 'PARCIAL' : 'FALLÓ'}
                                             </div>
+                                            <p className="mt-1 text-xs text-slate-300">{abilityTestMessage}</p>
+                                        </div>
+                                    )}
 
-                                            <div className="rounded-3xl border border-slate-800 bg-slate-950/65 p-4 md:p-5 min-h-[300px] flex flex-col justify-center">
-                                                {abilityTestMinigame === 'timing' && (
-                                                    <div className="space-y-5">
-                                                        <div className="text-center">
-                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div>
-                                                            <div className="mt-2 text-2xl font-black text-white">Detén el cursor en la zona</div>
-                                                        </div>
-                                                        <div className="ability-test-track">
-                                                            <div className="ability-test-target" style={{left: abilityTestTimingTarget.left + '%', width: abilityTestTimingTarget.width + '%'}} />
-                                                            <div className="ability-test-cursor left-0 animate-[ability-cursor_1.8s_linear_infinite]" />
-                                                        </div>
-                                                        <button onClick={finishAbilityTiming} className="w-full rounded-xl bg-cyan-400 py-4 font-black text-slate-950">DETENER CURSOR</button>
-                                                    </div>
-                                                )}
+                                    {!abilityTestResult && abilityTestReady && !abilityTestMinigame && abilityTestChoice !== 'pending' && (
+                                        <div className="mt-4 space-y-3">
+                                            <div className="rounded-2xl border border-cyan-400/25 bg-cyan-500/5 p-3">
+                                                <div className="text-[9px] font-mono-custom uppercase tracking-widest text-cyan-300">¿USAR AHORA?</div>
+                                                <p className="mt-1 text-xs leading-relaxed text-slate-300">La oportunidad ya está guardada. Puedes ejecutarla ahora o salir y conservarla para otro turno.</p>
+                                            </div>
+                                            <button onClick={startAbilityTest} className="w-full rounded-xl bg-cyan-400 py-3 text-sm font-black text-slate-950 hover:bg-cyan-300 active:scale-[.99] transition">
+                                                INICIAR MINI JUEGO
+                                            </button>
+                                        </div>
+                                    )}
 
-                                                {abilityTestMinigame === 'sequence' && (
-                                                    <div className="space-y-5">
-                                                        <div className="text-center">
-                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div>
-                                                            <div className="mt-2 text-2xl font-black text-white">Repite la secuencia</div>
-                                                            <div className="mt-2 text-xs text-slate-500">Orden: {abilityTestSequence.map(n => n + 1).join(' → ')}</div>
-                                                        </div>
-                                                        <div className="grid grid-cols-3 gap-2">
-                                                            {Array.from({length: abilityTestSequence.length || 3}, (_,i) => (
-                                                                <button key={i} onClick={() => pressAbilitySequenceNode(i)} className={'ability-test-node ' + (i < abilityTestSequenceProgress ? 'done' : '')}>{i + 1}</button>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
+                                    {abilityTestChoice === 'pending' && (
+                                        <div className="mt-4 space-y-2">
+                                            <div className="text-[9px] font-mono-custom tracking-widest text-violet-300 uppercase">REESCRITURA COMPLETADA · ELIGE UN EFECTO</div>
+                                            <button onClick={() => completeCombatAbility('perfecto','attack')} className="w-full rounded-xl border border-amber-400/30 bg-amber-500/10 py-3 text-xs font-black text-amber-200">+2 ATAQUE · PRÓXIMO DADO</button>
+                                            <button onClick={() => completeCombatAbility('perfecto','defense')} className="w-full rounded-xl border border-violet-400/30 bg-violet-500/10 py-3 text-xs font-black text-violet-200">−2 DAÑO · PRÓXIMO IMPACTO</button>
+                                        </div>
+                                    )}
 
-                                                {abilityTestMinigame === 'overload' && (
-                                                    <div className="space-y-5">
-                                                        <div className="text-center">
-                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div>
-                                                            <div className="mt-2 text-2xl font-black text-white">Carga el núcleo y suelta</div>
-                                                            <div className="mt-2 text-xs text-slate-500">Zona óptima: 48–68%.</div>
-                                                        </div>
-                                                        <div className="ability-test-overload" aria-label="Medidor de sobrecarga">
-                                                            <div className="ability-test-overload-target" />
-                                                            <span style={{width: abilityTestOverload + '%'}} />
-                                                            <div className="ability-test-overload-marker" style={{left: abilityTestOverload + '%'}} />
-                                                        </div>
-                                                        <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider">
-                                                            <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO</span><span className="text-rose-300">CRÍTICO</span>
-                                                        </div>
-                                                        <button
-                                                            onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(e); }}
-                                                            onPointerUp={e => { e.preventDefault(); finishAbilityOverload(e); }}
-                                                            onPointerCancel={e => { e.preventDefault(); finishAbilityOverload(e); }}
-                                                            onLostPointerCapture={finishAbilityOverload}
-                                                            onContextMenu={e => e.preventDefault()}
-                                                            style={{touchAction:'none',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
-                                                            className="w-full rounded-xl bg-rose-400 py-4 font-black text-slate-950 select-none"
-                                                        >MANTENER / SOLTAR</button>
-                                                    </div>
-                                                )}
+                                    {abilityTestMinigame === 'timing' && (
+                                        <div className="mt-4 space-y-4">
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-mono-custom tracking-[.25em] text-cyan-300">SINCRONIZACIÓN</div>
+                                                <div className="mt-1 text-xl font-black text-white">Detén el cursor en la zona</div>
+                                                <div className="mt-1 text-[10px] text-slate-500">Busca el centro de la franja para obtener el resultado máximo.</div>
+                                            </div>
+                                            <div className="ability-test-track">
+                                                <div className="ability-test-target" style={{left: abilityTestTimingTarget.left + '%', width: abilityTestTimingTarget.width + '%'}} />
+                                                <div className="ability-test-cursor left-0 animate-[ability-cursor_1.8s_linear_infinite]" />
+                                            </div>
+                                            <button onClick={finishAbilityTiming} className="w-full rounded-xl bg-cyan-400 py-3 font-black text-slate-950">DETENER CURSOR</button>
+                                        </div>
+                                    )}
 
-                                                {abilityTestMinigame === 'rapid' && (
-                                                    <div className="space-y-5 text-center">
-                                                        <div>
-                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-amber-300">RUPTURA</div>
-                                                            <div className="mt-2 text-2xl font-black text-white">Rompe el blindaje</div>
-                                                            <div className="mt-2 text-xs text-slate-500">Alcanza 8 pulsaciones en 1.2 segundos.</div>
-                                                        </div>
-                                                        <div className="text-5xl font-black font-mono-custom text-amber-300">{abilityTestRapidCount}<span className="text-slate-600 text-2xl"> / 8</span></div>
-                                                        <button onClick={pressAbilityRapid} className="w-full rounded-xl bg-amber-400 py-5 text-lg font-black text-slate-950 active:scale-95">IMPACTAR</button>
-                                                    </div>
-                                                )}
-
-                                                {abilityTestMinigame === 'prediction' && (
-                                                    <div className="space-y-5 text-center">
-                                                        <div>
-                                                            <div className="text-[9px] font-mono-custom tracking-[.25em] text-purple-300">LECTURA</div>
-                                                            <div className="mt-2 text-2xl font-black text-white">Predice el canal rival</div>
-                                                            <div className="mt-2 text-xs text-slate-500">Una de las tres señales es la respuesta correcta.</div>
-                                                        </div>
-                                                        <div className="grid grid-cols-3 gap-2">
-                                                            {[0,1,2].map(i => <button key={i} onClick={() => chooseAbilityPrediction(i)} className="ability-test-node py-5">CANAL {i + 1}</button>)}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {!abilityTestMinigame && abilityTestChoice !== 'pending' && (
-                                                    <div className="text-center">
-                                                        <div className="text-[9px] font-mono-custom tracking-[.25em] text-slate-500">PROTOCOLO</div>
-                                                        <div className="mt-3 text-xl font-black text-slate-200">Esperando ejecución</div>
-                                                        <p className="mt-2 text-xs text-slate-500">El combate permanece bloqueado mientras decides.</p>
-                                                    </div>
-                                                )}
+                                    {abilityTestMinigame === 'sequence' && (
+                                        <div className="mt-4 space-y-4">
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-mono-custom tracking-[.25em] text-violet-300">CALIBRACIÓN</div>
+                                                <div className="mt-1 text-xl font-black text-white">Repite la secuencia</div>
+                                                <div className="mt-1 text-[10px] text-slate-500">Pulsa los nodos en el orden indicado.</div>
+                                                <div className="mt-1 text-[10px] text-slate-500">Orden: {abilityTestSequence.map(n => n + 1).join(' → ')}</div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {Array.from({length: abilityTestSequence.length || 3}, (_,i) => (
+                                                    <button key={i} onClick={() => pressAbilitySequenceNode(i)} className={'ability-test-node ' + (i < abilityTestSequenceProgress ? 'done' : '')}>{i + 1}</button>
+                                                ))}
                                             </div>
                                         </div>
-                                    </section>
+                                    )}
+
+                                    {abilityTestMinigame === 'overload' && (
+                                        <div className="mt-4 space-y-4">
+                                            <div className="text-center">
+                                                <div className="text-[9px] font-mono-custom tracking-[.25em] text-rose-300">SOBRECARGA</div>
+                                                <div className="mt-1 text-xl font-black text-white">Carga el núcleo y suelta</div>
+                                                <div className="mt-1 text-[10px] text-slate-500">Mantén pulsado y suelta dentro de la zona óptima.</div>
+                                            </div>
+                                            <div className="ability-test-overload" aria-label="Medidor de sobrecarga">
+                                                <div className="ability-test-overload-target" />
+                                                <span style={{width: abilityTestOverload + '%'}} />
+                                                <div className="ability-test-overload-marker" style={{left: abilityTestOverload + '%'}} />
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2 text-center text-[8px] font-mono-custom font-bold tracking-wider">
+                                                <span className="text-emerald-300">SEGURO</span><span className="text-yellow-300">ÓPTIMO</span><span className="text-rose-300">CRÍTICO</span>
+                                            </div>
+                                            <button
+                                                onPointerDown={e => { e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); startAbilityOverload(e); }}
+                                                onPointerUp={e => { e.preventDefault(); finishAbilityOverload(e); }}
+                                                onPointerCancel={e => { e.preventDefault(); finishAbilityOverload(e); }}
+                                                onLostPointerCapture={finishAbilityOverload}
+                                                onContextMenu={e => e.preventDefault()}
+                                                style={{touchAction:'none',userSelect:'none',WebkitUserSelect:'none',WebkitTouchCallout:'none'}}
+                                                className="w-full rounded-xl bg-rose-400 py-3 font-black text-slate-950 select-none"
+                                            >MANTENER / SOLTAR</button>
+                                        </div>
+                                    )}
+
+                                    {abilityTestMinigame === 'rapid' && (
+                                        <div className="mt-4 space-y-4 text-center">
+                                            <div>
+                                                <div className="text-[9px] font-mono-custom tracking-[.25em] text-amber-300">RUPTURA</div>
+                                                <div className="mt-1 text-xl font-black text-white">Rompe el blindaje</div>
+                                                <div className="mt-1 text-[10px] text-slate-500">Alcanza 8 pulsaciones antes de que termine el tiempo.</div>
+                                            </div>
+                                            <div className="text-5xl font-black font-mono-custom text-amber-300">{abilityTestRapidCount}<span className="text-slate-600 text-2xl"> / 8</span></div>
+                                            <button onClick={pressAbilityRapid} className="w-full rounded-xl bg-amber-400 py-4 text-lg font-black text-slate-950 active:scale-95">IMPACTAR</button>
+                                        </div>
+                                    )}
+
+                                    {abilityTestMinigame === 'prediction' && (
+                                        <div className="mt-4 space-y-4 text-center">
+                                            <div>
+                                                <div className="text-[9px] font-mono-custom tracking-[.25em] text-purple-300">LECTURA</div>
+                                                <div className="mt-1 text-xl font-black text-white">Predice el canal rival</div>
+                                                <div className="mt-1 text-[10px] text-slate-500">Elige una de las tres señales.</div>
+                                            </div>
+                                            <div className="grid grid-cols-3 gap-2">
+                                                {[0,1,2].map(i => <button key={i} onClick={() => chooseAbilityPrediction(i)} className="ability-test-node py-4">CANAL {i + 1}</button>)}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         )}
+
 
                         {gameState === 'MENU' && (
                             <div className="menu-screen max-w-xl mx-auto w-full glass-panel rounded-3xl p-6 md:p-8 space-y-6 text-center border border-cyan-500/20 shadow-2xl">
@@ -4964,6 +5055,36 @@
                                             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
                                             {combatPhase === 'DEFENSE_ROLL' ? 'DEFENSA PENDIENTE:' : 'TURNO ACTUAL:'} <strong className="text-cyan-300 uppercase">JUGADOR {currentActionPlayer} ({currentActionPlayer === 1 ? activeP1Mit.name : activeP2Mit.name})</strong>
                                         </div>
+
+                                        {(() => {
+                                            const savedAbility = getLocalCombatAbility();
+                                            const canUseSavedAbility =
+                                                gameState === 'BATTLE' &&
+                                                !combatAbilityLock &&
+                                                !isRolling &&
+                                                !isTurnProcessing &&
+                                                currentActionPlayer === localCombatPlayer() &&
+                                                savedAbility?.data;
+                                            return canUseSavedAbility ? (
+                                                <button
+                                                    onClick={() => activateCombatAbility({
+                                                        playerNum: savedAbility.playerNum,
+                                                        index: savedAbility.index,
+                                                        abilityId: savedAbility.abilityId
+                                                    })}
+                                                    className="w-full max-w-sm rounded-2xl border border-violet-400/50 bg-violet-500/10 px-4 py-3 text-left shadow-lg shadow-violet-500/10 hover:border-violet-300 hover:bg-violet-500/15 active:scale-[.99] transition-all"
+                                                >
+                                                    <div className="flex items-center justify-between gap-3">
+                                                        <div>
+                                                            <div className="text-[9px] font-mono-custom font-bold tracking-[.2em] text-violet-300">HABILIDAD DISPONIBLE</div>
+                                                            <div className="mt-1 text-sm font-black text-white">{savedAbility.data.ability}</div>
+                                                            <div className="mt-1 text-[10px] text-slate-400">Guardada en {savedAbility.mit.name} · pulsa para usarla</div>
+                                                        </div>
+                                                        <span className="shrink-0 rounded-xl bg-violet-400 px-3 py-2 text-[10px] font-black text-slate-950">USAR</span>
+                                                    </div>
+                                                </button>
+                                            ) : null;
+                                        })()}
 
                                         <div className="py-2">
                                             <div className={`w-20 h-20 rounded-2xl border-4 flex items-center justify-center font-mono-custom text-4xl font-black transition-all shadow-2xl ${
