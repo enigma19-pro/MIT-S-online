@@ -1006,6 +1006,7 @@
             const [abilityTestMinigame, setAbilityTestMinigame] = useState(null);
             const [abilityTestResult, setAbilityTestResult] = useState(null);
             const [abilityTestChoice, setAbilityTestChoice] = useState(null);
+            const [abilityPracticeMode, setAbilityPracticeMode] = useState(false);
             const [abilityTestSequence, setAbilityTestSequence] = useState([]);
             const [abilityTestSequenceProgress, setAbilityTestSequenceProgress] = useState(0);
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
@@ -1025,48 +1026,56 @@
                 Agil1: {
                     name:'Evasivo', ability:'Vector Fantasma', game:'timing',
                     trigger:'Defensa: una cara A que reduzca el daño final a 0 o 1.',
+                    miniGame:'Detén un cursor que se mueve de lado a lado exactamente dentro de la zona objetivo. Cuanto más centrado quede, mejor será el resultado.',
                     effect:'Perfecto: +2 daño en el próximo ataque. Parcial: +1.',
                     risk:'La oportunidad se consume al iniciar la prueba.'
                 },
                 Agil2: {
                     name:'Móvil', ability:'Impulso Cinético', game:'timing',
                     trigger:'Defensa: esquiva completa con una cara A.',
+                    miniGame:'Detén el cursor dentro de una zona muy estrecha. La zona de Móvil es más exigente y premia una detención precisa.',
                     effect:'Perfecto: +1 daño y conserva la iniciativa tras el próximo ataque. Parcial: +1 daño.',
                     risk:'El efecto de iniciativa solo ocurre si el próximo ataque acierta.'
                 },
                 Normal1: {
                     name:'Técnico', ability:'Reescritura de Parámetros', game:'sequence',
                     trigger:'Ataque: sacar exactamente la cara D más alta.',
+                    miniGame:'Observa una secuencia de posiciones y repítela en el mismo orden. Técnico usa tres pasos; acertarlos todos da el resultado perfecto.',
                     effect:'Perfecto: elegir +2 ataque o -2 daño recibido. Parcial: +1 ataque.',
                     risk:'Una mala secuencia consume la oportunidad.'
                 },
                 Normal2: {
                     name:'Versátil', ability:'Cambio de Protocolo', game:'sequence',
                     trigger:'Conseguir una transición D→A o A→D entre dos lanzamientos consecutivos.',
+                    miniGame:'Memoriza y repite una secuencia de cuatro posiciones. Debes pulsar cada posición en orden sin equivocarte.',
                     effect:'Perfecto: intercambia D y A durante el siguiente ataque. Parcial: +1 ataque.',
                     risk:'El intercambio dura un solo ataque.'
                 },
                 Resistente1: {
                     name:'Berserker', ability:'Sobrecarga', game:'overload',
                     trigger:'Ataque: HP al 50% o menos y cara D acertada.',
+                    miniGame:'Mantén pulsado para cargar el medidor y suelta cuando esté en la zona óptima. Soltar fuera de ella reduce el resultado.',
                     effect:'Perfecto: +3 daño al próximo ataque y +2 daño recibido en el siguiente impacto. Parcial: +1.',
                     risk:'La recompensa perfecta aumenta el daño que recibirá el núcleo.'
                 },
                 Resistente2: {
                     name:'Muralla', ability:'Anclaje', game:'timing',
                     trigger:'Defensa: el impacto debe causar al menos 1 daño.',
+                    miniGame:'Detén el cursor dentro de una zona amplia de seguridad. La zona de Muralla permite más margen que las otras pruebas de sincronización.',
                     effect:'Perfecto: -3 daño en el próximo impacto recibido. Parcial: -1.',
                     risk:'El blindaje extra se consume en un solo impacto.'
                 },
                 Dano1: {
                     name:'Destructor', ability:'Ruptura', game:'rapid',
                     trigger:'Ataque: el impacto debe quitar al menos 1 HP.',
+                    miniGame:'Pulsa IMPACTAR repetidamente durante la ventana de prueba. Necesitas 8 impactos para un resultado perfecto y 5 para uno parcial.',
                     effect:'Perfecto: el próximo ataque ignora hasta 2 puntos de reducción defensiva. Parcial: +1 daño.',
                     risk:'Ruptura no aumenta por sí sola el daño permanente de Enfurecimiento.'
                 },
                 Dano2: {
                     name:'Duelista', ability:'Réplica', game:'prediction',
                     trigger:'Defensa: reducir el impacto a 0 o 1 daño.',
+                    miniGame:'Aparecen tres canales. Debes predecir cuál es el canal correcto y seleccionarlo antes de que termine la lectura.',
                     effect:'Perfecto: los siguientes ataques de Contraataque reciben +2 daño. Parcial: +1.',
                     risk:'La mejora solo afecta la secuencia de Contraataque.'
                 }
@@ -1193,11 +1202,25 @@
                 }
                 scheduleGameTimeout(() => {
                     setShowCombatTest(false);
+                    setAbilityPracticeMode(false);
                     setAbilityTestResult(null);
                 }, 1250);
             };
 
             const completeCombatAbility = (result, choice = null) => {
+                if (abilityPracticeMode) {
+                    setAbilityTestResult(result);
+                    setAbilityTestMinigame(null);
+                    setAbilityTestChoice(null);
+                    setAbilityTestMessage(
+                        result === 'perfecto'
+                            ? 'PRUEBA PERFECTA · la práctica no afecta la partida.'
+                            : result === 'parcial'
+                                ? 'PRUEBA PARCIAL · la práctica no afecta la partida.'
+                                : 'PRUEBA FALLIDA · la práctica no afecta la partida.'
+                    );
+                    return;
+                }
                 if (result === 'perfecto' && abilityTestMit === 'Normal1' && !choice) {
                     setAbilityTestResult('perfecto');
                     setAbilityTestMinigame(null);
@@ -1206,6 +1229,18 @@
                     return;
                 }
                 applyCombatAbilityResult(result, choice);
+            };
+
+            const startAbilityPractice = (abilityId) => {
+                const data = ACTIVE_ABILITY_DATA[abilityId];
+                if (!data || showCombatTest) return;
+                resetAbilityOverlay();
+                setAbilityPracticeMode(true);
+                setAbilityTestMit(abilityId);
+                setAbilityTestReady(true);
+                setAbilityTestMessage('MODO PRÁCTICA · esta prueba no consume ni modifica una habilidad.');
+                setShowCombatTest(true);
+                playSound('click');
             };
 
             const activateCombatAbility = ({ playerNum, index, abilityId }) => {
@@ -4682,7 +4717,17 @@
                                                                 <div className="text-xs uppercase tracking-[0.2em] text-amber-300 font-bold">ACTIVACIÓN</div>
                                                                 <p className="text-sm md:text-base leading-6 text-slate-200 mt-2">{ACTIVE_ABILITY_DATA[guideClass.id]?.trigger || 'Sin condición de activación disponible.'}</p>
                                                             </div>
+                                                            <div className="mt-4 rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-4">
+                                                                <div className="text-xs uppercase tracking-[0.2em] text-cyan-300 font-bold">MINIJUEGO</div>
+                                                                <p className="text-sm md:text-base leading-6 text-slate-200 mt-2">{ACTIVE_ABILITY_DATA[guideClass.id]?.miniGame || 'Ejecuta la prueba para completar el protocolo.'}</p>
+                                                            </div>
                                                             <p className="text-base md:text-lg leading-7 text-slate-200 mt-4 max-w-5xl">{ACTIVE_ABILITY_DATA[guideClass.id]?.effect || 'Sin descripción disponible.'}</p>
+                                                            <button
+                                                                onClick={() => startAbilityPractice(guideClass.id)}
+                                                                className="mt-5 w-full sm:w-auto rounded-xl border border-violet-400/40 bg-violet-500/10 px-4 py-3 text-xs font-black uppercase tracking-wider text-violet-200 hover:border-violet-300 hover:bg-violet-500/15 transition"
+                                                            >
+                                                                PRACTICAR MINIJUEGO
+                                                            </button>
                                                         </div>
                                                         <div className="mt-7 rounded-2xl border border-slate-800 bg-slate-900/50 p-5">
                                                             <div className="text-xs font-bold tracking-widest text-cyan-300 mb-2">SOBRE LOS PROTOCOLOS</div>
