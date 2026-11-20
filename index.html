@@ -922,25 +922,370 @@
             const [soundEnabled, setSoundEnabled] = useState(true);
             // Sandbox de movimiento: estado independiente del combate y de Firebase.
             const [showMovementTest, setShowMovementTest] = useState(false);
+            // Habilidades activas: el dado crea la oportunidad y el minijuego decide su ejecución.
             const [showCombatTest, setShowCombatTest] = useState(false);
-            const [combatTestMessage, setCombatTestMessage] = useState('¡Un MIT salvaje aparece!');
-            const [combatTestAction, setCombatTestAction] = useState('');
-            // Prototipo de habilidades: el dado genera la oportunidad; la prueba de habilidad ejecuta el efecto.
             const [abilityTestMit, setAbilityTestMit] = useState('Agil1');
             const [abilityTestRoll, setAbilityTestRoll] = useState(null);
             const [abilityTestRollType, setAbilityTestRollType] = useState('');
             const [abilityTestReady, setAbilityTestReady] = useState(false);
-            const [abilityTestMessage, setAbilityTestMessage] = useState('Lanza el dado para buscar una oportunidad.');
+            const [abilityTestMessage, setAbilityTestMessage] = useState('');
             const [abilityTestMinigame, setAbilityTestMinigame] = useState(null);
             const [abilityTestResult, setAbilityTestResult] = useState(null);
+            const [abilityTestChoice, setAbilityTestChoice] = useState(null);
             const [abilityTestSequence, setAbilityTestSequence] = useState([]);
             const [abilityTestSequenceProgress, setAbilityTestSequenceProgress] = useState(0);
             const [abilityTestOverload, setAbilityTestOverload] = useState(0);
+            const [abilityTestRapidCount, setAbilityTestRapidCount] = useState(0);
+            const [abilityTestPredictionTarget, setAbilityTestPredictionTarget] = useState(0);
+            const [abilityTestTimingTarget, setAbilityTestTimingTarget] = useState({ left: 42, width: 16 });
             const abilityTestOverloadRef = useRef(null);
             const abilityTestOverloadPointerRef = useRef(null);
             const abilityTestOverloadValueRef = useRef(0);
-            const abilityTestSequenceRef = useRef(null);
             const abilityTestTimingStartRef = useRef(0);
+            const abilityTestRapidTimerRef = useRef(null);
+            const combatAbilityPendingRef = useRef(null);
+            const [combatAbilityLock, setCombatAbilityLock] = useState(null);
+
+            const ACTIVE_ABILITY_DATA = {
+                Agil1: {
+                    name:'Evasivo', ability:'Vector Fantasma', game:'timing',
+                    trigger:'Defensa: una cara A que reduzca el daño final a 0 o 1.',
+                    effect:'Perfecto: +2 daño en el próximo ataque. Parcial: +1.',
+                    risk:'La oportunidad se consume al iniciar la prueba.'
+                },
+                Agil2: {
+                    name:'Móvil', ability:'Impulso Cinético', game:'timing',
+                    trigger:'Defensa: esquiva completa con una cara A.',
+                    effect:'Perfecto: +1 daño y conserva la iniciativa tras el próximo ataque. Parcial: +1 daño.',
+                    risk:'El efecto de iniciativa solo ocurre si el próximo ataque acierta.'
+                },
+                Normal1: {
+                    name:'Técnico', ability:'Reescritura de Parámetros', game:'sequence',
+                    trigger:'Ataque: sacar exactamente la cara D más alta.',
+                    effect:'Perfecto: elegir +2 ataque o -2 daño recibido. Parcial: +1 ataque.',
+                    risk:'Una mala secuencia consume la oportunidad.'
+                },
+                Normal2: {
+                    name:'Versátil', ability:'Cambio de Protocolo', game:'sequence',
+                    trigger:'Conseguir una transición D→A o A→D entre dos lanzamientos consecutivos.',
+                    effect:'Perfecto: intercambia D y A durante el siguiente ataque. Parcial: +1 ataque.',
+                    risk:'El intercambio dura un solo ataque.'
+                },
+                Resistente1: {
+                    name:'Berserker', ability:'Sobrecarga', game:'overload',
+                    trigger:'Ataque: HP al 50% o menos y cara D acertada.',
+                    effect:'Perfecto: +3 daño al próximo ataque y +2 daño recibido en el siguiente impacto. Parcial: +1.',
+                    risk:'La recompensa perfecta aumenta el daño que recibirá el núcleo.'
+                },
+                Resistente2: {
+                    name:'Muralla', ability:'Anclaje', game:'timing',
+                    trigger:'Defensa: el impacto debe causar al menos 1 daño.',
+                    effect:'Perfecto: -3 daño en el próximo impacto recibido. Parcial: -1.',
+                    risk:'El blindaje extra se consume en un solo impacto.'
+                },
+                Dano1: {
+                    name:'Destructor', ability:'Ruptura', game:'rapid',
+                    trigger:'Ataque: el impacto debe quitar al menos 1 HP.',
+                    effect:'Perfecto: el próximo ataque ignora hasta 2 puntos de reducción defensiva. Parcial: +1 daño.',
+                    risk:'Ruptura no aumenta por sí sola el daño permanente de Enfurecimiento.'
+                },
+                Dano2: {
+                    name:'Duelista', ability:'Réplica', game:'prediction',
+                    trigger:'Defensa: reducir el impacto a 0 o 1 daño.',
+                    effect:'Perfecto: los siguientes ataques de Contraataque reciben +2 daño. Parcial: +1.',
+                    risk:'La mejora solo afecta la secuencia de Contraataque.'
+                }
+            };
+            const abilityTestCurrent = ACTIVE_ABILITY_DATA[abilityTestMit] || ACTIVE_ABILITY_DATA.Agil1;
+
+            const localCombatPlayer = () => gameMode === 'ONLINE' ? (isRoomHost ? 1 : 2) : 1;
+
+            const getFaceTypeForAbility = (mit, roll, actionType) => {
+                const value = Number(roll);
+                if (actionType === 'ATTACK' && mit?.attackNums?.includes(value)) return 'D';
+                if (actionType === 'DEFENSE' && mit?.evadeNums?.includes(value)) return 'A';
+                if (mit?.attackNums?.includes(value)) return 'D';
+                if (mit?.evadeNums?.includes(value)) return 'A';
+                return null;
+            };
+
+            const resetAbilityOverlay = () => {
+                if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current);
+                abilityTestOverloadRef.current = null;
+                abilityTestOverloadPointerRef.current = null;
+                if (abilityTestRapidTimerRef.current !== null) {
+                    clearTimeout(abilityTestRapidTimerRef.current);
+                    abilityTestRapidTimerRef.current = null;
+                }
+                setAbilityTestMinigame(null);
+                setAbilityTestReady(false);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                setAbilityTestSequence([]);
+                setAbilityTestSequenceProgress(0);
+                setAbilityTestOverload(0);
+                setAbilityTestRapidCount(0);
+                setAbilityTestPredictionTarget(0);
+                setAbilityTestRoll(null);
+                setAbilityTestRollType('');
+            };
+
+            const applyCombatAbilityResult = (result, choice = null) => {
+                const pending = combatAbilityPendingRef.current;
+                if (!pending) return;
+                const { playerNum, index, abilityId } = pending;
+                const lists = { p1: p1MitsRef.current, p2: p2MitsRef.current };
+                const list = playerNum === 1 ? lists.p1 : lists.p2;
+                const mit = list?.[index];
+                if (!mit) return;
+                const state = window.MITSGameRules.normalizePassiveState(mit);
+                if (state.activeAbilityOpportunity !== abilityId) {
+                    combatAbilityPendingRef.current = null;
+                    setCombatAbilityLock(null);
+                    setShowCombatTest(false);
+                    return;
+                }
+
+                const next = { ...state, activeAbilityOpportunity: null };
+                const messages = [];
+                if (result === 'perfecto') {
+                    if (abilityId === 'Agil1') next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 2);
+                    if (abilityId === 'Agil2') { next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 1); next.activeAbilityExtraTurn = true; }
+                    if (abilityId === 'Normal1') {
+                        if (choice === 'attack') next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 2);
+                        else next.activeAbilityDefenseReduction = Math.min(5, next.activeAbilityDefenseReduction + 2);
+                    }
+                    if (abilityId === 'Normal2') next.activeAbilitySwap = 1;
+                    if (abilityId === 'Resistente1') { next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 3); next.activeAbilityExposure = Math.min(5, next.activeAbilityExposure + 2); }
+                    if (abilityId === 'Resistente2') next.activeAbilityDefenseReduction = Math.min(5, next.activeAbilityDefenseReduction + 3);
+                    if (abilityId === 'Dano1') next.activeAbilityDefensePierce = Math.min(5, next.activeAbilityDefensePierce + 2);
+                    if (abilityId === 'Dano2') next.activeAbilityCounterBoost = Math.min(5, next.activeAbilityCounterBoost + 2);
+                    messages.push(choice === 'defense' ? 'Réplica de parámetros defensivos cargada.' : 'Habilidad ejecutada con precisión perfecta.');
+                } else if (result === 'parcial') {
+                    if (abilityId === 'Agil1' || abilityId === 'Agil2' || abilityId === 'Normal1' || abilityId === 'Normal2' || abilityId === 'Resistente1' || abilityId === 'Dano1') next.activeAbilityAttackBonus = Math.min(10, next.activeAbilityAttackBonus + 1);
+                    if (abilityId === 'Resistente2') next.activeAbilityDefenseReduction = Math.min(5, next.activeAbilityDefenseReduction + 1);
+                    if (abilityId === 'Dano2') next.activeAbilityCounterBoost = Math.min(5, next.activeAbilityCounterBoost + 1);
+                    messages.push('Ejecución parcial: efecto reducido cargado.');
+                } else {
+                    messages.push(result === 'cancelled' ? 'Habilidad omitida. La oportunidad se consumió.' : 'Prueba fallida: la oportunidad se perdió.');
+                }
+
+                const updatedMit = { ...mit, passiveState: next };
+                const updatedP1 = playerNum === 1 ? lists.p1.map((item,i)=>i===index?updatedMit:item) : lists.p1;
+                const updatedP2 = playerNum === 2 ? lists.p2.map((item,i)=>i===index?updatedMit:item) : lists.p2;
+                p1MitsRef.current = updatedP1;
+                p2MitsRef.current = updatedP2;
+                setP1Mits(updatedP1);
+                setP2Mits(updatedP2);
+                messages.forEach(message => publishFloatingEffect({ player: playerNum, text: message, type: result === 'fallo' ? 'miss' : 'hit' }));
+
+                const resume = pending.resume;
+                combatAbilityPendingRef.current = null;
+                setCombatAbilityLock(null);
+                setShowCombatTest(false);
+                setAbilityTestMinigame(null);
+                setAbilityTestReady(false);
+                setAbilityTestResult(result);
+                if (gameMode === 'ONLINE') {
+                    syncOnline({ p1Mits: updatedP1, p2Mits: updatedP2, combatAbilityLock: null });
+                }
+                if (typeof resume === 'function') {
+                    scheduleGameTimeout(() => resume(updatedP1, updatedP2), 120);
+                }
+            };
+
+            const completeCombatAbility = (result, choice = null) => {
+                if (result === 'perfecto' && abilityTestMit === 'Normal1' && !choice) {
+                    setAbilityTestResult('perfecto');
+                    setAbilityTestMinigame(null);
+                    setAbilityTestChoice('pending');
+                    setAbilityTestMessage('Calibración perfecta. Elige qué parámetro reescribir.');
+                    return;
+                }
+                applyCombatAbilityResult(result, choice);
+            };
+
+            const openCombatAbility = ({ playerNum, index, abilityId, roll = null, rollType = '', resume }) => {
+                const lists = playerNum === 1 ? p1MitsRef.current : p2MitsRef.current;
+                const mit = lists?.[index];
+                if (!mit || !abilityId) return false;
+                const normalized = window.MITSGameRules.normalizePassiveState(mit);
+                if (normalized.activeAbilityOpportunity) return false;
+
+                const updatedMit = { ...mit, passiveState: { ...normalized, activeAbilityOpportunity: abilityId } };
+                const updatedList = lists.map((item,i)=>i===index?updatedMit:item);
+                if (playerNum === 1) p1MitsRef.current = updatedList; else p2MitsRef.current = updatedList;
+                if (playerNum === 1) setP1Mits(updatedList); else setP2Mits(updatedList);
+                if (gameMode === 'ONLINE') {
+                    const patch = playerNum === 1 ? { p1Mits: updatedList } : { p2Mits: updatedList };
+                    syncOnline({ ...patch, combatAbilityLock: { playerNum, abilityId } });
+                }
+                combatAbilityPendingRef.current = { playerNum, index, abilityId, resume };
+                setCombatAbilityLock({ playerNum, abilityId });
+                setAbilityTestMit(mit.classData.id);
+                setAbilityTestRoll(roll);
+                setAbilityTestRollType(rollType);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                setAbilityTestReady(true);
+                setAbilityTestMessage('OPORTUNIDAD OBTENIDA · decide si gastar el intento.');
+                setShowCombatTest(playerNum === localCombatPlayer());
+                playSound('click');
+
+                if (gameMode === 'AI' && playerNum === 2) {
+                    scheduleGameTimeout(() => completeCombatAbility('parcial'), 650);
+                }
+                return true;
+            };
+
+            const cancelCombatAbility = () => {
+                if (!combatAbilityPendingRef.current) return;
+                completeCombatAbility('cancelled');
+            };
+
+            const startAbilityTest = () => {
+                if (!abilityTestReady || abilityTestMinigame) return;
+                setAbilityTestReady(false);
+                setAbilityTestResult(null);
+                setAbilityTestChoice(null);
+                const data = abilityTestCurrent;
+                if (data.game === 'timing') {
+                    const target = data.name === 'Muralla'
+                        ? { left: 38, width: 24 }
+                        : data.name === 'Móvil'
+                            ? { left: 46, width: 9 }
+                            : { left: 42, width: 16 };
+                    setAbilityTestTimingTarget(target);
+                    abilityTestTimingStartRef.current = performance.now();
+                    setAbilityTestMinigame('timing');
+                    setAbilityTestMessage('SINCRONIZACIÓN · detén el cursor dentro de la zona.');
+                } else if (data.game === 'sequence') {
+                    const length = data.name === 'Versátil' ? 4 : 3;
+                    const seq = Array.from({length},()=>Math.floor(Math.random()*3));
+                    setAbilityTestSequence(seq);
+                    setAbilityTestSequenceProgress(0);
+                    setAbilityTestMinigame('sequence');
+                    setAbilityTestMessage('CALIBRACIÓN · repite la secuencia mostrada.');
+                } else if (data.game === 'overload') {
+                    setAbilityTestOverload(0);
+                    abilityTestOverloadValueRef.current = 0;
+                    setAbilityTestMinigame('overload');
+                    setAbilityTestMessage('SOBRECARGA · mantén pulsado y suelta en la zona óptima.');
+                } else if (data.game === 'rapid') {
+                    setAbilityTestRapidCount(0);
+                    setAbilityTestMinigame('rapid');
+                    setAbilityTestMessage('RUPTURA · pulsa rápidamente hasta llenar el umbral.');
+                    abilityTestRapidTimerRef.current = setTimeout(() => finishAbilityRapid(), 1200);
+                } else {
+                    const target = Math.floor(Math.random()*3);
+                    setAbilityTestPredictionTarget(target);
+                    setAbilityTestMinigame('prediction');
+                    setAbilityTestMessage('LECTURA · anticipa el canal correcto.');
+                }
+                playSound('click');
+            };
+
+            const finishAbilityTiming = () => {
+                if (abilityTestMinigame !== 'timing') return;
+                const elapsed = ((performance.now() - abilityTestTimingStartRef.current) % 1800) / 1800;
+                const phase = elapsed <= 0.5 ? elapsed : 1 - elapsed;
+                const center = 0.5;
+                const distance = Math.abs(phase - center);
+                const tolerance = abilityTestCurrent.name === 'Muralla' ? 0.16 : abilityTestCurrent.name === 'Móvil' ? 0.055 : 0.09;
+                const result = distance < tolerance ? 'perfecto' : distance < tolerance + 0.11 ? 'parcial' : 'fallo';
+                setAbilityTestResult(result);
+                setAbilityTestMinigame(null);
+                if (result === 'perfecto' && abilityTestCurrent.name === 'Técnico') {
+                    setAbilityTestMessage('SINCRONIZACIÓN PERFECTA.');
+                } else {
+                    setAbilityTestMessage(result === 'perfecto' ? 'SINCRONIZACIÓN PERFECTA.' : result === 'parcial' ? 'SINCRONIZACIÓN PARCIAL.' : 'DESFASE · la oportunidad se perdió.');
+                }
+                completeCombatAbility(result);
+            };
+
+            const pressAbilitySequenceNode = (index) => {
+                if (abilityTestMinigame !== 'sequence') return;
+                const expected = abilityTestSequence[abilityTestSequenceProgress];
+                if (index !== expected) {
+                    setAbilityTestResult('fallo');
+                    setAbilityTestMinigame(null);
+                    completeCombatAbility('fallo');
+                    return;
+                }
+                const next = abilityTestSequenceProgress + 1;
+                if (next >= abilityTestSequence.length) {
+                    setAbilityTestResult('perfecto');
+                    setAbilityTestMinigame(null);
+                    completeCombatAbility('perfecto');
+                } else {
+                    setAbilityTestSequenceProgress(next);
+                }
+            };
+
+            const startAbilityOverload = (event) => {
+                if (abilityTestMinigame !== 'overload' || abilityTestOverloadPointerRef.current !== null) return;
+                if (event?.pointerId !== undefined) abilityTestOverloadPointerRef.current = event.pointerId;
+                if (event?.currentTarget?.setPointerCapture && event.pointerId !== undefined) {
+                    try { event.currentTarget.setPointerCapture(event.pointerId); } catch (_) {}
+                }
+                const started = performance.now();
+                const tick = now => {
+                    const value = Math.min(100, ((now-started)/1800)*100);
+                    abilityTestOverloadValueRef.current = value;
+                    setAbilityTestOverload(value);
+                    if (value < 100 && abilityTestMinigame === 'overload') abilityTestOverloadRef.current = requestAnimationFrame(tick);
+                    else abilityTestOverloadRef.current = null;
+                };
+                abilityTestOverloadRef.current = requestAnimationFrame(tick);
+            };
+
+            const finishAbilityOverload = event => {
+                if (event?.pointerId !== undefined && abilityTestOverloadPointerRef.current !== null && event.pointerId !== abilityTestOverloadPointerRef.current) return;
+                if (abilityTestOverloadRef.current !== null) cancelAnimationFrame(abilityTestOverloadRef.current);
+                abilityTestOverloadRef.current = null;
+                abilityTestOverloadPointerRef.current = null;
+                const value = abilityTestOverloadValueRef.current;
+                const result = value >= 48 && value <= 68 ? 'perfecto' : value >= 35 && value <= 82 ? 'parcial' : 'fallo';
+                setAbilityTestResult(result);
+                setAbilityTestMinigame(null);
+                completeCombatAbility(result);
+            };
+
+            const finishAbilityRapid = () => {
+                if (abilityTestMinigame !== 'rapid') return;
+                if (abilityTestRapidTimerRef.current !== null) {
+                    clearTimeout(abilityTestRapidTimerRef.current);
+                    abilityTestRapidTimerRef.current = null;
+                }
+                const count = abilityTestRapidCount;
+                const result = count >= 8 ? 'perfecto' : count >= 5 ? 'parcial' : 'fallo';
+                setAbilityTestMinigame(null);
+                setAbilityTestResult(result);
+                completeCombatAbility(result);
+            };
+
+            const pressAbilityRapid = () => {
+                if (abilityTestMinigame !== 'rapid') return;
+                setAbilityTestRapidCount(count => {
+                    const next = count + 1;
+                    if (next >= 8) {
+                        if (abilityTestRapidTimerRef.current !== null) clearTimeout(abilityTestRapidTimerRef.current);
+                        abilityTestRapidTimerRef.current = null;
+                        setAbilityTestMinigame(null);
+                        setAbilityTestResult('perfecto');
+                        completeCombatAbility('perfecto');
+                    }
+                    return next;
+                });
+            };
+
+            const chooseAbilityPrediction = index => {
+                if (abilityTestMinigame !== 'prediction') return;
+                const result = index === abilityTestPredictionTarget ? 'perfecto' : Math.random() < 0.5 ? 'parcial' : 'fallo';
+                setAbilityTestMinigame(null);
+                setAbilityTestResult(result);
+                completeCombatAbility(result);
+            };
             const [testPlayerPos, setTestPlayerPos] = useState({ x: 50, y: 52 });
             const [testPlayerFacing, setTestPlayerFacing] = useState(0);
             const [testIsMoving, setTestIsMoving] = useState(false);
