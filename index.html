@@ -3327,20 +3327,39 @@
                             type: 'attack_hit',
                             text: `🎯 ${getPlayerDisplayName(currentTurnPlayer)} (${currentAttacker.name}) sacó [${passiveAttack.roll}] → ¡Ataque exitoso! El rival debe defender.`
                         }];
-                        setAttackResult(atkData);
-                        setCombatPhase('DEFENSE_ROLL');
-                        setIsTurnProcessing(false);
-                        setCombatLog(newLog);
-                        if (gameMode === 'ONLINE') syncOnline({ currentRollValue: passiveAttack.roll, attackResult: atkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog });
-                        publishFloatingEffect({
-                            player: currentTurnPlayer,
-                            text: '¡ACERTÓ!',
-                            type: 'hit'
-                        });
-
-                        if (gameMode === 'AI' && currentTurnPlayer === 1) {
-                            scheduleGameTimeout(() => triggerAiDefense(atkData), 800);
+                        const resumeAttack = () => {
+                            const latestLists = currentTurnPlayer === 1 ? p1MitsRef.current : p2MitsRef.current;
+                            const latestAttacker = latestLists[currentTurnActiveIndex] || attackerAtTurnStart;
+                            const latestAtkData = {
+                                success: true,
+                                damage: passiveAttack.damage,
+                                roll: passiveAttack.roll,
+                                unstoppable: passiveAttack.unstoppable,
+                                attackerPassiveState: latestAttacker.passiveState,
+                                counterChain: currentAttacker.passiveState?.counterSequence?.phase === 'SECOND'
+                            };
+                            setAttackResult(latestAtkData);
+                            setCombatPhase('DEFENSE_ROLL');
+                            setIsTurnProcessing(false);
+                            setCombatLog(newLog);
+                            if (gameMode === 'ONLINE') syncOnline({ currentRollValue: passiveAttack.roll, attackResult: latestAtkData, combatPhase: 'DEFENSE_ROLL', combatLog: newLog, combatAbilityLock: null });
+                            publishFloatingEffect({ player: currentTurnPlayer, text: '¡ACERTÓ!', type: 'hit' });
+                            if (gameMode === 'AI' && currentTurnPlayer === 1) {
+                                scheduleGameTimeout(() => triggerAiDefense(latestAtkData), 800);
+                            }
+                        };
+                        if (attackAbilityId) {
+                            openCombatAbility({
+                                playerNum: currentTurnPlayer,
+                                index: currentTurnActiveIndex,
+                                abilityId: attackAbilityId,
+                                roll: passiveAttack.roll,
+                                rollType: 'ATACAR',
+                                resume: resumeAttack
+                            });
+                            return;
                         }
+                        resumeAttack();
                     } else {
                         // Attack Failed -> Switch Turn Directly
                         playSound('fail');
