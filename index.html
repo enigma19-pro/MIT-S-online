@@ -2059,7 +2059,8 @@
                                 isPublic: roomVisibility === 'public', createdAt, expiresAt,
                                 p1Mits: [], p2Mits: [], activeP1Index: 0, activeP2Index: 0,
                                 currentTurnPlayer: 1, combatPhase: 'ATTACK_ROLL', currentRollValue: 1,
-                                attackResult: null, combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
+                                attackResult: null, combatAbilityLock: null,
+                                combatLog: [{ type: 'system', text: '⏳ Sala creada. Esperando al Jugador 2...' }],
                                 winner: null
                             };
                         });
@@ -2832,6 +2833,13 @@
                     setCurrentTurnPlayer(normalizedTurnPlayer);
                     currentTurnPlayerRef.current = normalizedTurnPlayer;
                     setCombatPhase(normalizedCombatPhase);
+                    const normalizedCombatAbilityLock = room.combatAbilityLock &&
+                        typeof room.combatAbilityLock === 'object' &&
+                        (room.combatAbilityLock.playerNum === 1 || room.combatAbilityLock.playerNum === 2) &&
+                        typeof room.combatAbilityLock.abilityId === 'string'
+                        ? { playerNum: room.combatAbilityLock.playerNum, abilityId: room.combatAbilityLock.abilityId }
+                        : null;
+                    setCombatAbilityLock(normalizedCombatAbilityLock);
 
                     if (!isRollingRef.current) {
                         const syncedRoll = Number(room.currentRollValue);
